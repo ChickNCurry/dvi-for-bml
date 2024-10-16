@@ -10,35 +10,57 @@ class ScoreFunction(nn.Module):
         num_layers: int,
         non_linearity: str,
         num_steps: int,
-        c_dim: int | None,
+        c_dim: int,
     ) -> None:
         super(ScoreFunction, self).__init__()
 
-        self.time_embedding = nn.Embedding(num_steps + 1, z_dim)
-        # so we can embedd 1 till T
+        self.proj_t = nn.Embedding(num_steps + 1, h_dim)
+        self.proj_z = nn.Linear(z_dim, h_dim)
+        self.proj_c = nn.Linear(c_dim, h_dim)
 
-        self.score_mlp = nn.Sequential(
-            nn.Linear(z_dim if c_dim is None else z_dim + c_dim, h_dim),
-            *[
-                layer
-                for layer in (
-                    getattr(nn, non_linearity)(),
-                    nn.Linear(h_dim, h_dim),
-                )
-                for _ in range(num_layers - 1)
-            ],
-            nn.Linear(h_dim, z_dim),
-        )
+        self.blocks = nn.ModuleList([ResidualBlock(h_dim) for _ in range(num_layers)])
 
-    def forward(self, z: Tensor, t: int, c: Tensor | None) -> Tensor:
+        self.proj_score = nn.Linear(h_dim, z_dim)
 
-        time = self.time_embedding(torch.tensor([t], device=z.device))
-        # (batch_size, z_dim)
+    def forward(self, z: Tensor, t: int, c: Tensor) -> Tensor:
 
-        z = z + time
+        z = self.proj_z(z)
+        t = self.proj_t(torch.tensor([t], device=z.device))
+        c = self.proj_c(c)
 
-        score = z if c is None else torch.cat([z, c], dim=1)
-        score = self.score_mlp(score)
-        # (batch_size, z_dim)
+        for block in self.blocks:
+            score: Tensor = block(z, t, c)
+
+        score = self.proj_score(score)
 
         return score
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, h_dim: int) -> None:
+        super(ResidualBlock, self).__init__()
+
+        self.mlp_t = nn.Linear(h_dim, 2 * h_dim)
+
+        self.mlp_z = nn.Sequential(
+            nn.LayerNorm(h_dim),
+            nn.SiLU(),
+            nn.Linear(h_dim, 2 * h_dim),
+        )
+
+        self.mlp_c = nn.Sequential(
+            nn.LayerNorm(h_dim),
+            nn.SiLU(),
+            nn.Linear(h_dim, 2 * h_dim),
+        )
+
+        self.mlp_out = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(2 * h_dim, h_dim),
+            nn.SiLU(),
+        )
+
+    def forward(self, z: Tensor, t: Tensor, c: Tensor) -> Tensor:
+        out: Tensor = self.mlp_out(self.mlp_z(z) + self.mlp_t(t) + self.mlp_c(c)) + z
+
+        return out

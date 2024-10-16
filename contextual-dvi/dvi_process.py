@@ -103,16 +103,16 @@ class DIS(DiffusionVIProcess):
             score_function=score_function,
         )
 
-        # self.betas = nn.ParameterList(
-        #     [
-        #         nn.Parameter(torch.tensor([t]))
-        #         for t in torch.linspace(0.001, 10, num_steps).tolist()
-        #     ]
-        # )
-
         self.betas = nn.ParameterList(
-            [nn.Parameter(torch.tensor([1.0])) for _ in range(num_steps)]
+            [
+                nn.Parameter(torch.tensor([t]))
+                for t in torch.linspace(0.01, 10, num_steps).tolist()
+            ]
         )
+
+        # self.betas = nn.ParameterList(
+        #     [nn.Parameter(torch.tensor([1.0])) for _ in range(num_steps)]
+        # )
 
         self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim))])
 

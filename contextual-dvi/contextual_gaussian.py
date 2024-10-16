@@ -17,8 +17,8 @@ class ContextualGaussianDataset(Dataset[Tensor]):
     def __init__(self, size: int) -> None:
         super(ContextualGaussianDataset, self).__init__()
 
-        # self.contexts = np.arange(0, 2 * math.pi, 2 * math.pi / size)
-        self.contexts = np.ones(size) * math.pi / 2
+        self.contexts = np.arange(0, 2 * math.pi, 2 * math.pi / size)
+        # self.contexts = np.ones(size) * math.pi / 2
 
     def __len__(self) -> int:
         return len(self.contexts)
