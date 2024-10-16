@@ -1,18 +1,10 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import List, Tuple
 
 import torch
 from score_function import ScoreFunction
 from torch import Tensor, nn
-
-
-@dataclass
-class zTuple:
-    def __init__(self, z: Tensor, z_mu: Tensor, z_sigma: Tensor) -> None:
-        self.z = z
-        self.z_mu = z_mu
-        self.z_sigma = z_sigma
+from torch.distributions import Distribution, Normal
 
 
 class DiffusionVIProcess(nn.Module, ABC):
@@ -29,85 +21,73 @@ class DiffusionVIProcess(nn.Module, ABC):
         self.z_dim = z_dim
         self.num_steps = num_steps
         self.score_function = score_function
-        self.delta_t = torch.tensor(1 / num_steps)
+        self.delta_t = torch.tensor(1.0 / num_steps)
+
+    # def reparametrize(self, z_mu: Tensor, z_sigma: Tensor) -> Tensor:
+    #     # (batch_size, z_dim), (batch_size, z_dim)
+
+    #     eps = torch.randn_like(z_mu)
+    #     # (batch_size, z_dim)
+
+    #     z = z_mu + eps * z_sigma
+    #     # (batch_size, z_dim)
+
+    #     return z
 
     @abstractmethod
-    def forward_z_mu_and_z_sigma(
-        self, z_prev: Tensor, t: int, h: Tensor
-    ) -> Tuple[Tensor, Tensor]:
+    def forward_p_z(self, z_prev: Tensor, t: int, c: Tensor | None) -> Distribution:
         pass
 
     @abstractmethod
-    def backward_z_mu_and_z_sigma(
-        self, z_next: Tensor, t: int
-    ) -> Tuple[Tensor, Tensor]:
+    def backward_p_z(self, z_next: Tensor, t: int) -> Distribution:
         pass
 
-    def reparameterize(self, z_mu: Tensor, z_sigma: Tensor) -> Tensor:
-        # (batch_size, z_dim)
-
-        eps = torch.randn_like(z_sigma)
-        z = z_mu + z_sigma * eps
-        # (batch_size, z_dim)
-
-        return z
-
-    def forward_process(
+    def forward_chain(
         self,
-        z_0_tuple: zTuple,
-        context: Tensor,
-        z_samples: List[Tensor] | None,
-    ) -> List[zTuple]:
+        p_z_0: Distribution,
+        context: Tensor | None,
+    ) -> Tuple[List[Distribution], List[Tensor]]:
 
-        z_tuples = [z_0_tuple]
+        p_z_list = [p_z_0]
+        z_list = [p_z_0.sample()]
 
-        if z_samples is not None:
-            assert len(z_samples) == self.num_steps + 1
+        for i in range(0, self.num_steps):
 
-        for t in range(0, self.num_steps):
+            t = i + 1
 
-            z_prev = z_tuples[-1].z if z_samples is None else z_samples[t]
+            p_z = self.forward_p_z(z_list[i], t, context)
+            z = p_z.rsample()
 
-            z_mu, z_sigma = self.forward_z_mu_and_z_sigma(z_prev, t, context)
-            z = (
-                self.reparameterize(z_mu, z_sigma)
-                if z_samples is None
-                else z_samples[t + 1]
-            )
+            p_z_list.append(p_z)
+            z_list.append(z)
 
-            z_tuples.append(zTuple(z, z_mu, z_sigma))
+        assert len(p_z_list) == len(z_list) == self.num_steps + 1
 
-        assert len(z_tuples) == self.num_steps + 1
+        return p_z_list, z_list
 
-        return z_tuples
-
-    def backward_process(
+    def backward_chain(
         self,
-        z_T_tuple: zTuple,
-        z_samples: List[Tensor] | None,
-    ) -> List[zTuple]:
+        p_z_T: Distribution,
+        z_samples: List[Tensor],
+    ) -> List[Distribution]:
 
-        z_tuples = [z_T_tuple]
+        assert len(z_samples) == self.num_steps + 1
 
-        if z_samples is not None:
-            assert len(z_samples) == self.num_steps + 1
+        p_z_list = [p_z_T]
 
-        for t in range(self.num_steps - 1, -1, -1):
+        for i in range(self.num_steps, 0, -1):
 
-            z_next = z_tuples[-1].z if z_samples is None else z_samples[t + 1]
+            t = i - 1
 
-            z_mu, z_sigma = self.backward_z_mu_and_z_sigma(z_next, t - 1)
-            z = (
-                self.reparameterize(z_mu, z_sigma)
-                if z_samples is None
-                else z_samples[t]
-            )
+            p_z = self.backward_p_z(z_samples[i], t)
 
-            z_tuples.append(zTuple(z, z_mu, z_sigma))
+            p_z_list.append(p_z)
 
-        assert len(z_tuples) == self.num_steps + 1
+        assert len(p_z_list) == self.num_steps + 1
 
-        return z_tuples
+        p_z_list.reverse()
+
+        return p_z_list
 
 
 class DIS(DiffusionVIProcess):
@@ -133,39 +113,36 @@ class DIS(DiffusionVIProcess):
         self.betas = nn.ParameterList(
             [nn.Parameter(torch.tensor([1.0])) for _ in range(num_steps)]
         )
+
         self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim))])
 
-    def forward_z_mu_and_z_sigma(
-        self, z_prev: Tensor, t: int, c: Tensor
-    ) -> Tuple[Tensor, Tensor]:
-        # (batch_size, z_dim), (1)
+    def forward_p_z(self, z_prev: Tensor, t: int, c: Tensor | None) -> Distribution:
+        # (batch_size, z_dim), (1), (batch_size, c_dim)
 
         beta_t = self.betas[t - 1]
         # (1)
 
         score = self.score_function(z_prev, t, c)
         z_mu = z_prev + (beta_t * z_prev + score) * self.delta_t
-        # (batch_size, z_dim)
-
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigmas[0]
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
         # (batch_size, z_dim)
 
-        return z_mu, z_sigma
+        p_z = Normal(z_mu, z_sigma)  # type: ignore
 
-    def backward_z_mu_and_z_sigma(
-        self, z_next: Tensor, t: int
-    ) -> Tuple[Tensor, Tensor]:
+        return p_z
+
+    def backward_p_z(self, z_next: Tensor, t: int) -> Distribution:
         # (batch_size, z_dim), (1)
 
         beta_t = self.betas[t - 1]
         # (1)
 
         z_mu = (z_next - beta_t * z_next) * self.delta_t
-        # (batch_size, z_dim)
-
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigmas[0]
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
         # (batch_size, z_dim)
 
-        return z_mu, z_sigma
+        p_z = Normal(z_mu, z_sigma)  # type: ignore
+
+        return p_z
