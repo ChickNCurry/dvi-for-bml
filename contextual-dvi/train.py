@@ -2,7 +2,7 @@ from typing import List
 
 import torch
 import wandb
-from contextual_gaussian import contextual_gaussian
+from contextual_gaussian import contextual_gaussian_sine, ContextualGMM
 from dvi_process import DiffusionVIProcess
 from torch import Tensor
 from torch.distributions import Normal
@@ -72,7 +72,7 @@ def step(
         torch.ones((batch.shape[0], dvi_process.z_dim), device=device),
     )
 
-    p_z_T = contextual_gaussian(batch)
+    p_z_T = ContextualGMM(batch)
 
     p_z_forward, z_samples = dvi_process.forward_chain(p_z_0, batch)
     p_z_backward = dvi_process.backward_chain(p_z_T, z_samples)

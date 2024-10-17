@@ -23,17 +23,6 @@ class DiffusionVIProcess(nn.Module, ABC):
         self.score_function = score_function
         self.delta_t = torch.tensor(1.0 / num_steps)
 
-    # def reparametrize(self, z_mu: Tensor, z_sigma: Tensor) -> Tensor:
-    #     # (batch_size, z_dim), (batch_size, z_dim)
-
-    #     eps = torch.randn_like(z_mu)
-    #     # (batch_size, z_dim)
-
-    #     z = z_mu + eps * z_sigma
-    #     # (batch_size, z_dim)
-
-    #     return z
-
     @abstractmethod
     def forward_p_z(self, z_prev: Tensor, t: int, c: Tensor | None) -> Distribution:
         pass
@@ -106,7 +95,7 @@ class DIS(DiffusionVIProcess):
         self.betas = nn.ParameterList(
             [
                 nn.Parameter(torch.tensor([t]))
-                for t in torch.linspace(0.01, 10, num_steps).tolist()
+                for t in torch.linspace(0.01, 1, num_steps).tolist()
             ]
         )
 
