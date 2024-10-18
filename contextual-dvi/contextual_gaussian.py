@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch import Size, Tensor
-from torch.distributions import Normal, Distribution
+from torch.distributions import Distribution, Normal
 from torch.utils.data import Dataset
 
 
@@ -9,7 +9,7 @@ class ContextualGaussian(Distribution):
     def __init__(self, context: Tensor) -> None:
         super(ContextualGaussian, self).__init__()
 
-        mu = 5 * torch.sin(context)
+        mu = context  # mu = 5 * torch.sin(context)
         sigma = torch.ones_like(context, device=context.device)
 
         self.gaussian = Normal(mu, sigma)  # type: ignore
@@ -67,7 +67,7 @@ class ContextDataset(Dataset[Tensor]):
         # self.contexts = np.ones(size) * math.pi / 2
 
         # self.contexts = np.arange(-5, 5, 10 / size)
-        self.contexts = np.zeros(size)
+        self.contexts = np.ones(size) * 5
 
     def __len__(self) -> int:
         return len(self.contexts)
