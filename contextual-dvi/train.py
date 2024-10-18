@@ -2,7 +2,7 @@ from typing import List
 
 import torch
 import wandb
-from contextual_gaussian import contextual_gaussian_sine, ContextualGMM
+from contextual_gaussian import ContextualGMM
 from dvi_process import DiffusionVIProcess
 from torch import Tensor
 from torch.distributions import Normal
@@ -52,11 +52,11 @@ def train(
                     wandb.log({"train/loss": loss.item()})
                     wandb.log({"hyperparams/delta_t": dvi_process.delta_t.item()})
 
-                    for i, sigma in enumerate(dvi_process.sigmas):
-                        wandb.log({"hyperparams/sigma_" + str(i): sigma.data.item()})
+                    # for i, sigma in enumerate(dvi_process.sigmas):
+                    #     wandb.log({"hyperparams/sigma_" + str(i): sigma.data.item()})
 
-                    for i, beta in enumerate(dvi_process.betas):
-                        wandb.log({"hyperparams/beta_" + str(i): beta.data.item()})
+                    # for i, beta in enumerate(dvi_process.betas):
+                    #     wandb.log({"hyperparams/beta_" + str(i): beta.data.item()})
 
     return losses
 
@@ -69,7 +69,8 @@ def step(
 
     p_z_0 = Normal(  # type: ignore
         torch.zeros((batch.shape[0], dvi_process.z_dim), device=device),
-        torch.ones((batch.shape[0], dvi_process.z_dim), device=device),
+        torch.ones((batch.shape[0], dvi_process.z_dim), device=device)
+        * dvi_process.sigma_schedule[0],
     )
 
     p_z_T = ContextualGMM(batch)
@@ -77,19 +78,25 @@ def step(
     p_z_forward, z_samples = dvi_process.forward_chain(p_z_0, batch)
     p_z_backward = dvi_process.backward_chain(p_z_T, z_samples)
 
-    forward_log_like = torch.stack(
-        [
-            p_z_forward[i].log_prob(z_samples[i]).mean(dim=0).sum()
-            for i in range(len(z_samples))
-        ]
-    ).sum()
+    forward_log_like = torch.sum(
+        torch.stack(
+            [
+                p_z_forward[i].log_prob(z_samples[i]).mean(dim=0).sum()
+                for i in range(len(z_samples))
+            ]
+        ),
+        dim=0,
+    )
 
-    backward_log_like = torch.stack(
-        [
-            p_z_backward[i].log_prob(z_samples[i]).mean(dim=0).sum()
-            for i in range(len(z_samples))
-        ]
-    ).sum()
+    backward_log_like = torch.sum(
+        torch.stack(
+            [
+                p_z_backward[i].log_prob(z_samples[i]).mean(dim=0).sum()
+                for i in range(len(z_samples))
+            ]
+        ),
+        dim=0,
+    )
 
     loss = -backward_log_like + forward_log_like
 

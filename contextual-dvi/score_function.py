@@ -61,8 +61,6 @@ class ResidualBlock(nn.Module):
         )
 
     def forward(self, z: Tensor, t: Tensor, c: Tensor) -> Tensor:
-        out: Tensor = (
-            self.mlp_out(self.mlp_z(z) + self.mlp_t(t) + self.mlp_c(c)) + z + c
-        )
+        out: Tensor = self.mlp_out(self.mlp_z(z) + self.mlp_t(t) + self.mlp_c(c)) + z
 
         return out
