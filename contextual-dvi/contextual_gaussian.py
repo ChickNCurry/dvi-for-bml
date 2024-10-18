@@ -29,8 +29,8 @@ class ContextualGMM(Distribution):
 
         std = torch.ones_like(context, device=context.device)
 
-        self.gaussian_a = Normal(2 + context, std)  # type: ignore
-        self.gaussian_b = Normal(-2 + context, std)  # type: ignore
+        self.gaussian_a = Normal(5 + context, std)  # type: ignore
+        self.gaussian_b = Normal(-5 + context, std)  # type: ignore
 
         self.weights = torch.tensor([0.5, 0.5])
 
@@ -67,7 +67,8 @@ class ContextDataset(Dataset[Tensor]):
         # self.contexts = np.ones(size) * math.pi / 2
 
         # self.contexts = np.arange(-5, 5, 10 / size)
-        self.contexts = np.ones(size) * 5
+        # self.contexts = np.ones(size) * 5
+        self.contexts = np.zeros(size)
 
     def __len__(self) -> int:
         return len(self.contexts)

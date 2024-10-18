@@ -72,7 +72,7 @@ def step(
         # * dvi_process.sigmas[0],
     )
 
-    p_z_T = ContextualGaussian(batch)
+    p_z_T = ContextualGMM(batch)  # ContextualGaussian(batch)
 
     log_w, _ = dvi_process.run_chain(p_z_0, p_z_T, batch)
 
