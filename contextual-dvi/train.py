@@ -1,11 +1,10 @@
-from typing import List
+from typing import Callable, List
 
 import torch
 import wandb
-from contextual_gaussian import ContextualGMM, ContextualGaussian
 from dvi_process import DiffusionVIProcess
 from torch import Tensor
-from torch.distributions import Normal
+from torch.distributions import Distribution, Normal
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -17,6 +16,7 @@ def train(
     dataloader: DataLoader[Tensor],
     optimizer: Optimizer,
     num_epochs: int,
+    target: Callable[[Tensor], Distribution],
     wandb_logging: bool = True,
 ) -> List[float]:
 
@@ -35,7 +35,7 @@ def train(
 
             for batch in loop:
 
-                loss = step(dvi_process, device, batch.to(device))
+                loss = step(dvi_process, device, batch.to(device), target)
 
                 optimizer.zero_grad()
                 loss.backward()  # type: ignore
@@ -64,6 +64,7 @@ def step(
     dvi_process: DiffusionVIProcess,
     device: torch.device,
     batch: Tensor,
+    target: Callable[[Tensor], Distribution],
 ) -> Tensor:
 
     p_z_0 = Normal(  # type: ignore
@@ -72,7 +73,7 @@ def step(
         # * dvi_process.sigmas[0],
     )
 
-    p_z_T = ContextualGMM(batch)  # ContextualGaussian(batch)
+    p_z_T = target(batch)
 
     log_w, _ = dvi_process.run_chain(p_z_0, p_z_T, batch)
 

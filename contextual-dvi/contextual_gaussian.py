@@ -9,8 +9,8 @@ class ContextualGaussian(Distribution):
     def __init__(self, context: Tensor) -> None:
         super(ContextualGaussian, self).__init__()
 
-        mu = context  # mu = 5 * torch.sin(context)
-        sigma = torch.ones_like(context, device=context.device)
+        mu = context
+        sigma = torch.ones_like(context, device=context.device) * 2
 
         self.gaussian = Normal(mu, sigma)  # type: ignore
 
@@ -32,13 +32,13 @@ class ContextualGMM(Distribution):
         self.gaussian_a = Normal(5 + context, std)  # type: ignore
         self.gaussian_b = Normal(-5 + context, std)  # type: ignore
 
-        self.weights = torch.tensor([0.5, 0.5])
+        self.weights = torch.tensor([0.7, 0.3])
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
         components = torch.multinomial(self.weights, self.batch_size, True)
 
-        samples_a = self.gaussian_a.sample()  # type: ignore
-        samples_b = self.gaussian_b.sample()  # type: ignore
+        samples_a = self.gaussian_a.sample(sample_shape)  # type: ignore
+        samples_b = self.gaussian_b.sample(sample_shape)  # type: ignore
 
         return torch.stack(
             [
@@ -48,7 +48,18 @@ class ContextualGMM(Distribution):
         )
 
     def log_prob(self, x: Tensor) -> Tensor:
-        return torch.sum(
+        # return torch.log(
+        #     torch.sum(
+        #         torch.stack(
+        #             [
+        #                 self.weights[0] * self.gaussian_a.log_prob(x).exp(),  # type: ignore
+        #                 self.weights[1] * self.gaussian_b.log_prob(x).exp(),  # type: ignore
+        #             ]
+        #         ),
+        #         dim=0,
+        #     )
+        # )
+        return torch.logsumexp(
             torch.stack(
                 [
                     torch.log(self.weights[0]) + self.gaussian_a.log_prob(x),  # type: ignore
@@ -63,11 +74,8 @@ class ContextDataset(Dataset[Tensor]):
     def __init__(self, size: int) -> None:
         super(ContextDataset, self).__init__()
 
-        # self.contexts = np.arange(0, 2 * math.pi, 2 * math.pi / size)
-        # self.contexts = np.ones(size) * math.pi / 2
+        # self.contexts = np.linspace(-5, 5, size)
 
-        # self.contexts = np.arange(-5, 5, 10 / size)
-        # self.contexts = np.ones(size) * 5
         self.contexts = np.zeros(size)
 
     def __len__(self) -> int:

@@ -18,7 +18,9 @@ class ScoreFunction(nn.Module):
         self.proj_z = nn.Linear(z_dim, h_dim)
         self.proj_c = nn.Linear(c_dim, h_dim)
 
-        self.blocks = nn.ModuleList([ResidualBlock(h_dim) for _ in range(num_layers)])
+        self.blocks = nn.ModuleList(
+            [ResidualBlock(h_dim, non_linearity) for _ in range(num_layers)]
+        )
 
         self.proj_score = nn.Linear(h_dim, z_dim)
 
@@ -37,27 +39,27 @@ class ScoreFunction(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, h_dim: int) -> None:
+    def __init__(self, h_dim: int, non_linearity: str) -> None:
         super(ResidualBlock, self).__init__()
 
         self.mlp_t = nn.Linear(h_dim, 2 * h_dim)
 
         self.mlp_z = nn.Sequential(
             nn.LayerNorm(h_dim),
-            nn.SiLU(),
+            getattr(nn, non_linearity)(),
             nn.Linear(h_dim, 2 * h_dim),
         )
 
         self.mlp_c = nn.Sequential(
             nn.LayerNorm(h_dim),
-            nn.SiLU(),
+            getattr(nn, non_linearity)(),
             nn.Linear(h_dim, 2 * h_dim),
         )
 
         self.mlp_out = nn.Sequential(
-            nn.SiLU(),
+            getattr(nn, non_linearity)(),
             nn.Linear(2 * h_dim, h_dim),
-            nn.SiLU(),
+            getattr(nn, non_linearity)(),
         )
 
     def forward(self, z: Tensor, t: Tensor, c: Tensor) -> Tensor:

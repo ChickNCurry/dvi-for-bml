@@ -14,7 +14,6 @@ class DiffusionVIProcess(nn.Module, ABC):
         self,
         z_dim: int,
         num_steps: int,
-        score_function: ScoreFunction,
     ) -> None:
         super(DiffusionVIProcess, self).__init__()
 
@@ -22,7 +21,6 @@ class DiffusionVIProcess(nn.Module, ABC):
 
         self.z_dim = z_dim
         self.num_steps = num_steps
-        self.score_function = score_function
 
         self.delta_t = 1.0 / num_steps
         self.sigmas: nn.ParameterList
@@ -78,19 +76,20 @@ class DiffusionVIProcess(nn.Module, ABC):
 class DIS(DiffusionVIProcess):
     def __init__(
         self,
-        device: torch.device,
         z_dim: int,
         num_steps: int,
         score_function: ScoreFunction,
+        device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
             z_dim=z_dim,
             num_steps=num_steps,
-            score_function=score_function,
         )
 
+        self.score_function = score_function
+
         self.beta_schedule = [
-            np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
+            3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
             for t in np.linspace(1, 0.01, num_steps)
         ]
 
