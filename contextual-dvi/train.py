@@ -8,6 +8,7 @@ from torch.distributions import Distribution, Normal
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import numpy as np
 
 
 def train(
@@ -72,6 +73,9 @@ def step(
         torch.ones((batch.shape[0], dvi_process.z_dim), device=device),
         # * dvi_process.sigmas[0],
     )
+
+    context_size: int = np.random.randint(1, batch.shape[1])
+    batch = batch[:, 0:context_size, :]
 
     p_z_T = target(batch)
 

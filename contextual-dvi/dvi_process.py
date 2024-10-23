@@ -23,7 +23,7 @@ class DiffusionVIProcess(nn.Module, ABC):
         self.num_steps = num_steps
 
         self.delta_t = 1.0 / num_steps
-        self.sigmas: nn.ParameterList
+        # self.sigmas: nn.ParameterList
 
     @abstractmethod
     def forward_kernel(self, z_prev: Tensor, t: int, c: Tensor) -> Distribution:
@@ -100,10 +100,10 @@ class DIS(DiffusionVIProcess):
             ]
         )
 
-        self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim, device=device))])
+        # self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim, device=device))])
 
     def forward_kernel(self, z_prev: Tensor, t: int, c: Tensor) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, c_dim)
+        # (batch_size, z_dim), (1), (batch_size, context_size, c_dim)
 
         beta_t = self.betas[t - 1]
         # (1)
@@ -112,6 +112,7 @@ class DIS(DiffusionVIProcess):
         # (batch_size, z_dim)
 
         z_mu = z_prev + (beta_t * z_prev + score) * self.delta_t
+        # (batch_size, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigmas[0]
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
@@ -126,6 +127,8 @@ class DIS(DiffusionVIProcess):
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t
+        # (batch_size, z_dim)
+
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigmas[0]
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
         # (batch_size, z_dim)

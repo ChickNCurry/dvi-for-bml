@@ -72,18 +72,19 @@ class ContextualGMM(Distribution):
 
 class ContextualLatentSpaceGMM(Distribution):
     def __init__(self, context: Tensor):
-        # (context_size, z_dim)
+        # (batch_size, context_size, z_dim)
 
         super(ContextualLatentSpaceGMM, self).__init__()
 
-        self.context_size = context.shape[0]
-        self.z_dim = context.shape[1]
+        self.batch_size = context.shape[0]
+        self.context_size = context.shape[1]
+        self.z_dim = context.shape[2]
 
-        self.mu = torch.mean(context, dim=0)
+        self.mu = torch.mean(context, dim=1)
         self.sigma = self.exp_decay(self.context_size, 1) * torch.ones_like(
             self.mu, device=self.mu.device
         )
-        # (z_dim)
+        # (batch_size, z_dim)
 
         self.gaussians = self.get_gaussians_list()
         self.weights = torch.tensor(self.get_weights_list())
@@ -96,7 +97,7 @@ class ContextualLatentSpaceGMM(Distribution):
             modified_mu = self.mu.clone()
 
             for dim in range(self.z_dim):
-                modified_mu[dim] = modified_mu[dim] * permutation[dim]
+                modified_mu[:, dim] = modified_mu[:, dim] * permutation[dim]
 
             modified_gaussian = Normal(modified_mu, self.sigma)  # type: ignore
 
@@ -119,15 +120,17 @@ class ContextualLatentSpaceGMM(Distribution):
         return val
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
-        components = torch.multinomial(self.weights, sample_shape[0], True)
+        components = torch.multinomial(self.weights, self.batch_size, True)
 
         samples = torch.stack(
-            [gaussian.sample(sample_shape) for gaussian in self.gaussians], dim=0  # type: ignore
+            [gaussian.sample() for gaussian in self.gaussians]  # type: ignore
         )
+        # (num_gaussians, batch_size, z_dim)
 
         return torch.stack(
-            [samples[components[i], i] for i in range(sample_shape[0])],
+            [samples[components[i], i, :] for i in range(self.batch_size)],
         )
+        # (batch_size, z_dim)
 
     def log_prob(self, x: Tensor) -> Tensor:
         return torch.logsumexp(
@@ -142,15 +145,17 @@ class ContextualLatentSpaceGMM(Distribution):
 
 
 class ContextDataset(Dataset[Tensor]):
-    def __init__(self, size: int) -> None:
+    def __init__(self, size: int, c_dim: int) -> None:
         super(ContextDataset, self).__init__()
 
         # self.contexts = np.linspace(-5, 5, size)
 
-        self.contexts = np.zeros(size)
+        self.size = size
+        self.max_context_size = 10
+        self.c_dim = c_dim
 
     def __len__(self) -> int:
-        return len(self.contexts)
+        return self.size
 
     def __getitem__(self, idx: int) -> Tensor:
-        return torch.tensor([self.contexts[idx]]).float()
+        return 3 * torch.rand((self.max_context_size, self.c_dim))
