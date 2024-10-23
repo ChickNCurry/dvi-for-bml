@@ -80,8 +80,8 @@ class ContextualLatentSpaceGMM(Distribution):
         self.z_dim = context.shape[1]
 
         self.mu = torch.mean(context, dim=0)
-        self.sigma = torch.ones_like(self.mu, device=self.mu.device) * (
-            1 / self.context_size
+        self.sigma = self.exp_decay(self.context_size, 1) * torch.ones_like(
+            self.mu, device=self.mu.device
         )
         # (z_dim)
 
@@ -105,27 +105,18 @@ class ContextualLatentSpaceGMM(Distribution):
         return gaussians_list
 
     def get_weights_list(self) -> List[float]:
-        weights_list = []
+        rest_weight = self.exp_decay(self.context_size, 0.75)
 
-        if self.context_size == 1:
+        main_weight = 1 - rest_weight
+        norm_rest_weight = rest_weight / (len(self.gaussians) - 1)
 
-            weights_list = [1 / len(self.gaussians)] * len(self.gaussians)
-
-        else:
-
-            main_weight = self.cum_geo_series(self.context_size)
-            off_weight = (1 - main_weight) / (len(self.gaussians) - 1)
-
-            weights_list = [off_weight] * len(self.gaussians)
-            weights_list[0] = main_weight
+        weights_list = [main_weight] + [norm_rest_weight] * (len(self.gaussians) - 1)
 
         return weights_list
 
-    def cum_geo_series(self, n: int) -> float:
-        geo_series: List[float] = [1 / (2**i) for i in range(1, n + 1)]
-        cum_geo_series: float = np.sum(geo_series)
-
-        return cum_geo_series
+    def exp_decay(self, x: int, calibration: float, a: float = 0.2) -> float:
+        val: float = np.exp(-a * x) + calibration - np.exp(-a)
+        return val
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
         components = torch.multinomial(self.weights, sample_shape[0], True)
