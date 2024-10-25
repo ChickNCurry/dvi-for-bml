@@ -124,7 +124,9 @@ class SetEncoder(nn.Module):
         # (batch_size, h_dim - 1)
 
         context_size_feature = (
-            torch.tensor([context.shape[1]]).unsqueeze(0).repeat(context.shape[0], 1)
+            torch.tensor([context.shape[1]], device=context.device)
+            .unsqueeze(0)
+            .repeat(context.shape[0], 1)
         )
         # (batch_size, 1)
 

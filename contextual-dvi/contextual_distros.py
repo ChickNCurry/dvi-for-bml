@@ -1,10 +1,11 @@
+import itertools
 from typing import List, Tuple
+
 import numpy as np
 import torch
 from torch import Size, Tensor
 from torch.distributions import Distribution, Normal
 from torch.utils.data import Dataset
-import itertools
 
 
 class ContextualGaussian(Distribution):
@@ -106,7 +107,8 @@ class ContextualLatentSpaceGMM(Distribution):
         return gaussians_list
 
     def get_weights_list(self) -> List[float]:
-        rest_weight = self.exp_decay(self.context_size, 0.75)
+        calibration = (len(self.gaussians) - 1) / len(self.gaussians)
+        rest_weight = self.exp_decay(self.context_size, calibration)
 
         main_weight = 1 - rest_weight
         norm_rest_weight = rest_weight / (len(self.gaussians) - 1)
@@ -158,4 +160,4 @@ class ContextDataset(Dataset[Tensor]):
         return self.size
 
     def __getitem__(self, idx: int) -> Tensor:
-        return 3 * torch.rand((self.max_context_size, self.c_dim))
+        return 4 * torch.rand((self.max_context_size, self.c_dim))

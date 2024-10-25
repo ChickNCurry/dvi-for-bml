@@ -1,5 +1,6 @@
 from typing import Callable, List
 
+import numpy as np
 import torch
 import wandb
 from dvi_process import DiffusionVIProcess
@@ -8,7 +9,6 @@ from torch.distributions import Distribution, Normal
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import numpy as np
 
 
 def train(
