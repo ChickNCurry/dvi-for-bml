@@ -1,3 +1,4 @@
+import random
 from typing import Callable, List
 
 import numpy as np
@@ -17,7 +18,7 @@ def train(
     dataloader: DataLoader[Tensor],
     optimizer: Optimizer,
     num_epochs: int,
-    target: Callable[[Tensor], Distribution],
+    target_contructor: Callable[[Tensor], Distribution],
     wandb_logging: bool = True,
 ) -> List[float]:
 
@@ -36,7 +37,7 @@ def train(
 
             for batch in loop:
 
-                loss = step(dvi_process, device, batch.to(device), target)
+                loss = step(dvi_process, batch.to(device), target_contructor)
 
                 optimizer.zero_grad()
                 loss.backward()  # type: ignore
@@ -63,23 +64,20 @@ def train(
 
 def step(
     dvi_process: DiffusionVIProcess,
-    device: torch.device,
     batch: Tensor,
-    target: Callable[[Tensor], Distribution],
+    target_contructor: Callable[[Tensor], Distribution],
 ) -> Tensor:
 
-    p_z_0 = Normal(  # type: ignore
-        torch.zeros((batch.shape[0], dvi_process.z_dim), device=device),
-        torch.ones((batch.shape[0], dvi_process.z_dim), device=device),
-        # * dvi_process.sigmas[0],
-    )
+    random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
+    context = batch[:, 0:random_context_size, :]
 
-    context_size: int = np.random.randint(1, batch.shape[1])
-    batch = batch[:, 0:context_size, :]
+    choices = [random.choice([1, -1]) for _ in range(batch.shape[2])]
+    for i in range(batch.shape[2]):
+        context[:, :, i] = context[:, :, i] * choices[i]
 
-    p_z_T = target(batch)
+    p_z_T = target_contructor(context)
 
-    log_w, _ = dvi_process.run_chain(p_z_0, p_z_T, batch)
+    log_w, _ = dvi_process.run_chain(p_z_T, context)
 
     loss = -log_w
 

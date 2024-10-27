@@ -26,6 +26,10 @@ class DiffusionVIProcess(nn.Module, ABC):
         # self.sigmas: nn.ParameterList
 
     @abstractmethod
+    def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
+        pass
+
+    @abstractmethod
     def forward_kernel(self, z_prev: Tensor, t: int, c: Tensor) -> Distribution:
         pass
 
@@ -35,10 +39,11 @@ class DiffusionVIProcess(nn.Module, ABC):
 
     def run_chain(
         self,
-        p_z_0: Distribution,
         p_z_T: Distribution,
         context: Tensor,
     ) -> Tuple[Tensor, List[Tensor]]:
+
+        p_z_0 = self.get_prior(context.shape[0], context.device)
 
         z_samples = [p_z_0.sample()]
 
@@ -101,6 +106,14 @@ class DIS(DiffusionVIProcess):
         )
 
         # self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim, device=device))])
+
+    def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
+        p_z_0 = Normal(  # type: ignore
+            torch.zeros((batch_size, self.z_dim), device=device),
+            torch.ones((batch_size, self.z_dim), device=device),  # * self.sigmas[0],
+        )
+
+        return p_z_0
 
     def forward_kernel(self, z_prev: Tensor, t: int, c: Tensor) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, context_size, c_dim)

@@ -1,4 +1,5 @@
 import itertools
+import random
 from typing import List, Tuple
 
 import numpy as np
@@ -122,17 +123,25 @@ class ContextualLatentSpaceGMM(Distribution):
         return val
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
-        components = torch.multinomial(self.weights, self.batch_size, True)
-
-        samples = torch.stack(
+        possible_samples = torch.stack(
             [gaussian.sample() for gaussian in self.gaussians]  # type: ignore
         )
         # (num_gaussians, batch_size, z_dim)
 
-        return torch.stack(
-            [samples[components[i], i, :] for i in range(self.batch_size)],
+        gaussian_indices = torch.multinomial(self.weights, self.batch_size, True)
+        # (batch_size)
+
+        # print(torch.unique(gaussian_indices, return_counts=True))
+
+        samples = torch.stack(
+            [
+                possible_samples[gaussian_indices[i], i, :]
+                for i in range(self.batch_size)
+            ],
         )
         # (batch_size, z_dim)
+
+        return samples
 
     def log_prob(self, x: Tensor) -> Tensor:
         return torch.logsumexp(
@@ -150,8 +159,6 @@ class ContextDataset(Dataset[Tensor]):
     def __init__(self, size: int, c_dim: int) -> None:
         super(ContextDataset, self).__init__()
 
-        # self.contexts = np.linspace(-5, 5, size)
-
         self.size = size
         self.max_context_size = 10
         self.c_dim = c_dim
@@ -160,4 +167,6 @@ class ContextDataset(Dataset[Tensor]):
         return self.size
 
     def __getitem__(self, idx: int) -> Tensor:
-        return 4 * torch.rand((self.max_context_size, self.c_dim))
+        context = 4 * torch.rand((self.max_context_size, self.c_dim))
+
+        return context

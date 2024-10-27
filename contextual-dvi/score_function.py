@@ -106,18 +106,18 @@ class SetEncoder(nn.Module):
         )
 
         if self.is_attentive:
-            self.self_attn = nn.MultiheadAttention(h_dim, 1, batch_first=True)
+            self.self_attn = nn.MultiheadAttention(h_dim - 1, 1, batch_first=True)
 
     def forward(self, context: Tensor) -> Tensor:
         # (batch_size, context_size, c_dim)
 
         h: Tensor = context
 
+        h = self.mlp(h)
+        # (batch_size, context_size, h_dim - 1)
+
         if self.is_attentive:
             h, _ = self.self_attn(h, h, h, need_weights=False)
-            # (batch_size, context_size, h_dim - 1)
-        else:
-            h = self.mlp(h)
             # (batch_size, context_size, h_dim - 1)
 
         h = self.aggregation(h, dim=1)
