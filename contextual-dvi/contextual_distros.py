@@ -11,16 +11,20 @@ from torch.utils.data import Dataset
 
 class ContextualGaussian(Distribution):
     def __init__(self, context: Tensor, scale: float) -> None:
-        # (batch_size, z_dim)
+        # (batch_size, context_size, z_dim)
+
+        assert context.shape[1] == 1
 
         super(ContextualGaussian, self).__init__()
 
-        sigma = torch.ones_like(context, device=context.device) * scale
+        mu = torch.mean(context, dim=1)
+        sigma = torch.ones_like(mu, device=mu.device) * scale
+        # (batch_size, z_dim)
 
-        self.gaussian = Normal(context, sigma)  # type: ignore
+        self.gaussian = Normal(mu, sigma)  # type: ignore
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
-        return self.gaussian.sample(sample_shape)  # type: ignore
+        return self.gaussian.sample()  # type: ignore
 
     def log_prob(self, x: Tensor) -> Tensor:
         return self.gaussian.log_prob(x)  # type: ignore
@@ -30,35 +34,44 @@ class ContextualGMM(Distribution):
     def __init__(
         self,
         context: Tensor,
-        offsets: Tuple[float, float],
-        scales: Tuple[float, float],
-        weights: Tuple[float, float],
+        offsets: Tuple[float, float] = (5, -5),
+        scales: Tuple[float, float] = (1, 1),
+        weights: Tuple[float, float] = (0.3, 0.7),
     ) -> None:
-        # (batch_size, z_dim)
+        # (batch_size, context_size, z_dim)
+
+        assert context.shape[1] == 1
 
         super(ContextualGMM, self).__init__()
 
         self.batch_size = context.shape[0]
 
-        sigma = torch.ones_like(context, device=context.device)
+        mu = torch.mean(context, dim=1)
+        sigma = torch.ones_like(mu, device=mu.device)
+        # (batch_size, z_dim)
 
-        self.gaussian_a = Normal(context + offsets[0], sigma * scales[0])  # type: ignore
-        self.gaussian_b = Normal(context + offsets[1], sigma * scales[1])  # type: ignore
+        self.gaussian_a = Normal(mu + offsets[0], sigma * scales[0])  # type: ignore
+        self.gaussian_b = Normal(mu + offsets[1], sigma * scales[1])  # type: ignore
 
         self.weights = torch.tensor([weights[0], weights[1]])
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
-        components = torch.multinomial(self.weights, self.batch_size, True)
+        gaussian_indices = torch.multinomial(self.weights, self.batch_size, True)
+        # (batch_size)
 
-        samples_a = self.gaussian_a.sample(sample_shape)  # type: ignore
-        samples_b = self.gaussian_b.sample(sample_shape)  # type: ignore
+        samples_a = self.gaussian_a.sample()  # type: ignore
+        samples_b = self.gaussian_b.sample()  # type: ignore
+        # (batch_size, z_dim)
 
-        return torch.stack(
+        samples = torch.stack(
             [
-                samples_a[i] if components[i] == 0 else samples_b[i]
+                samples_a[i] if gaussian_indices[i] == 0 else samples_b[i]
                 for i in range(self.batch_size)
             ],
         )
+        # (batch_size, z_dim)
+
+        return samples
 
     def log_prob(self, x: Tensor) -> Tensor:
         return torch.logsumexp(
@@ -131,8 +144,6 @@ class ContextualLatentSpaceGMM(Distribution):
         gaussian_indices = torch.multinomial(self.weights, self.batch_size, True)
         # (batch_size)
 
-        # print(torch.unique(gaussian_indices, return_counts=True))
-
         samples = torch.stack(
             [
                 possible_samples[gaussian_indices[i], i, :]
@@ -156,17 +167,33 @@ class ContextualLatentSpaceGMM(Distribution):
 
 
 class ContextDataset(Dataset[Tensor]):
-    def __init__(self, size: int, c_dim: int) -> None:
+    def __init__(
+        self,
+        size: int,
+        c_dim: int,
+        max_context_size: int,
+        sampling_factor: float,
+        variably_sized_context: bool,
+    ) -> None:
         super(ContextDataset, self).__init__()
 
         self.size = size
-        self.max_context_size = 10
+
         self.c_dim = c_dim
+        self.max_context_size = max_context_size
+        self.sampling_factor = sampling_factor
+
+        self.variably_sized_context = variably_sized_context
 
     def __len__(self) -> int:
         return self.size
 
     def __getitem__(self, idx: int) -> Tensor:
-        context = 4 * torch.rand((self.max_context_size, self.c_dim))
+        if self.variably_sized_context:
+            context = self.sampling_factor * torch.rand(
+                (self.max_context_size, self.c_dim)
+            )
+        else:
+            context = torch.zeros((self.max_context_size, self.c_dim))
 
         return context

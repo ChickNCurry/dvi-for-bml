@@ -11,14 +11,21 @@ class ScoreFunction(nn.Module):
         non_linearity: str,
         num_steps: int,
         c_dim: int,
+        variably_sized_context: bool,
     ) -> None:
         super(ScoreFunction, self).__init__()
 
+        self.variably_sized_context = variably_sized_context
+
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
-        self.set_encode_c = SetEncoder(
-            c_dim, h_dim, num_layers, non_linearity, False, "mean"
-        )  # nn.Linear(c_dim, h_dim)
+
+        if self.variably_sized_context:
+            self.set_encode_c = SetEncoder(
+                c_dim, h_dim, num_layers, non_linearity, False, "mean"
+            )
+        else:
+            self.proj_c = nn.Linear(c_dim, h_dim)
 
         self.blocks = nn.ModuleList(
             [ResidualBlock(h_dim, non_linearity) for _ in range(num_layers)]
@@ -31,8 +38,14 @@ class ScoreFunction(nn.Module):
 
         z = self.proj_z(z)
         t = self.proj_t(torch.tensor([t], device=z.device))
-        c = self.set_encode_c(c)
         # (batch_size, h_dim)
+
+        if self.variably_sized_context:
+            c = self.set_encode_c(c)
+            # (batch_size, h_dim)
+        else:
+            c = self.proj_c(c.squeeze(1))
+            # (batch_size, h_dim
 
         for block in self.blocks:
             score: Tensor = block(z, t, c)
