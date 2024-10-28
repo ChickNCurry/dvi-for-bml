@@ -10,15 +10,17 @@ from torch.distributions import Distribution, Normal
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torch.optim.lr_scheduler import LRScheduler
 
 
 def train(
     dvi_process: DiffusionVIProcess,
     device: torch.device,
-    dataloader: DataLoader[Tensor],
-    optimizer: Optimizer,
     num_epochs: int,
+    dataloader: DataLoader[Tensor],
     target_contructor: Callable[[Tensor], Distribution],
+    optimizer: Optimizer,
+    scheduler: LRScheduler | None = None,
     wandb_logging: bool = True,
 ) -> List[float]:
 
@@ -40,8 +42,13 @@ def train(
                 loss = step(dvi_process, batch.to(device), target_contructor)
 
                 optimizer.zero_grad()
+
                 loss.backward()  # type: ignore
+
                 optimizer.step()
+
+                if scheduler is not None:
+                    scheduler.step()
 
                 loop.set_postfix(
                     epoch=epoch,
