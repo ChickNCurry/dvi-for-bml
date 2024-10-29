@@ -113,11 +113,6 @@ class DIS(DiffusionVIProcess):
             for t in np.linspace(1, 0.01, num_steps)
         ]
 
-        # self.betas = [
-        #     torch.tensor([beta], dtype=torch.float, device=device)
-        #     for beta in self.beta_schedule
-        # ]
-
         self.betas = nn.ParameterList(
             [
                 nn.Parameter(torch.tensor([beta], dtype=torch.float, device=device))
@@ -126,8 +121,6 @@ class DIS(DiffusionVIProcess):
         )
 
         self.sigma_0 = torch.tensor(1, dtype=torch.float, device=device)
-
-        # self.sigmas = nn.ParameterList([nn.Parameter(torch.ones(z_dim, device=device))])
 
     def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
         return Normal(  # type: ignore
@@ -143,9 +136,7 @@ class DIS(DiffusionVIProcess):
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim),
-        # (1),
-        # (batch_size, context_size, c_dim)
+        # (batch_size, z_dim), (1), (batch_size, context_size, c_dim)
 
         beta_t = self.betas[t - 1]
         # (1)
@@ -170,8 +161,7 @@ class DIS(DiffusionVIProcess):
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim),
-        # (1)
+        # (batch_size, z_dim), (1)
 
         beta_t = self.betas[t - 1]
         # (1)
@@ -186,7 +176,7 @@ class DIS(DiffusionVIProcess):
         return Normal(z_mu, z_sigma)  # type: ignore
 
 
-class MCD(DiffusionVIProcess):
+class CMCD(DiffusionVIProcess):
     def __init__(
         self,
         z_dim: int,
@@ -194,7 +184,7 @@ class MCD(DiffusionVIProcess):
         score_function: ScoreFunction,
         device: torch.device,
     ) -> None:
-        super(MCD, self).__init__(
+        super(CMCD, self).__init__(
             z_dim=z_dim,
             num_steps=num_steps,
         )
@@ -202,7 +192,7 @@ class MCD(DiffusionVIProcess):
         self.score_function = score_function
 
         self.sigma_schedule = [
-            3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
+            3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)
             for t in np.linspace(1, 0.01, num_steps)
         ]
 
@@ -212,10 +202,6 @@ class MCD(DiffusionVIProcess):
                 for sigma in self.sigma_schedule
             ]
         )
-
-        # self.sigmas = torch.tensor(
-        #     self.sigma_schedule, dtype=torch.float, device=device
-        # )
 
         self.annealing_schedule = np.linspace(0, 1, num_steps)
 
@@ -238,9 +224,8 @@ class MCD(DiffusionVIProcess):
         sigma_t = self.sigmas[t - 1]
         # (1)
 
-        # score = self.score_function(z_prev, t, c)
+        score = self.score_function(z_prev, t, c)
         # (batch_size, z_dim)
-        score = 0
 
         grad_log = self.get_grad_log_geometric_average(z_prev, t, p_z_0, p_z_T)
         # (batch_size, z_dim)
@@ -289,13 +274,8 @@ class MCD(DiffusionVIProcess):
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Tensor:
-        z = z.detach().clone()
 
-        z.requires_grad_(True)
-        z.retain_grad()
-
-        if z.grad is not None:
-            z.grad.zero_()
+        z = z.requires_grad_(True)
 
         beta_t = self.annealing_schedule[t - 1]
 
@@ -303,9 +283,13 @@ class MCD(DiffusionVIProcess):
             1 - beta_t
         ) * p_z_T.log_prob(z)
 
-        log_geometric_average.backward(torch.ones_like(z))  # type: ignore
-        # torch.autograd.grad(outputs=log_geometric_average, inputs=z)
+        grad = torch.autograd.grad(
+            outputs=log_geometric_average,
+            inputs=z,
+            grad_outputs=torch.ones_like(log_geometric_average),
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
 
-        assert z.grad is not None
-
-        return z.grad
+        return grad
