@@ -193,6 +193,11 @@ class ContextDataset(Dataset[Tensor]):
             context = self.sampling_factor * torch.rand(
                 (self.max_context_size, self.c_dim)
             )
+
+            choices = [random.choice([1, -1]) for _ in range(self.c_dim)]
+            for i in range(self.c_dim):
+                context[:, i] = context[:, i] * choices[i]
+
         else:
             context = torch.zeros((self.max_context_size, self.c_dim))
 

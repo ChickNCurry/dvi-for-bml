@@ -78,9 +78,9 @@ def step(
     random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
     context = batch[:, 0:random_context_size, :]
 
-    choices = [random.choice([1, -1]) for _ in range(batch.shape[2])]
-    for i in range(batch.shape[2]):
-        context[:, :, i] = context[:, :, i] * choices[i]
+    # choices = [random.choice([1, -1]) for _ in range(batch.shape[2])]
+    # for i in range(batch.shape[2]):
+    #     context[:, :, i] = context[:, :, i] * choices[i]
 
     p_z_T = target_contructor(context)
 
