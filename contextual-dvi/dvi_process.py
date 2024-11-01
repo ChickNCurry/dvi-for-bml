@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-from score_function import ScoreFunction
+from control_function import ControlFunction
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
@@ -98,7 +98,7 @@ class DIS(DiffusionVIProcess):
         self,
         z_dim: int,
         num_steps: int,
-        score_function: ScoreFunction,
+        control_function: ControlFunction,
         device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
@@ -106,7 +106,7 @@ class DIS(DiffusionVIProcess):
             num_steps=num_steps,
         )
 
-        self.score_function = score_function
+        self.control_function = control_function
 
         self.beta_schedule = [
             3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
@@ -120,12 +120,12 @@ class DIS(DiffusionVIProcess):
             ]
         )
 
-        self.sigma_0 = torch.tensor(1, dtype=torch.float, device=device)
+        # self.sigma_0 = torch.tensor(1, dtype=torch.float, device=device)
 
     def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
         return Normal(  # type: ignore
             torch.zeros((batch_size, self.z_dim), device=device),
-            torch.ones((batch_size, self.z_dim), device=device) * self.sigma_0,
+            torch.ones((batch_size, self.z_dim), device=device),  # * self.sigma_0,
         )
 
     def forward_kernel(
@@ -141,13 +141,13 @@ class DIS(DiffusionVIProcess):
         beta_t = self.betas[t - 1]
         # (1)
 
-        score = self.score_function(z_prev, t, c)
+        control = self.control_function(z_prev, t, c)
         # (batch_size, z_dim)
 
-        z_mu = z_prev + (beta_t * z_prev + score) * self.delta_t
+        z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
         # (batch_size, z_dim)
 
-        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_0
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
         # (batch_size, z_dim)
 
@@ -169,7 +169,7 @@ class DIS(DiffusionVIProcess):
         z_mu = z_next - (beta_t * z_next) * self.delta_t
         # (batch_size, z_dim)
 
-        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_0
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
         z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
         # (batch_size, z_dim)
 
@@ -181,7 +181,7 @@ class CMCD(DiffusionVIProcess):
         self,
         z_dim: int,
         num_steps: int,
-        score_function: ScoreFunction,
+        control_function: ControlFunction,
         device: torch.device,
     ) -> None:
         super(CMCD, self).__init__(
@@ -189,7 +189,7 @@ class CMCD(DiffusionVIProcess):
             num_steps=num_steps,
         )
 
-        self.score_function = score_function
+        self.control_function = control_function
 
         self.sigma_schedule = [
             3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)
@@ -224,13 +224,13 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigmas[t - 1]
         # (1)
 
-        score = self.score_function(z_prev, t, c)
+        control = self.control_function(z_prev, t, c)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geometric_average(z_prev, t, p_z_0, p_z_T)
         # (batch_size, z_dim)
 
-        z_mu = z_prev + (sigma_t.pow(2) * grad_log + score) * self.delta_t
+        z_mu = z_prev + (sigma_t.pow(2) * grad_log + control) * self.delta_t
         # (batch_size, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
@@ -252,13 +252,13 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigmas[t - 1]
         # (1)
 
-        score = self.score_function(z_next, t, c)
+        control = self.control_function(z_next, t, c)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geometric_average(z_next, t, p_z_0, p_z_T)
         # (batch_size, z_dim)
 
-        z_mu = z_next + (sigma_t.pow(2) * grad_log - score) * self.delta_t
+        z_mu = z_next + (sigma_t.pow(2) * grad_log - control) * self.delta_t
         # (batch_size, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
