@@ -1,6 +1,8 @@
 import random
+from typing import Tuple
 
 import torch
+from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -52,3 +54,29 @@ class ContextSetDataset(Dataset[Tensor]):
             context[:, i] = context[:, i] * choices[i]
 
         return context
+
+
+class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
+    def __init__(
+        self,
+        benchmark: MetaLearningBenchmark,
+    ) -> None:
+        self.benchmark = benchmark
+        self.max_context_size = self.benchmark.n_datapoints_per_task
+
+    def __len__(self) -> int:
+        return self.benchmark.n_task  # type: ignore
+
+    def __getitem__(self, task_idx: int) -> Tuple[Tensor, Tensor]:
+        task = self.benchmark.get_task_by_index(task_index=task_idx)
+
+        x_context = Tensor(task.x)
+        y_context = Tensor(task.y)
+
+        assert x_context.shape[0] == y_context.shape[0]
+        perm = torch.randperm(x_context.shape[0])
+
+        x_context = x_context[perm]
+        y_context = y_context[perm]
+
+        return x_context, y_context
