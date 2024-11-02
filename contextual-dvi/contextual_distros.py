@@ -1,12 +1,10 @@
 import itertools
-import random
 from typing import List, Tuple
 
 import numpy as np
 import torch
 from torch import Size, Tensor
 from torch.distributions import Distribution, Normal
-from torch.utils.data import Dataset
 
 
 class ContextualGaussian(Distribution):
@@ -15,7 +13,7 @@ class ContextualGaussian(Distribution):
 
         assert context.shape[1] == 1
 
-        super(ContextualGaussian, self).__init__()
+        super(ContextualGaussian, self).__init__(validate_args=False)
 
         mu = torch.mean(context, dim=1)
         sigma = torch.ones_like(mu, device=mu.device) * scale
@@ -34,15 +32,15 @@ class ContextualGMM(Distribution):
     def __init__(
         self,
         context: Tensor,
-        offsets: Tuple[float, float] = (5, -5),
-        scales: Tuple[float, float] = (1, 1),
-        weights: Tuple[float, float] = (0.3, 0.7),
+        offsets: Tuple[float, float],
+        scales: Tuple[float, float],
+        weights: Tuple[float, float],
     ) -> None:
         # (batch_size, context_size, z_dim)
 
         assert context.shape[1] == 1
 
-        super(ContextualGMM, self).__init__()
+        super(ContextualGMM, self).__init__(validate_args=False)
 
         self.batch_size = context.shape[0]
 
@@ -89,7 +87,7 @@ class ContextualLatentSpaceGMM(Distribution):
     def __init__(self, context: Tensor):
         # (batch_size, context_size, z_dim)
 
-        super(ContextualLatentSpaceGMM, self).__init__()
+        super(ContextualLatentSpaceGMM, self).__init__(validate_args=False)
 
         self.batch_size = context.shape[0]
         self.context_size = context.shape[1]
@@ -164,41 +162,3 @@ class ContextualLatentSpaceGMM(Distribution):
             ),
             dim=0,
         )
-
-
-class ContextDataset(Dataset[Tensor]):
-    def __init__(
-        self,
-        size: int,
-        c_dim: int,
-        max_context_size: int,
-        sampling_factor: float,
-        variably_sized_context: bool,
-    ) -> None:
-        super(ContextDataset, self).__init__()
-
-        self.size = size
-
-        self.c_dim = c_dim
-        self.max_context_size = max_context_size
-        self.sampling_factor = sampling_factor
-
-        self.variably_sized_context = variably_sized_context
-
-    def __len__(self) -> int:
-        return self.size
-
-    def __getitem__(self, idx: int) -> Tensor:
-        if self.variably_sized_context:
-            context = self.sampling_factor * torch.rand(
-                (self.max_context_size, self.c_dim)
-            )
-
-            choices = [random.choice([1, -1]) for _ in range(self.c_dim)]
-            for i in range(self.c_dim):
-                context[:, i] = context[:, i] * choices[i]
-
-        else:
-            context = torch.zeros((self.max_context_size, self.c_dim))
-
-        return context

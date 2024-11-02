@@ -1,4 +1,3 @@
-import random
 from typing import Callable, List
 
 import numpy as np
@@ -8,9 +7,9 @@ from dvi_process import DiffusionVIProcess
 from torch import Tensor
 from torch.distributions import Distribution, Normal
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from torch.optim.lr_scheduler import LRScheduler
 
 
 def train(
@@ -18,7 +17,7 @@ def train(
     device: torch.device,
     num_epochs: int,
     dataloader: DataLoader[Tensor],
-    target_contructor: Callable[[Tensor], Distribution],
+    target_constructor: Callable[[Tensor], Distribution],
     optimizer: Optimizer,
     scheduler: LRScheduler | None = None,
     wandb_logging: bool = True,
@@ -39,12 +38,10 @@ def train(
 
             for batch in loop:
 
-                loss = step(dvi_process, batch.to(device), target_contructor)
+                loss = step(dvi_process, batch.to(device), target_constructor)
 
                 optimizer.zero_grad()
-
                 loss.backward()  # type: ignore
-
                 optimizer.step()
 
                 if scheduler is not None:
@@ -72,18 +69,13 @@ def train(
 def step(
     dvi_process: DiffusionVIProcess,
     batch: Tensor,
-    target_contructor: Callable[[Tensor], Distribution],
+    target_constructor: Callable[[Tensor], Distribution],
 ) -> Tensor:
 
     random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
     context = batch[:, 0:random_context_size, :]
 
-    # choices = [random.choice([1, -1]) for _ in range(batch.shape[2])]
-    # for i in range(batch.shape[2]):
-    #     context[:, :, i] = context[:, :, i] * choices[i]
-
-    p_z_T = target_contructor(context)
-
+    p_z_T = target_constructor(context)
     log_w, _ = dvi_process.run_chain(p_z_T, context)
 
     loss = -log_w
