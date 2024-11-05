@@ -12,11 +12,14 @@ class Decoder(nn.Module):
         y_dim: int,
         num_layers: int,
         non_linearity: str,
+        has_det_path: bool,
     ) -> None:
         super(Decoder, self).__init__()
 
+        self.has_det_path = has_det_path
+
         self.mlp = nn.Sequential(
-            nn.Linear(x_dim + z_dim, h_dim),
+            nn.Linear(x_dim + z_dim + h_dim if has_det_path else x_dim + z_dim, h_dim),
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
@@ -27,15 +30,29 @@ class Decoder(nn.Module):
         self.proj_y_mu = nn.Linear(h_dim, y_dim)
         self.proj_y_w = nn.Linear(h_dim, y_dim)
 
-    def forward(self, x_target: Tensor, z: Tensor) -> Distribution:
+    def forward(
+        self, x_target: Tensor, z: Tensor, context_embedding: Tensor | None
+    ) -> Distribution:
         # (batch_size, target_size, x_dim)
         # (batch_size, z_dim)
+        # (batch_size, h_dim)
 
         z = z.unsqueeze(1).repeat(1, x_target.shape[1], 1)
         # (batch_size, target_size, z_dim)
 
-        h = torch.cat([x_target, z], dim=-1)
-        # (batch_size, target_size, x_dim + z_dim)
+        context_embedding = (
+            context_embedding.unsqueeze(1).repeat(1, x_target.shape[1], 1)
+            if self.has_det_path and context_embedding is not None
+            else None
+        )
+        # (batch_size, target_size, z_dim)
+
+        h = (
+            torch.cat([x_target, z, context_embedding], dim=-1)
+            if self.has_det_path and context_embedding is not None
+            else torch.cat([x_target, z], dim=-1)
+        )
+        # (batch_size, target_size, x_dim + z_dim + h_dim)
 
         h = self.mlp(h)
         # (batch_size, target_size, h_dim)

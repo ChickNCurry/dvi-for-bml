@@ -32,7 +32,7 @@ class DiffusionVIProcess(nn.Module, ABC):
         self,
         z_prev: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
@@ -43,7 +43,7 @@ class DiffusionVIProcess(nn.Module, ABC):
         self,
         z_next: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
@@ -52,10 +52,10 @@ class DiffusionVIProcess(nn.Module, ABC):
     def run_chain(
         self,
         p_z_T: Distribution,
-        context: Tensor,
+        context_embedding: Tensor,
     ) -> Tuple[Tensor, List[Tensor]]:
 
-        p_z_0 = self.get_prior(context.shape[0], context.device)
+        p_z_0 = self.get_prior(context_embedding.shape[0], context_embedding.device)
 
         z_samples = [p_z_0.sample()]
 
@@ -66,12 +66,14 @@ class DiffusionVIProcess(nn.Module, ABC):
 
             t = i + 1
 
-            fwd_kernel = self.forward_kernel(z_samples[t - 1], t, context, p_z_0, p_z_T)
+            fwd_kernel = self.forward_kernel(
+                z_samples[t - 1], t, context_embedding, p_z_0, p_z_T
+            )
 
             z_samples.append(fwd_kernel.rsample())
 
             bwd_kernel = self.backward_kernel(
-                z_samples[t], t - 1, context, p_z_0, p_z_T
+                z_samples[t], t - 1, context_embedding, p_z_0, p_z_T
             )
 
             fwd_log_probs.append(fwd_kernel.log_prob(z_samples[t]))
@@ -132,16 +134,16 @@ class DIS(DiffusionVIProcess):
         self,
         z_prev: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, context_size, c_dim)
+        # (batch_size, z_dim), (1), (batch_size, h_dim)
 
         beta_t = self.betas[t - 1]
         # (1)
 
-        control = self.control_function(z_prev, t, c)
+        control = self.control_function(z_prev, t, context_embedding)
         # (batch_size, z_dim)
 
         z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
@@ -157,7 +159,7 @@ class DIS(DiffusionVIProcess):
         self,
         z_next: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
@@ -215,16 +217,16 @@ class CMCD(DiffusionVIProcess):
         self,
         z_prev: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, context_size, c_dim)
+        # (batch_size, z_dim), (1), (batch_size, h_dim)
 
         sigma_t = self.sigmas[t - 1]
         # (1)
 
-        control = self.control_function(z_prev, t, c)
+        control = self.control_function(z_prev, t, context_embedding)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geometric_average(z_prev, t, p_z_0, p_z_T)
@@ -243,16 +245,16 @@ class CMCD(DiffusionVIProcess):
         self,
         z_next: Tensor,
         t: int,
-        c: Tensor,
+        context_embedding: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1)
+        # (batch_size, z_dim), (1), (batch_size, h_dim)
 
         sigma_t = self.sigmas[t - 1]
         # (1)
 
-        control = self.control_function(z_next, t, c)
+        control = self.control_function(z_next, t, context_embedding)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geometric_average(z_next, t, p_z_0, p_z_T)
@@ -289,7 +291,6 @@ class CMCD(DiffusionVIProcess):
             grad_outputs=torch.ones_like(log_geometric_average),
             create_graph=True,
             retain_graph=True,
-            only_inputs=True,
         )[0]
 
         return grad
