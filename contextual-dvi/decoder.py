@@ -31,17 +31,22 @@ class Decoder(nn.Module):
         self.proj_y_w = nn.Linear(h_dim, y_dim)
 
     def forward(
-        self, x_target: Tensor, z: Tensor, context_embedding: Tensor | None
+        self,
+        x_target: Tensor,
+        z: Tensor,
+        mask: Tensor | None,
+        context_embedding: Tensor | None,
     ) -> Distribution:
         # (batch_size, target_size, x_dim)
         # (batch_size, z_dim)
+        # (batch_size, target_size)
         # (batch_size, h_dim)
 
-        z = z.unsqueeze(1).repeat(1, x_target.shape[1], 1)
+        z = z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
         # (batch_size, target_size, z_dim)
 
         context_embedding = (
-            context_embedding.unsqueeze(1).repeat(1, x_target.shape[1], 1)
+            context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
             if self.has_det_path and context_embedding is not None
             else None
         )

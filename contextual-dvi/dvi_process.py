@@ -112,7 +112,7 @@ class DIS(DiffusionVIProcess):
 
         self.beta_schedule = [
             3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
-            for t in np.linspace(1, 0.01, num_steps)
+            for t in np.linspace(1, 0, num_steps + 2)
         ]
 
         self.betas = nn.ParameterList(
@@ -140,7 +140,7 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        beta_t = self.betas[t - 1]
+        beta_t = self.betas[t]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding)
@@ -150,7 +150,7 @@ class DIS(DiffusionVIProcess):
         # (batch_size, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
-        z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
@@ -165,14 +165,14 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1)
 
-        beta_t = self.betas[t - 1]
+        beta_t = self.betas[t]
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t
         # (batch_size, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
-        z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
@@ -195,7 +195,7 @@ class CMCD(DiffusionVIProcess):
 
         self.sigma_schedule = [
             3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)
-            for t in np.linspace(1, 0.01, num_steps)
+            for t in np.linspace(1, 0, num_steps + 2)
         ]
 
         self.sigmas = nn.ParameterList(
@@ -205,7 +205,7 @@ class CMCD(DiffusionVIProcess):
             ]
         )
 
-        self.annealing_schedule = np.linspace(0, 1, num_steps)
+        self.annealing_schedule = np.linspace(0, 1, num_steps + 1)
 
     def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
         return Normal(  # type: ignore
@@ -223,20 +223,20 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigmas[t - 1]
+        sigma_t = self.sigmas[t]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding)
         # (batch_size, z_dim)
 
-        grad_log = self.get_grad_log_geometric_average(z_prev, t, p_z_0, p_z_T)
+        grad_log = self.get_grad_log_geo_avg(z_prev, t, p_z_0, p_z_T)
         # (batch_size, z_dim)
 
         z_mu = z_prev + (sigma_t.pow(2) * grad_log + control) * self.delta_t
         # (batch_size, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
-        z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
@@ -251,25 +251,25 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigmas[t - 1]
+        sigma_t = self.sigmas[t]
         # (1)
 
         control = self.control_function(z_next, t, context_embedding)
         # (batch_size, z_dim)
 
-        grad_log = self.get_grad_log_geometric_average(z_next, t, p_z_0, p_z_T)
+        grad_log = self.get_grad_log_geo_avg(z_next, t, p_z_0, p_z_T)
         # (batch_size, z_dim)
 
         z_mu = z_next + (sigma_t.pow(2) * grad_log - control) * self.delta_t
         # (batch_size, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
-        z_sigma = z_sigma.repeat(z_mu.shape[0], 1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def get_grad_log_geometric_average(
+    def get_grad_log_geo_avg(
         self,
         z: Tensor,
         t: int,
@@ -279,16 +279,16 @@ class CMCD(DiffusionVIProcess):
 
         z = z.requires_grad_(True)
 
-        beta_t = self.annealing_schedule[t - 1]
+        beta_t = self.annealing_schedule[t]
 
-        log_geometric_average: Tensor = beta_t * p_z_0.log_prob(z) + (
-            1 - beta_t
-        ) * p_z_T.log_prob(z)
+        log_geo_avg: Tensor = (1 - beta_t) * p_z_0.log_prob(
+            z
+        ) + beta_t * p_z_T.log_prob(z)
 
         grad = torch.autograd.grad(
-            outputs=log_geometric_average,
+            outputs=log_geo_avg,
             inputs=z,
-            grad_outputs=torch.ones_like(log_geometric_average),
+            grad_outputs=torch.ones_like(log_geo_avg),
             create_graph=True,
             retain_graph=True,
         )[0]

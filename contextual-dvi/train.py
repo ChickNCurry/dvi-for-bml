@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Any, Callable, List
 
 import numpy as np
 import torch
@@ -20,7 +20,7 @@ def train(
     device: torch.device,
     num_epochs: int,
     dataloader: DataLoader[Tensor],
-    target_constructor: Callable[[Tensor], Distribution],
+    target_constructor: Any,
     optimizer: Optimizer,
     scheduler: LRScheduler | None,
     wandb_logging: bool,
@@ -43,9 +43,11 @@ def train(
             for batch in loop:
 
                 if decoder is None:
-                    loss = step(dvi_process, encoder, batch, device, target_constructor)
+                    loss = step_better(
+                        dvi_process, encoder, batch, device, target_constructor
+                    )
                 elif decoder is not None and isinstance(encoder, SetEncoder):
-                    loss = step_bml_alternative(
+                    loss = step_bml(
                         dvi_process,
                         encoder,
                         decoder,
@@ -101,6 +103,42 @@ def step(
     return loss
 
 
+def step_better(
+    dvi_process: DiffusionVIProcess,
+    encoder: TestEncoder | SetEncoder,
+    batch: Tensor,
+    device: torch.device,
+    target_constructor: Callable[[Tensor, Tensor], Distribution],
+) -> Tensor:
+
+    batch = batch.to(device)
+
+    rand_context_sizes = torch.randint(
+        1, batch.shape[1] + 1, (batch.shape[0],), device=device
+    )
+
+    # context = torch.zeros_like(batch, device=device)
+    # mask = torch.zeros((batch.shape[0], batch.shape[1]), device=device)
+
+    # for i in range(batch.shape[0]):
+    #     context_size = rand_context_sizes[i]
+    #     context[i, 0:context_size, :] = batch[i, 0:context_size, :]
+    #     mask[i, 0:context_size] = 1
+
+    position_indices = torch.arange(batch.shape[1], device=device).expand(
+        batch.shape[0], -1
+    )
+    mask = (position_indices < rand_context_sizes.unsqueeze(-1)).float()
+    context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
+
+    p_z_T = target_constructor(context, mask)
+    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context, mask))
+
+    loss = -log_w
+
+    return loss
+
+
 def step_bml(
     dvi_process: DiffusionVIProcess,
     set_encoder: SetEncoder,
@@ -114,8 +152,7 @@ def step_bml(
     x_data, y_data = x_data.to(device), y_data.to(device)
     # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
 
-    rand_sub_context_size: int = 3  # x_data.shape[1]
-    # np.random.randint(1, x_data.shape[1] + 1)
+    rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
 
     x_context = x_data[:, 0:rand_sub_context_size, :]
     y_context = y_data[:, 0:rand_sub_context_size, :]
@@ -140,6 +177,52 @@ def step_bml(
     loss = -log_like - log_w
 
     return loss
+
+
+# def step_bml_better(
+#     dvi_process: DiffusionVIProcess,
+#     set_encoder: SetEncoder,
+#     decoder: Decoder,
+#     batch: Tensor,
+#     device: torch.device,
+#     target_constructor: Callable[[Tensor], Distribution],
+# ) -> Tensor:
+
+#     x_data, y_data = batch
+#     x_data, y_data = x_data.to(device), y_data.to(device)
+#     # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+
+#     rand_context_sizes = torch.randint(
+#         1, batch.shape[1] + 1, (batch.shape[0],), device=device
+#     )
+
+#     data = torch.cat([x_data, y_data], dim=-1)
+
+#     context = torch.zeros_like(data, device=device)
+#     mask = torch.zeros((data.shape[0], data.shape[1]), device=device)
+
+#     for i in range(data.shape[0]):
+#         context_size = rand_context_sizes[i]
+#         context[i, 0:context_size, :] = data[i, 0:context_size, :]
+#         mask[i, 0:context_size] = 1
+
+#     context = set_encoder(context)
+#     # (batch_size, h_dim)
+
+#     p_z_T = target_constructor(context)
+#     log_w, z_samples = dvi_process.run_chain(p_z_T, context)
+
+#     log_like: Tensor = (
+#         decoder(x_context, z_samples[-1], context)
+#         .log_prob(y_context)
+#         .mean(dim=0)
+#         # .mean(dim=1)
+#         .sum()
+#     )
+
+#     loss = -log_like - log_w
+
+#     return loss
 
 
 def step_bml_alternative(

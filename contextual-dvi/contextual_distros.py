@@ -32,6 +32,7 @@ class ContextualGMM(Distribution):
     def __init__(
         self,
         context: Tensor,
+        mask: Tensor | None,
         offsets: Tuple[float, float],
         scales: Tuple[float, float],
         weights: Tuple[float, float],
@@ -84,8 +85,8 @@ class ContextualGMM(Distribution):
 
 
 class ContextualLatentSpaceGMM(Distribution):
-    def __init__(self, context: Tensor):
-        # (batch_size, context_size, z_dim)
+    def __init__(self, context: Tensor, mask: Tensor | None = None) -> None:
+        # (batch_size, context_size, z_dim), (batch_size, context_size)
 
         super(ContextualLatentSpaceGMM, self).__init__(validate_args=False)
 
@@ -93,17 +94,45 @@ class ContextualLatentSpaceGMM(Distribution):
         self.context_size = context.shape[1]
         self.z_dim = context.shape[2]
 
-        self.mu = torch.mean(context, dim=1)
-        self.sigma = self.exp_decay(self.context_size, 1) * torch.ones_like(
-            self.mu, device=self.mu.device
-        )
-        # (batch_size, z_dim)
+        if mask is not None:
+            counts = mask.sum(dim=1, keepdim=True)
+            # (batch_size, 1)
 
-        self.gaussians = self.get_gaussians_list()
-        self.weights = torch.tensor(self.get_weights_list())
+            sum = context.sum(dim=1)
+            # (batch_size, z_dim)
 
-    def get_gaussians_list(self) -> List[Normal]:
-        gaussians_list = []
+            self.mu = sum / counts
+            # (batch_size, z_dim)
+
+            self.sigma = torch.ones_like(
+                self.mu, device=self.mu.device
+            ) * self.exp_decay(counts, 1)
+            # (batch_size, z_dim)
+
+            self.gaussians = self.get_gaussians()
+            self.weights = self.get_weights_better(counts)
+
+        else:
+            counts = (
+                torch.tensor([self.context_size], device=context.device)
+                .unsqueeze(0)
+                .expand(self.batch_size, -1)
+            )
+            # (batch_size, 1)
+
+            self.mu = torch.mean(context, dim=1)
+            # (batch_size, z_dim)
+
+            self.sigma = torch.ones_like(
+                self.mu, device=self.mu.device
+            ) * self.exp_decay(counts, 1)
+            # (batch_size, z_dim)
+
+            self.gaussians = self.get_gaussians()
+            self.weights = self.get_weights()
+
+    def get_gaussians(self) -> List[Normal]:
+        gaussians = []
 
         for permutation in list(itertools.product([1, -1], repeat=self.z_dim)):
 
@@ -114,24 +143,42 @@ class ContextualLatentSpaceGMM(Distribution):
 
             modified_gaussian = Normal(modified_mu, self.sigma)  # type: ignore
 
-            gaussians_list.append(modified_gaussian)
+            gaussians.append(modified_gaussian)
 
-        return gaussians_list
+        return gaussians
 
-    def get_weights_list(self) -> List[float]:
+    def get_weights_better(self, counts: Tensor) -> Tensor:
         calibration = (len(self.gaussians) - 1) / len(self.gaussians)
-        rest_weight = self.exp_decay(self.context_size, calibration)
+
+        rest_weights = self.exp_decay(counts, calibration)
+        norm_rest_weight = rest_weights / (len(self.gaussians) - 1)
+        main_weight = 1 - rest_weights
+        # (batch_size)
+
+        weights = torch.stack(
+            [main_weight] + [norm_rest_weight] * (len(self.gaussians) - 1)
+        )
+        # (num_gaussians, batch_size)
+
+        return weights
+
+    def get_weights(self) -> Tensor:
+        calibration = (len(self.gaussians) - 1) / len(self.gaussians)
+        rest_weight = self.exp_decay(
+            torch.tensor([self.context_size], device=self.mu.device), calibration
+        )
 
         main_weight = 1 - rest_weight
         norm_rest_weight = rest_weight / (len(self.gaussians) - 1)
 
         weights_list = [main_weight] + [norm_rest_weight] * (len(self.gaussians) - 1)
 
-        return weights_list
+        weights = torch.tensor(weights_list, device=self.mu.device)
 
-    def exp_decay(self, x: int, calibration: float, a: float = 0.2) -> float:
-        val: float = np.exp(-a * x) + calibration - np.exp(-a)
-        return val
+        return weights
+
+    def exp_decay(self, x: Tensor, calibration: float, a: float = 0.2) -> Tensor:
+        return torch.exp(-a * x) + calibration - torch.exp(-a * torch.ones_like(x))
 
     def sample(self, sample_shape: Size = torch.Size([])) -> Tensor:
         possible_samples = torch.stack(

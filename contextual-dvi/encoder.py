@@ -15,6 +15,9 @@ class SetEncoder(nn.Module):
     ) -> None:
         super(SetEncoder, self).__init__()
 
+        # self.context_embedding_dim = int(h_dim / 2)
+        # self.context_size_embedding_dim = h_dim - self.context_embedding_dim
+
         self.mlp = nn.Sequential(
             nn.Linear(c_dim, h_dim),
             *[
@@ -36,27 +39,46 @@ class SetEncoder(nn.Module):
 
         self.context_size_embedding = nn.Embedding(max_context_size + 1, h_dim)
 
-    def forward(self, context: Tensor) -> Tensor:
-        # (batch_size, context_size, c_dim)
+    def forward(self, context: Tensor, mask: Tensor | None = None) -> Tensor:
+        # (batch_size, context_size, c_dim), (batch_size, context_size)
 
-        h: Tensor = context
+        c: Tensor = context
 
-        h = self.mlp(h)
+        c = self.mlp(c)
         # (batch_size, context_size, h_dim)
 
         if self.is_attentive:
-            h, _ = self.self_attn(h, h, h, need_weights=False)
+            c, _ = self.self_attn(c, c, c, need_weights=False)
             # (batch_size, context_size, h_dim)
 
-        h = self.aggregation(h, dim=1)
-        # (batch_size, h_dim)
+        if mask is not None:
+            c = c * mask.unsqueeze(-1)
 
-        h = h + self.context_size_embedding(
-            torch.tensor([context.shape[1]], device=h.device)
-        )
-        # (batch_size, h_dim)
+            counts = mask.sum(dim=1, keepdim=True)
 
-        return h
+            c = c.sum(dim=1) / counts
+            # (batch_size, h_dim)
+
+            e: Tensor = self.context_size_embedding(counts.squeeze(1).int())
+            # (batch_size, h_dim)
+
+            # out = torch.cat([c, e], dim=1)
+            out = c + e
+            # (batch_size, h_dim)
+        else:
+            c = self.aggregation(c, dim=1)
+            # (batch_size, h_dim)
+
+            e = self.context_size_embedding(
+                torch.tensor([context.shape[1]], device=c.device)
+            ).expand(c.shape[0], -1)
+            # (batch_size, h_dim)
+
+            # out = torch.cat([c, e], dim=1)
+            out = c + e
+            # (batch_size, h_dim)
+
+        return out
 
 
 class TestEncoder(nn.Module):
@@ -65,7 +87,7 @@ class TestEncoder(nn.Module):
 
         self.proj_c = nn.Linear(c_dim, h_dim)
 
-    def forward(self, c: Tensor) -> Tensor:
+    def forward(self, c: Tensor, mask: Tensor | None = None) -> Tensor:
 
         c = self.proj_c(c.squeeze(1))
 
