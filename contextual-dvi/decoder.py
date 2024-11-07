@@ -17,6 +17,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
 
         self.has_det_path = has_det_path
+        self.z_dim = z_dim
 
         self.mlp = nn.Sequential(
             nn.Linear(x_dim + z_dim + h_dim if has_det_path else x_dim + z_dim, h_dim),
@@ -66,6 +67,50 @@ class Decoder(nn.Module):
         y_std = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
         # (batch_size, target_size, y_dim)
 
+        # if mask is not None:
+        #     y_mu = y_mu * mask.unsqueeze(-1)
+        #     y_std = y_std * mask.unsqueeze(-1)
+
         y_dist = Normal(y_mu, y_std)  # type: ignore
 
         return y_dist
+
+
+class LikelihoodTimesPrior(Distribution):
+    def __init__(
+        self,
+        decoder: Decoder,
+        x_target: Tensor,
+        y_target: Tensor,
+        mask: Tensor | None,
+        context_embedding: Tensor | None,
+    ) -> None:
+        super(LikelihoodTimesPrior, self).__init__(validate_args=False)
+
+        self.prior = Normal(  # type: ignore
+            torch.zeros((x_target.shape[0], decoder.z_dim), device=x_target.device),
+            torch.ones((x_target.shape[0], decoder.z_dim), device=x_target.device),
+        )
+
+        self.decoder = decoder
+        self.x_target = x_target
+        self.y_target = y_target
+        self.mask = mask
+        self.context_embedding = context_embedding
+
+    def log_prob(self, z: Tensor) -> Tensor:
+        log_prob: Tensor = self.decoder(
+            self.x_target, z, self.mask, self.context_embedding
+        ).log_prob(self.y_target)
+        # (batch_size, context_size, y_dim)
+
+        if self.mask is not None:
+            log_prob = log_prob * self.mask.unsqueeze(-1).expand(
+                -1, -1, log_prob.shape[2]
+            )  # (batch_size, context_size, y_dim)
+
+        log_like = log_prob.mean(dim=0).sum()
+
+        prior: Tensor = self.prior.log_prob(z)  # type: ignore
+
+        return log_like + prior

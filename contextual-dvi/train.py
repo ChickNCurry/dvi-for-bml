@@ -3,7 +3,7 @@ from typing import Any, Callable, List
 import numpy as np
 import torch
 import wandb
-from decoder import Decoder
+from decoder import Decoder, LikelihoodTimesPrior
 from dvi_process import DiffusionVIProcess
 from encoder import SetEncoder, TestEncoder
 from torch import Tensor
@@ -46,14 +46,14 @@ def train(
                     loss = step_better(
                         dvi_process, encoder, batch, device, target_constructor
                     )
+
                 elif decoder is not None and isinstance(encoder, SetEncoder):
-                    loss = step_bml(
+                    loss = step_bml_better(
                         dvi_process,
                         encoder,
                         decoder,
                         batch,
                         device,
-                        target_constructor,
                     )
 
                 optimizer.zero_grad()
@@ -117,14 +117,6 @@ def step_better(
         1, batch.shape[1] + 1, (batch.shape[0],), device=device
     )
 
-    # context = torch.zeros_like(batch, device=device)
-    # mask = torch.zeros((batch.shape[0], batch.shape[1]), device=device)
-
-    # for i in range(batch.shape[0]):
-    #     context_size = rand_context_sizes[i]
-    #     context[i, 0:context_size, :] = batch[i, 0:context_size, :]
-    #     mask[i, 0:context_size] = 1
-
     position_indices = torch.arange(batch.shape[1], device=device).expand(
         batch.shape[0], -1
     )
@@ -145,7 +137,6 @@ def step_bml(
     decoder: Decoder,
     batch: Tensor,
     device: torch.device,
-    target_constructor: Callable[[Tensor], Distribution],
 ) -> Tensor:
 
     x_data, y_data = batch
@@ -160,26 +151,79 @@ def step_bml(
     context = torch.cat([x_context, y_context], dim=-1)
     # (batch_size, context_size, x_dim + y_dim)
 
-    context = set_encoder(context)
+    context_embedding = set_encoder(context)
     # (batch_size, h_dim)
 
-    p_z_T = target_constructor(context)
-    log_w, z_samples = dvi_process.run_chain(p_z_T, context)
-
-    log_like: Tensor = (
-        decoder(x_context, z_samples[-1], context)
-        .log_prob(y_context)
-        .mean(dim=0)
-        # .mean(dim=1)
-        .sum()
+    p_z_T = LikelihoodTimesPrior(
+        decoder=decoder,
+        x_target=x_context,
+        y_target=y_context,
+        mask=None,
+        context_embedding=context_embedding,
     )
 
-    loss = -log_like - log_w
+    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding)
+
+    loss = -log_w
 
     return loss
 
 
-# def step_bml_better(
+def step_bml_better(
+    dvi_process: DiffusionVIProcess,
+    set_encoder: SetEncoder,
+    decoder: Decoder,
+    batch: Tensor,
+    device: torch.device,
+) -> Tensor:
+
+    x_data, y_data = batch
+    x_data, y_data = x_data.to(device), y_data.to(device)
+    # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+
+    data = torch.cat([x_data, y_data], dim=-1)
+    # (batch_size, context_size, x_dim + y_dim)
+
+    rand_context_sizes = torch.randint(
+        1, data.shape[1] + 1, (data.shape[0],), device=device
+    ).unsqueeze(-1)
+    # (batch_size, 1)
+
+    position_indices = torch.arange(data.shape[1], device=device).expand(
+        data.shape[0], -1
+    )  # (batch_size, context_size)
+
+    mask = (position_indices < rand_context_sizes).float()
+    # (batch_size, context_size)
+
+    context = data * mask.unsqueeze(-1).expand(-1, -1, data.shape[2])
+    # (batch_size, context_size, x_dim + y_dim)
+
+    x_context = context[:, :, 0 : x_data.shape[2]]
+    # (batch_size, context_size, x_dim)
+
+    y_context = context[:, :, x_data.shape[2] : data.shape[2]]
+    # (batch_size, context_size, y_dim)
+
+    context_embedding = set_encoder(context, mask)
+    # (batch_size, h_dim)
+
+    p_z_T = LikelihoodTimesPrior(
+        decoder=decoder,
+        x_target=x_context,
+        y_target=y_context,
+        mask=mask,
+        context_embedding=context_embedding,
+    )
+
+    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding)
+
+    loss = -log_w
+
+    return loss
+
+
+# def step_bml_alternative(
 #     dvi_process: DiffusionVIProcess,
 #     set_encoder: SetEncoder,
 #     decoder: Decoder,
@@ -192,80 +236,34 @@ def step_bml(
 #     x_data, y_data = x_data.to(device), y_data.to(device)
 #     # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
 
-#     rand_context_sizes = torch.randint(
-#         1, batch.shape[1] + 1, (batch.shape[0],), device=device
-#     )
-
 #     data = torch.cat([x_data, y_data], dim=-1)
+#     # (batch_size, context_size, x_dim + y_dim)
 
-#     context = torch.zeros_like(data, device=device)
-#     mask = torch.zeros((data.shape[0], data.shape[1]), device=device)
+#     data = set_encoder(data)
+#     # (batch_size, h_dim)
 
-#     for i in range(data.shape[0]):
-#         context_size = rand_context_sizes[i]
-#         context[i, 0:context_size, :] = data[i, 0:context_size, :]
-#         mask[i, 0:context_size] = 1
+#     rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
+
+#     x_context = x_data[:, 0:rand_sub_context_size, :]
+#     y_context = y_data[:, 0:rand_sub_context_size, :]
+
+#     context = torch.cat([x_context, y_context], dim=-1)
+#     # (batch_size, context_size, x_dim + y_dim)
 
 #     context = set_encoder(context)
 #     # (batch_size, h_dim)
 
 #     p_z_T = target_constructor(context)
-#     log_w, z_samples = dvi_process.run_chain(p_z_T, context)
+#     log_w, z_samples = dvi_process.run_chain(p_z_T, data)
 
-#     log_like: Tensor = (
-#         decoder(x_context, z_samples[-1], context)
-#         .log_prob(y_context)
-#         .mean(dim=0)
-#         # .mean(dim=1)
-#         .sum()
+#     log_like_data: Tensor = (
+#         decoder(x_data, z_samples[-1], data).log_prob(y_data).mean(dim=0).sum()
 #     )
 
-#     loss = -log_like - log_w
+#     log_like_context: Tensor = (
+#         decoder(x_context, z_samples[-1], context).log_prob(y_context).mean(dim=0).sum()
+#     )
+
+#     loss = -log_like_data - log_like_context - log_w
 
 #     return loss
-
-
-def step_bml_alternative(
-    dvi_process: DiffusionVIProcess,
-    set_encoder: SetEncoder,
-    decoder: Decoder,
-    batch: Tensor,
-    device: torch.device,
-    target_constructor: Callable[[Tensor], Distribution],
-) -> Tensor:
-
-    x_data, y_data = batch
-    x_data, y_data = x_data.to(device), y_data.to(device)
-    # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
-
-    data = torch.cat([x_data, y_data], dim=-1)
-    # (batch_size, context_size, x_dim + y_dim)
-
-    data = set_encoder(data)
-    # (batch_size, h_dim)
-
-    rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
-
-    x_context = x_data[:, 0:rand_sub_context_size, :]
-    y_context = y_data[:, 0:rand_sub_context_size, :]
-
-    context = torch.cat([x_context, y_context], dim=-1)
-    # (batch_size, context_size, x_dim + y_dim)
-
-    context = set_encoder(context)
-    # (batch_size, h_dim)
-
-    p_z_T = target_constructor(context)
-    log_w, z_samples = dvi_process.run_chain(p_z_T, data)
-
-    log_like_data: Tensor = (
-        decoder(x_data, z_samples[-1], data).log_prob(y_data).mean(dim=0).sum()
-    )
-
-    log_like_context: Tensor = (
-        decoder(x_context, z_samples[-1], context).log_prob(y_context).mean(dim=0).sum()
-    )
-
-    loss = -log_like_data - log_like_context - log_w
-
-    return loss
