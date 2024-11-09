@@ -56,7 +56,8 @@ class SetEncoder(nn.Module):
 
             counts = mask.sum(dim=1, keepdim=True)
 
-            c = c.sum(dim=1) / counts
+            # c = c.sum(dim=1) / counts
+            c, _ = c.max(dim=1)
             # (batch_size, h_dim)
 
             e: Tensor = self.context_size_embedding(counts.squeeze(1).int())

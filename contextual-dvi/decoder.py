@@ -12,15 +12,22 @@ class Decoder(nn.Module):
         y_dim: int,
         num_layers: int,
         non_linearity: str,
+        has_lat_path: bool,
         has_det_path: bool,
     ) -> None:
         super(Decoder, self).__init__()
 
-        self.has_det_path = has_det_path
         self.z_dim = z_dim
+        self.has_lat_path = has_lat_path
+        self.has_det_path = has_det_path
 
         self.mlp = nn.Sequential(
-            nn.Linear(x_dim + z_dim + h_dim if has_det_path else x_dim + z_dim, h_dim),
+            nn.Linear(
+                in_features=x_dim
+                + (z_dim if has_lat_path else 0)
+                + (h_dim if has_det_path else 0),
+                out_features=h_dim,
+            ),
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
@@ -34,8 +41,7 @@ class Decoder(nn.Module):
     def forward(
         self,
         x_target: Tensor,
-        z: Tensor,
-        mask: Tensor | None,
+        z: Tensor | None,
         context_embedding: Tensor | None,
     ) -> Distribution:
         # (batch_size, target_size, x_dim)
@@ -43,21 +49,21 @@ class Decoder(nn.Module):
         # (batch_size, target_size)
         # (batch_size, h_dim)
 
-        z = z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
+        z = (
+            z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
+            if self.has_lat_path and z is not None
+            else None
+        )
         # (batch_size, target_size, z_dim)
 
-        context_embedding = (
+        c = (
             context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
             if self.has_det_path and context_embedding is not None
             else None
         )
         # (batch_size, target_size, z_dim)
 
-        h = (
-            torch.cat([x_target, z, context_embedding], dim=-1)
-            if self.has_det_path and context_embedding is not None
-            else torch.cat([x_target, z], dim=-1)
-        )
+        h = torch.cat([t for t in [x_target, z, c] if t is not None], dim=-1)
         # (batch_size, target_size, x_dim + z_dim + h_dim)
 
         h = self.mlp(h)
@@ -66,10 +72,6 @@ class Decoder(nn.Module):
         y_mu = self.proj_y_mu(h)
         y_std = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
         # (batch_size, target_size, y_dim)
-
-        # if mask is not None:
-        #     y_mu = y_mu * mask.unsqueeze(-1)
-        #     y_std = y_std * mask.unsqueeze(-1)
 
         y_dist = Normal(y_mu, y_std)  # type: ignore
 
@@ -100,7 +102,7 @@ class LikelihoodTimesPrior(Distribution):
 
     def log_prob(self, z: Tensor) -> Tensor:
         log_prob: Tensor = self.decoder(
-            self.x_target, z, self.mask, self.context_embedding
+            self.x_target, z, self.context_embedding
         ).log_prob(self.y_target)
         # (batch_size, context_size, y_dim)
 
