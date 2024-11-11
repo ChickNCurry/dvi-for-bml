@@ -210,9 +210,9 @@ def step_bml_better(
 
     p_z_T = LikelihoodTimesPrior(
         decoder=decoder,
-        x_target=x_context,
-        y_target=y_context,
-        mask=mask,
+        x_target=x_data,  # x_context,
+        y_target=y_data,  # y_context,
+        mask=None,  # mask,
         context_embedding=non_aggregated if decoder.is_cross_attentive else aggregated,
     )
 

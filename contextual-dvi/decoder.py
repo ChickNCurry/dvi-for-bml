@@ -50,10 +50,12 @@ class Decoder(nn.Module):
         x_target: Tensor,
         z: Tensor | None,
         context_embedding: Tensor | None,
+        mask: Tensor | None,
     ) -> Distribution:
         # (batch_size, target_size, x_dim)
         # (batch_size, target_size)
         # (batch_size, h_dim) or (batch_size, context_size, h_dim)
+        # (batch_size, context_size)
 
         c: Tensor | None = None
 
@@ -67,6 +69,9 @@ class Decoder(nn.Module):
                         context_embedding[:, :, 0:1]
                     ),  # (batch_size, context_size, h_dim)
                     value=context_embedding,  # (batch_size, context_size, h_dim)
+                    attn_mask=(
+                        mask.unsqueeze(1) if mask is not None else None
+                    ),  # (batch_size, 1, context_size)
                 )
             else:
                 c = context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
@@ -115,7 +120,7 @@ class LikelihoodTimesPrior(Distribution):
 
     def log_prob(self, z: Tensor) -> Tensor:
         log_prob: Tensor = self.decoder(
-            self.x_target, z, self.context_embedding
+            self.x_target, z, self.context_embedding, self.mask
         ).log_prob(self.y_target)
         # (batch_size, context_size, y_dim)
 
