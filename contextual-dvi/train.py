@@ -96,7 +96,7 @@ def step(
     context = batch[:, 0:random_context_size, :]
 
     p_z_T = target_constructor(context)
-    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context))
+    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context), None)
 
     loss = -log_w
 
@@ -124,7 +124,7 @@ def step_better(
     context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
 
     p_z_T = target_constructor(context, mask)
-    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context, mask))
+    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context, mask), mask)
 
     loss = -log_w
 
@@ -162,7 +162,7 @@ def step_bml(
         context_embedding=context_embedding,
     )
 
-    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding)
+    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding, None)
 
     loss = -log_w
 
@@ -205,7 +205,7 @@ def step_bml_better(
     y_context = context[:, :, x_data.shape[2] : data.shape[2]]
     # (batch_size, context_size, y_dim)
 
-    context_embedding = set_encoder(context, mask)
+    aggregated, non_aggregated = set_encoder(context, mask)
     # (batch_size, h_dim)
 
     p_z_T = LikelihoodTimesPrior(
@@ -213,10 +213,18 @@ def step_bml_better(
         x_target=x_context,
         y_target=y_context,
         mask=mask,
-        context_embedding=context_embedding,
+        context_embedding=non_aggregated if decoder.is_cross_attentive else aggregated,
     )
 
-    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding)
+    log_w, _ = dvi_process.run_chain(
+        p_z_T,
+        (
+            non_aggregated
+            if dvi_process.control_function.is_cross_attentive
+            else aggregated
+        ),
+        mask,
+    )
 
     loss = -log_w
 

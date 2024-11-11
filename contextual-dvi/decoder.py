@@ -14,19 +14,26 @@ class Decoder(nn.Module):
         non_linearity: str,
         has_lat_path: bool,
         has_det_path: bool,
+        is_cross_attentive: bool,
     ) -> None:
         super(Decoder, self).__init__()
 
         self.z_dim = z_dim
         self.has_lat_path = has_lat_path
         self.has_det_path = has_det_path
+        self.is_cross_attentive = is_cross_attentive
+
+        if self.is_cross_attentive:
+            self.proj_x_target = nn.Linear(x_dim, h_dim)
+            self.proj_x_context = nn.Linear(x_dim, h_dim)
+            self.cross_attn = nn.MultiheadAttention(
+                h_dim, num_heads=1, batch_first=True
+            )
 
         self.mlp = nn.Sequential(
             nn.Linear(
-                in_features=x_dim
-                + (z_dim if has_lat_path else 0)
-                + (h_dim if has_det_path else 0),
-                out_features=h_dim,
+                x_dim + (z_dim if has_lat_path else 0) + (h_dim if has_det_path else 0),
+                h_dim,
             ),
             *[
                 layer
@@ -45,25 +52,31 @@ class Decoder(nn.Module):
         context_embedding: Tensor | None,
     ) -> Distribution:
         # (batch_size, target_size, x_dim)
-        # (batch_size, z_dim)
         # (batch_size, target_size)
-        # (batch_size, h_dim)
+        # (batch_size, h_dim) or (batch_size, context_size, h_dim)
 
-        z = (
-            z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
-            if self.has_lat_path and z is not None
-            else None
-        )
-        # (batch_size, target_size, z_dim)
+        c: Tensor | None = None
 
-        c = (
-            context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
-            if self.has_det_path and context_embedding is not None
-            else None
-        )
-        # (batch_size, target_size, z_dim)
+        if self.has_det_path and context_embedding is not None:
+            if self.is_cross_attentive:
+                c, _ = self.cross_attn(
+                    query=self.proj_x_target(
+                        x_target
+                    ),  # (batch_size, target_size, h_dim)
+                    key=self.proj_x_context(
+                        context_embedding[:, :, 0:1]
+                    ),  # (batch_size, context_size, h_dim)
+                    value=context_embedding,  # (batch_size, context_size, h_dim)
+                )
+            else:
+                c = context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
+            # (batch_size, target_size, h_dim)
 
-        h = torch.cat([t for t in [x_target, z, c] if t is not None], dim=-1)
+        if self.has_lat_path and z is not None:
+            z = z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
+            # (batch_size, target_size, z_dim)
+
+        h = torch.cat([t for t in [x_target, c, z] if t is not None], dim=-1)
         # (batch_size, target_size, x_dim + z_dim + h_dim)
 
         h = self.mlp(h)
@@ -84,8 +97,8 @@ class LikelihoodTimesPrior(Distribution):
         decoder: Decoder,
         x_target: Tensor,
         y_target: Tensor,
-        mask: Tensor | None,
         context_embedding: Tensor | None,
+        mask: Tensor | None,
     ) -> None:
         super(LikelihoodTimesPrior, self).__init__(validate_args=False)
 
@@ -97,8 +110,8 @@ class LikelihoodTimesPrior(Distribution):
         self.decoder = decoder
         self.x_target = x_target
         self.y_target = y_target
-        self.mask = mask
         self.context_embedding = context_embedding
+        self.mask = mask
 
     def log_prob(self, z: Tensor) -> Tensor:
         log_prob: Tensor = self.decoder(
@@ -111,8 +124,4 @@ class LikelihoodTimesPrior(Distribution):
                 -1, -1, log_prob.shape[2]
             )  # (batch_size, context_size, y_dim)
 
-        log_like = log_prob.mean(dim=0).sum()
-
-        prior: Tensor = self.prior.log_prob(z)  # type: ignore
-
-        return log_like + prior
+        return log_prob.mean(dim=0).sum() + self.prior.log_prob(z)  # type: ignore

@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 from torch import Tensor, nn
 
@@ -10,16 +12,23 @@ class SetEncoder(nn.Module):
         num_layers: int,
         non_linearity: str,
         is_attentive: bool,
+        is_aggregative: bool,
+        is_non_aggregative: bool,
+        use_context_size: bool,
         aggregation: str,
         max_context_size: int,
     ) -> None:
         super(SetEncoder, self).__init__()
 
-        # self.context_embedding_dim = int(h_dim / 2)
-        # self.context_size_embedding_dim = h_dim - self.context_embedding_dim
+        self.is_attentive = is_attentive
+        self.is_aggregative = is_aggregative
+        self.is_non_aggregative = is_non_aggregative
+        self.use_context_size = use_context_size
+
+        self.proj_in = nn.Linear(c_dim, h_dim)
 
         self.mlp = nn.Sequential(
-            nn.Linear(c_dim, h_dim),
+            nn.Linear(h_dim, h_dim),
             *[
                 layer
                 for layer in (
@@ -27,59 +36,71 @@ class SetEncoder(nn.Module):
                     nn.Linear(h_dim, h_dim),
                 )
                 for _ in range(num_layers - 1)
-            ]
+            ],
         )
-
-        self.is_attentive = is_attentive
 
         if self.is_attentive:
             self.self_attn = nn.MultiheadAttention(h_dim, 1, batch_first=True)
 
-        self.aggregation = getattr(torch, aggregation)
+        if self.is_aggregative:
+            self.aggregation = aggregation
 
-        self.context_size_embedding = nn.Embedding(max_context_size + 1, h_dim)
+            if self.use_context_size:
+                self.context_size_embedding = nn.Embedding(max_context_size + 1, h_dim)
 
-    def forward(self, context: Tensor, mask: Tensor | None = None) -> Tensor:
+    def forward(
+        self, context: Tensor, mask: Tensor | None
+    ) -> Tuple[Tensor | None, Tensor | None]:
         # (batch_size, context_size, c_dim), (batch_size, context_size)
 
-        c: Tensor = context
-
-        c = self.mlp(c)
+        c: Tensor = self.proj_in(context)
         # (batch_size, context_size, h_dim)
 
         if self.is_attentive:
             c, _ = self.self_attn(c, c, c, need_weights=False)
             # (batch_size, context_size, h_dim)
 
-        if mask is not None:
-            c = c * mask.unsqueeze(-1)
+        c = self.mlp(c)
+        # (batch_size, context_size, h_dim)
 
-            counts = mask.sum(dim=1, keepdim=True)
+        aggregated: Tensor | None = None
+        non_aggregated: Tensor | None = None
 
-            # c = c.sum(dim=1) / counts
-            c, _ = c.max(dim=1)
-            # (batch_size, h_dim)
+        if self.is_aggregative:
+            match self.aggregation:
+                case "mean":
+                    aggregated = (
+                        c.mean(dim=1)
+                        if mask is None
+                        else (c * mask.unsqueeze(-1)).sum(dim=1)
+                        / mask.sum(dim=1, keepdim=True)
+                    )
+                case "max":
+                    aggregated = (
+                        c.max(dim=1)[0]
+                        if mask is None
+                        else (c * mask.unsqueeze(-1)).max(dim=1)[0]
+                    )
+                # (batch_size, h_dim)
 
-            e: Tensor = self.context_size_embedding(counts.squeeze(1).int())
-            # (batch_size, h_dim)
+            if self.use_context_size:
+                e = (
+                    self.context_size_embedding(
+                        torch.tensor([context.shape[1]], device=c.device)
+                    ).expand(c.shape[0], -1)
+                    if mask is None
+                    else self.context_size_embedding(mask.sum(dim=1).int())
+                )
+                # (batch_size, h_dim)
 
-            # out = torch.cat([c, e], dim=1)
-            out = c + e
-            # (batch_size, h_dim)
-        else:
-            c = self.aggregation(c, dim=1)
-            # (batch_size, h_dim)
+                aggregated = aggregated + e if aggregated is not None else print("FAUK")
+                # (batch_size, h_dim)
 
-            e = self.context_size_embedding(
-                torch.tensor([context.shape[1]], device=c.device)
-            ).expand(c.shape[0], -1)
-            # (batch_size, h_dim)
+        if self.is_non_aggregative:
+            non_aggregated = c if mask is None else c * mask.unsqueeze(-1)
+            # (batch_size, context_size, h_dim)
 
-            # out = torch.cat([c, e], dim=1)
-            out = c + e
-            # (batch_size, h_dim)
-
-        return out
+        return aggregated, non_aggregated
 
 
 class TestEncoder(nn.Module):
@@ -88,7 +109,7 @@ class TestEncoder(nn.Module):
 
         self.proj_c = nn.Linear(c_dim, h_dim)
 
-    def forward(self, c: Tensor, mask: Tensor | None = None) -> Tensor:
+    def forward(self, c: Tensor, mask: Tensor | None) -> Tensor:
 
         c = self.proj_c(c.squeeze(1))
 
