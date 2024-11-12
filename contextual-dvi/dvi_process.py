@@ -60,51 +60,44 @@ class DiffusionVIProcess(nn.Module, ABC):
 
         p_z_0 = self.get_prior(context_embedding.shape[0], context_embedding.device)
 
-        z_samples = [p_z_0.sample()]
+        z = [p_z_0.sample()]
 
-        fwd_log_probs = []
-        bwd_log_probs = []
+        log_w: Tensor = torch.zeros(
+            (context_embedding.shape[0], self.z_dim),
+            device=context_embedding.device,
+        )
 
         for i in range(0, self.num_steps):
 
             t = i + 1
 
             fwd_kernel = self.forward_kernel(
-                z_samples[t - 1], t, context_embedding, mask, p_z_0, p_z_T
+                z[t - 1], t, context_embedding, mask, p_z_0, p_z_T
             )
 
-            z_samples.append(fwd_kernel.rsample())
+            z.append(fwd_kernel.rsample())
 
             bwd_kernel = self.backward_kernel(
-                z_samples[t], t - 1, context_embedding, mask, p_z_0, p_z_T
+                z[t], t - 1, context_embedding, mask, p_z_0, p_z_T
             )
 
-            fwd_log_probs.append(fwd_kernel.log_prob(z_samples[t]))
-            bwd_log_probs.append(bwd_kernel.log_prob(z_samples[t - 1]))
+            log_w += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
 
-        fwd_log_probs.append(p_z_0.log_prob(z_samples[0]))
-        bwd_log_probs.append(p_z_T.log_prob(z_samples[-1]))
+        log_w += p_z_T.log_prob(z[-1]) - p_z_0.log_prob(z[0])
 
-        assert len(fwd_log_probs) == self.num_steps + 1
-        assert len(bwd_log_probs) == self.num_steps + 1
+        log_w = log_w.mean(dim=0).sum()
 
-        log_w = torch.stack(
-            [
-                (bwd_log_probs[i] - fwd_log_probs[i]).mean(dim=0).sum()
-                for i in range(self.num_steps + 1)
-            ]
-        ).sum(dim=0)
-
-        return log_w, z_samples
+        return log_w, z
 
 
 class DIS(DiffusionVIProcess):
     def __init__(
         self,
+        device: torch.device,
         z_dim: int,
         num_steps: int,
         control_function: ControlFunction,
-        device: torch.device,
+        amplitude: float = 3.0,
     ) -> None:
         super(DIS, self).__init__(
             z_dim=z_dim,
@@ -113,24 +106,28 @@ class DIS(DiffusionVIProcess):
 
         self.control_function = control_function
 
-        self.beta_schedule = [
-            3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)  # t
-            for t in np.linspace(1, 0, num_steps + 2)
-        ]
-
-        self.betas = nn.ParameterList(
+        self.beta_schedule = nn.ParameterList(
             [
                 nn.Parameter(torch.tensor([beta], dtype=torch.float, device=device))
-                for beta in self.beta_schedule
+                for beta in [
+                    amplitude * np.cos(math.pi * (1 - t) / 2) ** 2  # t
+                    for t in np.linspace(1, 0, num_steps + 2)
+                ]
             ]
         )
 
-        # self.sigma_0 = torch.tensor(1, dtype=torch.float, device=device)
+        self.sigma_schedule = nn.ParameterList(
+            [
+                nn.Parameter(torch.tensor([sigma], dtype=torch.float, device=device))
+                for sigma in [1]
+            ]
+        )
 
     def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
         return Normal(  # type: ignore
             torch.zeros((batch_size, self.z_dim), device=device),
-            torch.ones((batch_size, self.z_dim), device=device),  # * self.sigma_0,
+            torch.ones((batch_size, self.z_dim), device=device)
+            * self.sigma_schedule[0],
         )
 
     def forward_kernel(
@@ -144,7 +141,7 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        beta_t = self.betas[t]
+        beta_t = self.beta_schedule[t]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding, mask)
@@ -153,7 +150,7 @@ class DIS(DiffusionVIProcess):
         z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
         # (batch_size, z_dim)
 
-        z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
@@ -170,13 +167,13 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1)
 
-        beta_t = self.betas[t]
+        beta_t = self.beta_schedule[t]
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t
         # (batch_size, z_dim)
 
-        z_sigma = torch.sqrt(2 * beta_t * self.delta_t)  # * self.sigma_0
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
         # (batch_size, z_dim)
 
@@ -186,10 +183,11 @@ class DIS(DiffusionVIProcess):
 class CMCD(DiffusionVIProcess):
     def __init__(
         self,
+        device: torch.device,
         z_dim: int,
         num_steps: int,
         control_function: ControlFunction,
-        device: torch.device,
+        amplitude: float = 3.0,
     ) -> None:
         super(CMCD, self).__init__(
             z_dim=z_dim,
@@ -198,19 +196,22 @@ class CMCD(DiffusionVIProcess):
 
         self.control_function = control_function
 
-        self.sigma_schedule = [
-            3 * np.pow(np.cos(math.pi * (1 - t) / 2), 2)
-            for t in np.linspace(1, 0, num_steps + 2)
-        ]
-
-        self.sigmas = nn.ParameterList(
+        self.sigma_schedule = nn.ParameterList(
             [
                 nn.Parameter(torch.tensor([sigma], dtype=torch.float, device=device))
-                for sigma in self.sigma_schedule
+                for sigma in [
+                    amplitude * np.cos(math.pi * (1 - t) / 2) ** 2
+                    for t in np.linspace(1, 0, num_steps + 2)
+                ]
             ]
         )
 
-        self.annealing_schedule = np.linspace(0, 1, num_steps + 1)
+        self.annealing_schedule = nn.ParameterList(
+            [
+                nn.Parameter(torch.tensor([beta], dtype=torch.float, device=device))
+                for beta in np.linspace(0, 1, num_steps + 2)
+            ]
+        )
 
     def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
         return Normal(  # type: ignore
@@ -229,7 +230,7 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigmas[t]
+        sigma_t = self.sigma_schedule[t]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding, mask)
@@ -258,7 +259,7 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigmas[t]
+        sigma_t = self.sigma_schedule[t]
         # (1)
 
         control = self.control_function(z_next, t, context_embedding, mask)

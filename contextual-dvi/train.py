@@ -124,7 +124,9 @@ def step_better(
     context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
 
     p_z_T = target_constructor(context, mask)
-    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context, mask), mask)
+
+    aggregated, _ = encoder(context, mask)
+    log_w, _ = dvi_process.run_chain(p_z_T, aggregated, mask)
 
     loss = -log_w
 
