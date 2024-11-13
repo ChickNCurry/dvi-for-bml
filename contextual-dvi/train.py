@@ -186,9 +186,13 @@ def step_bml_better(
     data = torch.cat([x_data, y_data], dim=-1)
     # (batch_size, context_size, x_dim + y_dim)
 
-    rand_context_sizes = torch.randint(
-        1, data.shape[1] + 1, (data.shape[0],), device=device
-    ).unsqueeze(-1)
+    # rand_context_sizes = torch.randint(
+    #     1, data.shape[1] + 1, (data.shape[0],), device=device
+    # ).unsqueeze(-1)
+    rand_context_sizes = torch.tensor(
+        np.ceil(np.random.beta(a=1, b=2, size=(data.shape[0], 1)) * data.shape[1]),
+        device=device,
+    )
     # (batch_size, 1)
 
     position_indices = torch.arange(data.shape[1], device=device).expand(
@@ -212,9 +216,9 @@ def step_bml_better(
 
     p_z_T = LikelihoodTimesPrior(
         decoder=decoder,
-        x_target=x_data,  # x_context,
-        y_target=y_data,  # y_context,
-        mask=None,  # mask,
+        x_target=x_context,
+        y_target=y_context,
+        mask=mask,
         context_embedding=non_aggregated if decoder.is_cross_attentive else aggregated,
     )
 

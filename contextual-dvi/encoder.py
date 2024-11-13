@@ -93,7 +93,7 @@ class SetEncoder(nn.Module):
                 )
                 # (batch_size, h_dim)
 
-                aggregated = aggregated + e if aggregated is not None else print("FAUK")
+                aggregated = aggregated + e if aggregated is not None else None
                 # (batch_size, h_dim)
 
         if self.is_non_aggregative:
@@ -109,8 +109,8 @@ class TestEncoder(nn.Module):
 
         self.proj_c = nn.Linear(c_dim, h_dim)
 
-    def forward(self, c: Tensor, mask: Tensor | None) -> Tensor:
+    def forward(self, c: Tensor, mask: Tensor | None) -> Tuple[Tensor, None]:
 
         c = self.proj_c(c.squeeze(1))
 
-        return c
+        return c, None

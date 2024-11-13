@@ -97,7 +97,7 @@ class DIS(DiffusionVIProcess):
         z_dim: int,
         num_steps: int,
         control_function: ControlFunction,
-        amplitude: float = 3.0,
+        min: float = 0.1,
     ) -> None:
         super(DIS, self).__init__(
             z_dim=z_dim,
@@ -110,8 +110,8 @@ class DIS(DiffusionVIProcess):
             [
                 nn.Parameter(torch.tensor([beta], dtype=torch.float, device=device))
                 for beta in [
-                    amplitude * np.cos(math.pi * (1 - t) / 2) ** 2  # t
-                    for t in np.linspace(1, 0, num_steps + 2)
+                    (1 - min) * np.cos(math.pi * (1 - t) * 0.5) ** 2 + min
+                    for t in np.linspace(1, 0, num_steps)
                 ]
             ]
         )
@@ -141,7 +141,7 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        beta_t = self.beta_schedule[t]
+        beta_t = self.beta_schedule[t - 1]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding, mask)
@@ -167,7 +167,7 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1)
 
-        beta_t = self.beta_schedule[t]
+        beta_t = self.beta_schedule[t - 1]
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t
@@ -187,7 +187,7 @@ class CMCD(DiffusionVIProcess):
         z_dim: int,
         num_steps: int,
         control_function: ControlFunction,
-        amplitude: float = 3.0,
+        min: float = 0.2,
     ) -> None:
         super(CMCD, self).__init__(
             z_dim=z_dim,
@@ -200,8 +200,8 @@ class CMCD(DiffusionVIProcess):
             [
                 nn.Parameter(torch.tensor([sigma], dtype=torch.float, device=device))
                 for sigma in [
-                    amplitude * np.cos(math.pi * (1 - t) / 2) ** 2
-                    for t in np.linspace(1, 0, num_steps + 2)
+                    (1 - min) * np.cos(math.pi * (1 - t) * 0.5) ** 2 + min
+                    for t in np.linspace(1, 0, num_steps)
                 ]
             ]
         )
@@ -209,7 +209,7 @@ class CMCD(DiffusionVIProcess):
         self.annealing_schedule = nn.ParameterList(
             [
                 nn.Parameter(torch.tensor([beta], dtype=torch.float, device=device))
-                for beta in np.linspace(0, 1, num_steps + 2)
+                for beta in np.linspace(min, 1 - min, num_steps)
             ]
         )
 
@@ -230,7 +230,7 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigma_schedule[t]
+        sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
         control = self.control_function(z_prev, t, context_embedding, mask)
@@ -259,7 +259,7 @@ class CMCD(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        sigma_t = self.sigma_schedule[t]
+        sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
         control = self.control_function(z_next, t, context_embedding, mask)
@@ -287,7 +287,7 @@ class CMCD(DiffusionVIProcess):
 
         z = z.requires_grad_(True)
 
-        beta_t = self.annealing_schedule[t]
+        beta_t = self.annealing_schedule[t - 1]
 
         log_geo_avg: Tensor = (1 - beta_t) * p_z_0.log_prob(
             z
