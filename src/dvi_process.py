@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-from control_function import ControlFunction
+from src.control_function import ControlFunction
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 

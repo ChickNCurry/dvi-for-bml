@@ -3,9 +3,9 @@ from typing import Any, Callable, List
 import numpy as np
 import torch
 import wandb
-from decoder import Decoder, LikelihoodTimesPrior
-from dvi_process import DiffusionVIProcess
-from encoder import SetEncoder, TestEncoder
+from src.decoder import Decoder, LikelihoodTimesPrior
+from src.dvi_process import DiffusionVIProcess
+from src.encoder import SetEncoder, TestEncoder
 from torch import Tensor
 from torch.distributions import Distribution
 from torch.optim import Optimizer
