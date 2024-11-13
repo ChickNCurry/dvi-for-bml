@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Any, Dict
 
 
@@ -44,4 +44,4 @@ class Config:
         self.has_det_path = has_det_path
 
     def to_dict(self) -> Dict[Any, Any]:
-        return self.__dict__
+        return asdict(self)
