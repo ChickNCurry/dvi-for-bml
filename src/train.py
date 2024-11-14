@@ -1,4 +1,4 @@
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Tuple
 
 import numpy as np
 import torch
@@ -19,7 +19,7 @@ def train(
     encoder: SetEncoder | TestEncoder,
     device: torch.device,
     num_epochs: int,
-    dataloader: DataLoader[Tensor],
+    dataloader: DataLoader[Tensor] | DataLoader[Tuple[Tensor, Tensor]],
     target_constructor: Any,
     optimizer: Optimizer,
     scheduler: LRScheduler | None,
