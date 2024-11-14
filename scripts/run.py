@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from src.train import train
 
 
-@hydra.main(config_path="config", config_name="config")
+@hydra.main(version_base=None, config_path="config", config_name="config")
 def run(config: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
