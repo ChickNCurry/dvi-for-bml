@@ -28,7 +28,7 @@ training:
   num_epochs: 10000
   batch_size: 1024
   learning_rate: 3e-4
-  wandb_logging: false
+  wandb_logging: true
 
 benchmark:
   _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D

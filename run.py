@@ -1,17 +1,19 @@
+import os
+
 import hydra
-from omegaconf import OmegaConf, DictConfig
 import torch
 import wandb
+from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
+
+# from config.config import Config
 from src.context_datasets import MetaLearningDataset
 from src.control_function import ControlFunction
 from src.decoder import Decoder
-from src.encoder import SetEncoder
-from torch.utils.data import DataLoader
-from src.train import train
-from hydra.utils import instantiate
-from config.config import Config
-import os
 from src.dvi_process import DiffusionVIProcess
+from src.encoder import SetEncoder
+from src.train import train
 
 
 # @hydra.main(version_base=None, config_name="config")
