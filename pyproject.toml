@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Max Burzer <maxi.burzer@gmail.com>"]
 readme = "README.md"
-packages = [{include = "src"}, {include = "notebooks"}, {include = "scripts"}]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
