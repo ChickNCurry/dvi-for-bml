@@ -45,5 +45,5 @@ hydra:
     partition: "gpu_4"
     timeout_min: 2880
     gres: gpu:1
-    mem_per_gpu: 94000 
+    mem_per_gpu: 4000 
     

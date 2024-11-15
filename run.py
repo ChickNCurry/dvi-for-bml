@@ -9,7 +9,9 @@ from src.encoder import SetEncoder
 from torch.utils.data import DataLoader
 from src.train import train
 from hydra.utils import instantiate
-from scripts.config.config import Config
+from config.config import Config
+import os
+from src.dvi_process import DiffusionVIProcess
 
 
 # @hydra.main(version_base=None, config_name="config")
@@ -48,7 +50,7 @@ def run(config: DictConfig) -> None:
         is_cross_attentive=config.control_function.is_cross_attentive,
     ).to(device)
 
-    dvi_process = instantiate(
+    dvi_process: DiffusionVIProcess = instantiate(
         config.dvi_process,
         z_dim=config.common.z_dim,
         control_function=control_function,
@@ -68,7 +70,7 @@ def run(config: DictConfig) -> None:
     ).to(device)
 
     if config.training.wandb_logging:
-        wandb.init(project="dvi-bml", config=OmegaConf.to_container(config, resolve=True))  # type: ignore
+        wandb.init(project="dvi-for-bml", config=OmegaConf.to_container(config, resolve=True))  # type: ignore
 
     params = [
         {"params": dvi_process.parameters(), "lr": config.training.learning_rate},
@@ -90,6 +92,20 @@ def run(config: DictConfig) -> None:
         wandb_logging=config.training.wandb_logging,
         decoder=decoder,
     )
+
+    if config.training.wandb_logging and wandb.run is not None:
+        torch.save(
+            dvi_process.state_dict(),
+            os.path.join(wandb.run.dir, "dvi_process.pth"),
+        )
+        torch.save(
+            set_encoder.state_dict(),
+            os.path.join(wandb.run.dir, "set_encoder.pth"),
+        )
+        torch.save(
+            decoder.state_dict(),
+            os.path.join(wandb.run.dir, "decoder.pth"),
+        )
 
     wandb.finish()
 
