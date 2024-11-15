@@ -2,6 +2,7 @@
 common.h_dim=128 \
 common.num_layers=6 \
 common.non_linearity=SiLU,Tanh \
-dvi_process.is_cross_attentive=False,True \
+control_function.is_cross_attentive=False,True \
 set_encoder.aggregation=max,mean \
-wandb_logging=False
+training.wandb_logging=False \
+# hydra/launcher=submitit_slurm \

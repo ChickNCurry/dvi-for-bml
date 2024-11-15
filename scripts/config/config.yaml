@@ -8,8 +8,10 @@ common:
   non_linearity: SiLU
 
 dvi_process:
-  variant: DIS
+  _target_: src.dvi_process.DIS
   num_steps: 16
+
+control_function:
   is_cross_attentive: false
 
 set_encoder:
@@ -23,17 +25,25 @@ decoder:
   is_cross_attentive: false
 
 training:
-  num_epochs: 6000
+  num_epochs: 10000
   batch_size: 1024
   learning_rate: 3e-4
   wandb_logging: false
 
 benchmark:
-  package: line_sine1d_benchmark
-  name: LineSine1D
+  _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
   n_task: 4096
   n_datapoints_per_task: 64
   output_noise: 0.1
   seed_task: 1237
   seed_x: 123
   seed_noise: 1237
+
+hydra:
+  mode: MULTIRUN
+  launcher:
+    partition: "gpu_4"
+    timeout_min: 2880
+    gres: gpu:1
+    mem_per_gpu: 94000 
+    

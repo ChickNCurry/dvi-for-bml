@@ -5,30 +5,20 @@ import wandb
 from src.context_datasets import MetaLearningDataset
 from src.control_function import ControlFunction
 from src.decoder import Decoder
-import src.dvi_process
 from src.encoder import SetEncoder
-import metalearning_benchmarks  # type: ignore
 from torch.utils.data import DataLoader
 from src.train import train
+from hydra.utils import instantiate
+from scripts.config.config import Config
 
 
+# @hydra.main(version_base=None, config_name="config")
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def run(config: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    benchmark = getattr(
-        getattr(metalearning_benchmarks, config.benchmark.package),
-        config.benchmark.name,
-    )(
-        n_task=config.benchmark.n_task,
-        n_datapoints_per_task=config.benchmark.n_datapoints_per_task,
-        output_noise=config.benchmark.output_noise,
-        seed_task=config.benchmark.seed_task,
-        seed_x=config.benchmark.seed_x,
-        seed_noise=config.benchmark.seed_noise,
-    )
-
+    benchmark = instantiate(config.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
     dataloader = DataLoader(
         dataset=dataset, batch_size=config.training.batch_size, shuffle=True
@@ -40,9 +30,9 @@ def run(config: DictConfig) -> None:
         num_layers=config.common.num_layers,
         non_linearity=config.common.non_linearity,
         is_attentive=config.set_encoder.is_attentive,
-        is_aggregative=not config.dvi_process.is_cross_attentive
+        is_aggregative=not config.control_function.is_cross_attentive
         or not config.decoder.is_cross_attentive,
-        is_non_aggregative=config.dvi_process.is_cross_attentive
+        is_non_aggregative=config.control_function.is_cross_attentive
         or config.decoder.is_cross_attentive,
         use_context_size=config.set_encoder.use_context_size,
         aggregation=config.set_encoder.aggregation,
@@ -55,15 +45,15 @@ def run(config: DictConfig) -> None:
         num_layers=config.common.num_layers,
         non_linearity=config.common.non_linearity,
         num_steps=config.dvi_process.num_steps,
-        is_cross_attentive=config.dvi_process.is_cross_attentive,
+        is_cross_attentive=config.control_function.is_cross_attentive,
     ).to(device)
 
-    dvi_process = getattr(src.dvi_process, config.dvi_process.variant)(
+    dvi_process = instantiate(
+        config.dvi_process,
         z_dim=config.common.z_dim,
-        num_steps=config.dvi_process.num_steps,
         control_function=control_function,
         device=device,
-    ).to(device)
+    )
 
     decoder = Decoder(
         x_dim=config.common.x_dim,
