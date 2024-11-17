@@ -41,10 +41,10 @@ class DecoderConfig:
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 6000
+    num_epochs: int = 10000
     batch_size: int = 1024
     learning_rate: float = 3e-4
-    wandb_logging: bool = False
+    wandb_logging: bool = True
 
 
 @dataclass

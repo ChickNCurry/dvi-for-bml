@@ -42,8 +42,8 @@ benchmark:
 hydra:
   mode: MULTIRUN
   launcher:
-    partition: "gpu_4"
-    timeout_min: 2880
+    partition: "gpu_4" # "dev_gpu_4"
+    timeout_min: 2880 # 30
     gres: gpu:1
     mem_per_gpu: 4000 
     

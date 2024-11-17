@@ -11,9 +11,16 @@ from torch.utils.data import DataLoader
 from src.context_datasets import MetaLearningDataset
 from src.control_function import ControlFunction
 from src.decoder import Decoder
+from src.encoder import SetEncoder
+from torch.utils.data import DataLoader
+from src.train import train
+from hydra.utils import instantiate
+import os
 from src.dvi_process import DiffusionVIProcess
 from src.encoder import SetEncoder
 from src.train import train
+
+# from config.config import Config
 
 
 # @hydra.main(version_base=None, config_name="config")
@@ -24,9 +31,7 @@ def run(config: DictConfig) -> None:
 
     benchmark = instantiate(config.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
-    dataloader = DataLoader(
-        dataset=dataset, batch_size=config.training.batch_size, shuffle=True
-    )
+    dataloader = DataLoader(dataset, config.training.batch_size, True)
 
     set_encoder = SetEncoder(
         c_dim=config.common.c_dim,
@@ -72,7 +77,7 @@ def run(config: DictConfig) -> None:
     ).to(device)
 
     if config.training.wandb_logging:
-        wandb.init(project="dvi-for-bml", config=OmegaConf.to_container(config, resolve=True))  # type: ignore
+        wandb.init(project="dvi-for-bml", config=OmegaConf.to_container(config))  # type: ignore
 
     params = [
         {"params": dvi_process.parameters(), "lr": config.training.learning_rate},
@@ -96,18 +101,26 @@ def run(config: DictConfig) -> None:
     )
 
     if config.training.wandb_logging and wandb.run is not None:
-        torch.save(
-            dvi_process.state_dict(),
-            os.path.join(wandb.run.dir, "dvi_process.pth"),
-        )
-        torch.save(
-            set_encoder.state_dict(),
-            os.path.join(wandb.run.dir, "set_encoder.pth"),
-        )
-        torch.save(
-            decoder.state_dict(),
-            os.path.join(wandb.run.dir, "decoder.pth"),
-        )
+
+        dir = os.path.join("models", wandb.run.name)
+        os.mkdir(dir)
+
+        with open(os.path.join(dir, "config.yaml"), "w") as f:
+            OmegaConf.save(config, f)
+
+        models = [dvi_process, set_encoder, decoder]
+        names = ["dvi_process", "set_encoder", "decoder"]
+
+        for model, name in zip(models, names):
+            path = os.path.join(dir, f"{name}.pth")
+
+            torch.save(model.state_dict(), path)
+
+            artifact = wandb.Artifact(
+                f"{wandb.run.name}_{name}.pth", type=wandb.run.name
+            )
+            artifact.add_file(path)
+            wandb.run.log_artifact(artifact)
 
     wandb.finish()
 
