@@ -1,0 +1,48 @@
+common:
+  x_dim: 1
+  y_dim: 1
+  c_dim: 2
+  z_dim: 2
+  h_dim: 64
+  num_layers: 3
+  non_linearity: SiLU
+
+dvi_process:
+  _target_: src.dvi_process.DIS
+  num_steps: 16
+
+control_function:
+  is_cross_attentive: false
+
+set_encoder:
+  aggregation: max
+  use_context_size: false
+  is_attentive: true
+
+decoder:
+  has_lat_path: true
+  has_det_path: false
+  is_cross_attentive: false
+
+training:
+  num_epochs: 10000
+  batch_size: 1024
+  learning_rate: 3e-4
+  wandb_logging: true
+
+benchmark:
+  _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
+  n_task: 4096
+  n_datapoints_per_task: 64
+  output_noise: 0.1
+  seed_task: 1237
+  seed_x: 123
+  seed_noise: 1237
+
+hydra:
+  mode: MULTIRUN
+  launcher:
+    partition: single # "gpu_4" # "dev_gpu_4"
+    timeout_min: 4320 # 2880 # 30
+    mem_per_cpu: 4000 # mem_per_gpu: 4000 
+    # gres: gpu:1
