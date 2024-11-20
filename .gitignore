@@ -3,4 +3,4 @@ __pycache__
 wandb
 .venv
 multirun
-models/
+models
