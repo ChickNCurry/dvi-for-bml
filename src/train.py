@@ -3,58 +3,46 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 import torch
 import wandb
-from src.decoder import Decoder, LikelihoodTimesPrior
-from src.dvi_process import DiffusionVIProcess
-from src.encoder import SetEncoder, TestEncoder
 from torch import Tensor
 from torch.distributions import Distribution
-from torch.optim import Optimizer
+from torch.optim import Optimizer  # type: ignore
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from src.contextual_dvi import ContextualDVI
+from src.decoder import LikelihoodTimesPrior
+
 
 def train(
-    dvi_process: DiffusionVIProcess,
-    encoder: SetEncoder | TestEncoder,
     device: torch.device,
-    num_epochs: int,
-    dataloader: DataLoader[Tensor] | DataLoader[Tuple[Tensor, Tensor]],
+    contextual_dvi: ContextualDVI,
     target_constructor: Any,
+    num_epochs: int,
+    dataloader: DataLoader[Any],
     optimizer: Optimizer,
     scheduler: LRScheduler | None,
     wandb_logging: bool,
-    decoder: Decoder | None = None,
 ) -> List[float]:
 
     # torch.autograd.set_detect_anomaly(True)
-
-    dvi_process = dvi_process.to(device)
 
     losses = []
 
     for epoch in range(num_epochs):
 
-        dvi_process.train()
+        contextual_dvi.train()
         with torch.inference_mode(False):
 
             loop = tqdm(dataloader, total=len(dataloader))
 
             for batch in loop:
 
-                if decoder is None:
-                    loss = step_better(
-                        dvi_process, encoder, batch, device, target_constructor
-                    )
-
-                elif decoder is not None and isinstance(encoder, SetEncoder):
-                    loss = step_bml_better(
-                        dvi_process,
-                        encoder,
-                        decoder,
-                        batch,
-                        device,
-                    )
+                loss = (
+                    step_better(device, contextual_dvi, target_constructor, batch)
+                    if contextual_dvi.decoder is None
+                    else step_bml_better(device, contextual_dvi, batch)
+                )
 
                 optimizer.zero_grad()
                 loss.backward()  # type: ignore
@@ -73,21 +61,14 @@ def train(
                 if wandb_logging:
                     wandb.log({"train/loss": loss.item()})
 
-                    # for i, sigma in enumerate(dvi_process.sigmas):
-                    #     wandb.log({"hyperparams/sigma_" + str(i): sigma.data.item()})
-
-                    # for i, beta in enumerate(dvi_process.betas):
-                    #     wandb.log({"hyperparams/beta_" + str(i): beta.data.item()})
-
     return losses
 
 
 def step(
-    dvi_process: DiffusionVIProcess,
-    encoder: TestEncoder | SetEncoder,
-    batch: Tensor,
     device: torch.device,
+    contextual_dvi: ContextualDVI,
     target_constructor: Callable[[Tensor], Distribution],
+    batch: Tensor,
 ) -> Tensor:
 
     batch = batch.to(device)
@@ -96,7 +77,8 @@ def step(
     context = batch[:, 0:random_context_size, :]
 
     p_z_T = target_constructor(context)
-    log_w, _ = dvi_process.run_chain(p_z_T, encoder(context), None)
+    context_embedding = contextual_dvi.encoder(context)
+    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, context_embedding, None)
 
     loss = -log_w
 
@@ -104,17 +86,16 @@ def step(
 
 
 def step_better(
-    dvi_process: DiffusionVIProcess,
-    encoder: TestEncoder | SetEncoder,
-    batch: Tensor,
     device: torch.device,
+    contextual_dvi: ContextualDVI,
     target_constructor: Callable[[Tensor, Tensor], Distribution],
+    batch: Tensor,
 ) -> Tensor:
 
     batch = batch.to(device)
 
     rand_context_sizes = torch.randint(
-        1, batch.shape[1] + 1, (batch.shape[0],), device=device
+        low=1, high=batch.shape[1] + 1, size=(batch.shape[0],), device=device
     )
 
     position_indices = torch.arange(batch.shape[1], device=device).expand(
@@ -125,8 +106,8 @@ def step_better(
 
     p_z_T = target_constructor(context, mask)
 
-    aggregated, _ = encoder(context, mask)
-    log_w, _ = dvi_process.run_chain(p_z_T, aggregated, mask)
+    aggregated, _ = contextual_dvi.encoder(context, mask)
+    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, aggregated, mask)
 
     loss = -log_w
 
@@ -134,12 +115,12 @@ def step_better(
 
 
 def step_bml(
-    dvi_process: DiffusionVIProcess,
-    set_encoder: SetEncoder,
-    decoder: Decoder,
-    batch: Tensor,
     device: torch.device,
+    contextual_dvi: ContextualDVI,
+    batch: Tensor,
 ) -> Tensor:
+
+    assert contextual_dvi.decoder is not None
 
     x_data, y_data = batch
     x_data, y_data = x_data.to(device), y_data.to(device)
@@ -153,18 +134,18 @@ def step_bml(
     context = torch.cat([x_context, y_context], dim=-1)
     # (batch_size, context_size, x_dim + y_dim)
 
-    context_embedding = set_encoder(context)
+    context_embedding = contextual_dvi.encoder(context)
     # (batch_size, h_dim)
 
     p_z_T = LikelihoodTimesPrior(
-        decoder=decoder,
+        decoder=contextual_dvi.decoder,
         x_target=x_context,
         y_target=y_context,
         mask=None,
         context_embedding=context_embedding,
     )
 
-    log_w, _ = dvi_process.run_chain(p_z_T, context_embedding, None)
+    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, context_embedding, None)
 
     loss = -log_w
 
@@ -172,12 +153,12 @@ def step_bml(
 
 
 def step_bml_better(
-    dvi_process: DiffusionVIProcess,
-    set_encoder: SetEncoder,
-    decoder: Decoder,
-    batch: Tensor,
     device: torch.device,
+    contextual_dvi: ContextualDVI,
+    batch: Tensor,
 ) -> Tensor:
+
+    assert contextual_dvi.decoder is not None
 
     x_data, y_data = batch
     x_data, y_data = x_data.to(device), y_data.to(device)
@@ -189,6 +170,7 @@ def step_bml_better(
     # rand_context_sizes = torch.randint(
     #     1, data.shape[1] + 1, (data.shape[0],), device=device
     # ).unsqueeze(-1)
+
     rand_context_sizes = torch.tensor(
         np.ceil(np.random.beta(a=1, b=2, size=(data.shape[0], 1)) * data.shape[1]),
         device=device,
@@ -211,22 +193,24 @@ def step_bml_better(
     y_context = context[:, :, x_data.shape[2] : data.shape[2]]
     # (batch_size, context_size, y_dim)
 
-    aggregated, non_aggregated = set_encoder(context, mask)
+    aggregated, non_aggregated = contextual_dvi.encoder(context, mask)
     # (batch_size, h_dim)
 
     p_z_T = LikelihoodTimesPrior(
-        decoder=decoder,
+        decoder=contextual_dvi.decoder,
         x_target=x_context,
         y_target=y_context,
         mask=mask,
-        context_embedding=non_aggregated if decoder.is_cross_attentive else aggregated,
+        context_embedding=(
+            non_aggregated if contextual_dvi.decoder.is_cross_attentive else aggregated
+        ),
     )
 
-    log_w, _ = dvi_process.run_chain(
+    log_w, _ = contextual_dvi.dvi_process.run_chain(
         p_z_T,
         (
             non_aggregated
-            if dvi_process.control_function.is_cross_attentive
+            if contextual_dvi.dvi_process.control.is_cross_attentive
             else aggregated
         ),
         mask,

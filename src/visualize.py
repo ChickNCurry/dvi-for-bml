@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.control_function import ControlFunction
+from src.control import Control
 from src.decoder import Decoder, LikelihoodTimesPrior
 from src.dvi_process import DiffusionVIProcess
 from src.encoder import SetEncoder
@@ -19,7 +19,7 @@ def visualize(
     set_encoder: SetEncoder,
     decoder: Decoder,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
-    control_function: ControlFunction,
+    control: Control,
     config: DictConfig,
     num_samples: int,
     max_context_size: int,
@@ -56,21 +56,19 @@ def visualize(
             y_target=y_context,
             mask=None,
             context_embedding=(
-                non_aggregated
-                if config.decoder.value.is_cross_attentive
-                else aggregated
+                non_aggregated if config.decoder.is_cross_attentive else aggregated
             ),
         )
 
         _, z_samples = dvi_process.run_chain(
             p_z_T,
-            non_aggregated if control_function.is_cross_attentive else aggregated,
+            non_aggregated if control.is_cross_attentive else aggregated,
             None,
         )
         y_dist: Distribution = decoder(
             x_data,
             z_samples[-1],
-            non_aggregated if control_function.is_cross_attentive else aggregated,
+            non_aggregated if control.is_cross_attentive else aggregated,
             None,
         )
 

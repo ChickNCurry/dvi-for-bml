@@ -4,7 +4,19 @@ import torch
 from torch import Tensor, nn
 
 
-class SetEncoder(nn.Module):
+class Encoder(nn.Module):
+    def __init__(
+        self,
+    ) -> None:
+        super(Encoder, self).__init__()
+
+    def forward(
+        self, context: Tensor, mask: Tensor | None
+    ) -> Tuple[Tensor | None, Tensor | None]:
+        raise NotImplementedError
+
+
+class SetEncoder(Encoder):
     def __init__(
         self,
         c_dim: int,
@@ -27,6 +39,9 @@ class SetEncoder(nn.Module):
 
         self.proj_in = nn.Linear(c_dim, h_dim)
 
+        if self.is_attentive:
+            self.self_attn = nn.MultiheadAttention(h_dim, 1, batch_first=True)
+
         self.mlp = nn.Sequential(
             nn.Linear(h_dim, h_dim),
             *[
@@ -38,9 +53,6 @@ class SetEncoder(nn.Module):
                 for _ in range(num_layers - 1)
             ],
         )
-
-        if self.is_attentive:
-            self.self_attn = nn.MultiheadAttention(h_dim, 1, batch_first=True)
 
         if self.is_aggregative:
             self.aggregation = aggregation
@@ -103,7 +115,7 @@ class SetEncoder(nn.Module):
         return aggregated, non_aggregated
 
 
-class TestEncoder(nn.Module):
+class TestEncoder(Encoder):
     def __init__(self, c_dim: int, h_dim: int) -> None:
         super(TestEncoder, self).__init__()
 

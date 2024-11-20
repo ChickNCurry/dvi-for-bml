@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+
 from hydra.core.config_store import ConfigStore
 
 
@@ -20,7 +21,7 @@ class DVIProcessConfig:
 
 
 @dataclass
-class ControlFunctionConfig:
+class ControlConfig:
     is_cross_attentive: bool = False
 
 
@@ -58,16 +59,42 @@ class BenchmarkConfig:
 
 
 @dataclass
+class CpuConfig:
+    partition: str = "single"
+    timeout_min: int = 4320
+    mem_per_cpu: int = 4000
+
+
+@dataclass
+class GpuConfig:
+    partition: str = "gpu_4"
+    timeout_min: int = 2880
+    mem_per_gpu: int = 4000
+
+
+@dataclass
+class GpuDevConfig:
+    partition: str = "dev_gpu_4"
+    timeout_min: int = 30
+    mem_per_gpu: int = 4000
+
+
+@dataclass
+class HydraConfig:
+    mode: str = "MULTIRUN"
+    launcher: CpuConfig = field(default_factory=CpuConfig)
+
+
+@dataclass
 class Config:
     common: CommonConfig = field(default_factory=CommonConfig)
     dvi_process: DVIProcessConfig = field(default_factory=DVIProcessConfig)
-    control_function: ControlFunctionConfig = field(
-        default_factory=ControlFunctionConfig
-    )
+    control: ControlConfig = field(default_factory=ControlConfig)
     set_encoder: SetEncoderConfig = field(default_factory=SetEncoderConfig)
     decoder: DecoderConfig = field(default_factory=DecoderConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
+    hydra: HydraConfig = field(default_factory=HydraConfig)
 
 
 cs = ConfigStore.instance()

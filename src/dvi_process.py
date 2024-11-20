@@ -4,9 +4,10 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-from src.control_function import ControlFunction
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
+
+from src.control import Control
 
 
 class DiffusionVIProcess(nn.Module, ABC):
@@ -58,12 +59,14 @@ class DiffusionVIProcess(nn.Module, ABC):
         mask: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
 
-        p_z_0 = self.get_prior(context_embedding.shape[0], context_embedding.device)
+        p_z_0 = self.get_prior(
+            batch_size=context_embedding.shape[0], device=context_embedding.device
+        )
 
         z = [p_z_0.sample()]
 
         log_w: Tensor = torch.zeros(
-            (context_embedding.shape[0], self.z_dim),
+            size=(context_embedding.shape[0], self.z_dim),
             device=context_embedding.device,
         )
 
@@ -96,7 +99,7 @@ class DIS(DiffusionVIProcess):
         device: torch.device,
         z_dim: int,
         num_steps: int,
-        control_function: ControlFunction,
+        control: Control,
         min: float = 0.1,
     ) -> None:
         super(DIS, self).__init__(
@@ -104,7 +107,7 @@ class DIS(DiffusionVIProcess):
             num_steps=num_steps,
         )
 
-        self.control_function = control_function
+        self.control = control
 
         self.beta_schedule = nn.ParameterList(
             [
@@ -144,7 +147,7 @@ class DIS(DiffusionVIProcess):
         beta_t = self.beta_schedule[t - 1]
         # (1)
 
-        control = self.control_function(z_prev, t, context_embedding, mask)
+        control = self.control(z_prev, t, context_embedding, mask)
         # (batch_size, z_dim)
 
         z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
@@ -186,7 +189,7 @@ class CMCD(DiffusionVIProcess):
         device: torch.device,
         z_dim: int,
         num_steps: int,
-        control_function: ControlFunction,
+        control: Control,
         min: float = 0.2,
     ) -> None:
         super(CMCD, self).__init__(
@@ -194,7 +197,7 @@ class CMCD(DiffusionVIProcess):
             num_steps=num_steps,
         )
 
-        self.control_function = control_function
+        self.control = control
 
         self.sigma_schedule = nn.ParameterList(
             [
@@ -233,7 +236,7 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control_function(z_prev, t, context_embedding, mask)
+        control = self.control(z_prev, t, context_embedding, mask)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(z_prev, t, p_z_0, p_z_T)
@@ -262,7 +265,7 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control_function(z_next, t, context_embedding, mask)
+        control = self.control(z_next, t, context_embedding, mask)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(z_next, t, p_z_0, p_z_T)

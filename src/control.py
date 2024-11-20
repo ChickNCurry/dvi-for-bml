@@ -2,7 +2,7 @@ import torch
 from torch import Tensor, nn
 
 
-class ControlFunction(nn.Module):
+class Control(nn.Module):
     def __init__(
         self,
         h_dim: int,
@@ -12,7 +12,7 @@ class ControlFunction(nn.Module):
         num_steps: int,
         is_cross_attentive: bool,
     ) -> None:
-        super(ControlFunction, self).__init__()
+        super(Control, self).__init__()
 
         self.is_cross_attentive = is_cross_attentive
 

@@ -11,7 +11,7 @@ dvi_process:
   _target_: src.dvi_process.DIS
   num_steps: 16
 
-control_function:
+control:
   is_cross_attentive: false
 
 set_encoder:
