@@ -1,8 +1,8 @@
 from torch import nn
 
-from src.decoder import Decoder
-from src.dvi_process import DiffusionVIProcess
-from src.encoder import Encoder
+from src.components.decoder import Decoder
+from src.components.dvi_process import DiffusionVIProcess
+from src.components.encoder import Encoder
 
 
 class ContextualDVI(nn.Module):

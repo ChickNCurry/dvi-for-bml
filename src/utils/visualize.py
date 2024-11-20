@@ -7,10 +7,10 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.control import Control
-from src.decoder import Decoder, LikelihoodTimesPrior
-from src.dvi_process import DiffusionVIProcess
-from src.encoder import SetEncoder
+from src.components.control import Control
+from src.components.decoder import Decoder, LikelihoodTimesPrior
+from src.components.dvi_process import DiffusionVIProcess
+from src.components.encoder import SetEncoder
 
 
 def visualize(

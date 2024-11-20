@@ -7,7 +7,7 @@ import torch
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
-from src.control import Control
+from src.components.control import Control
 
 
 class DiffusionVIProcess(nn.Module, ABC):

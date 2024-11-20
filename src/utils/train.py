@@ -10,8 +10,8 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.contextual_dvi import ContextualDVI
-from src.decoder import LikelihoodTimesPrior
+from src.components.contextual_dvi import ContextualDVI
+from src.components.decoder import LikelihoodTimesPrior
 
 
 def train(

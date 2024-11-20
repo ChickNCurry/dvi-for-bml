@@ -8,13 +8,13 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from runs.config.config import Config
-from src.context_datasets import MetaLearningDataset
-from src.contextual_dvi import ContextualDVI
-from src.control import Control
-from src.decoder import Decoder
-from src.dvi_process import DiffusionVIProcess
-from src.encoder import SetEncoder
-from src.train import train
+from src.components.contextual_dvi import ContextualDVI
+from src.components.control import Control
+from src.components.decoder import Decoder
+from src.components.dvi_process import DiffusionVIProcess
+from src.components.encoder import SetEncoder
+from src.utils.context_datasets import MetaLearningDataset
+from src.utils.train import train
 
 
 @hydra.main(version_base=None, config_name="config")
@@ -101,11 +101,11 @@ def run(config: Config) -> None:
         with open(os.path.join(dir, "config.yaml"), "w") as f:
             OmegaConf.save(config, f)
 
-        path = os.path.join(dir, f"{contextual_dvi}.pth")
+        path = os.path.join(dir, "contextual_dvi.pth")
 
         torch.save(contextual_dvi.state_dict(), path)
 
-        artifact = wandb.Artifact(f"{wandb.run.name}.pth", type=wandb.run.name)
+        artifact = wandb.Artifact("contextual_dvi.pth", type=wandb.run.name)
         artifact.add_file(path)
 
         wandb.run.log_artifact(artifact)
