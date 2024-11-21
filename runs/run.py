@@ -4,21 +4,22 @@ import hydra
 import torch
 import wandb
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from torch.utils.data import DataLoader
 
-from runs.config.config import Config
+# from runs.config.config import Config
 from src.components.contextual_dvi import ContextualDVI
 from src.components.control import Control
 from src.components.decoder import Decoder
 from src.components.dvi_process import DiffusionVIProcess
 from src.components.encoder import SetEncoder
+from src.components.hyper_net import HyperNet
 from src.utils.context_datasets import MetaLearningDataset
 from src.utils.train import train
 
 
-@hydra.main(version_base=None, config_name="config")
-def run(config: Config) -> None:
+@hydra.main(version_base=None, config_name="config", config_path="config")
+def run(config: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -50,10 +51,22 @@ def run(config: Config) -> None:
         is_cross_attentive=config.control.is_cross_attentive,
     )
 
+    hyper_net = (
+        HyperNet(
+            config.common.h_dim,
+            config.common.z_dim,
+            config.common.non_linearity,
+            config.dvi_process.num_steps,
+        )
+        if config.hyper_net.use_hyper_net
+        else None
+    )
+
     dvi_process: DiffusionVIProcess = instantiate(
         config.dvi_process,
         z_dim=config.common.z_dim,
         control=control,
+        hyper_net=hyper_net,
         device=device,
     )
 
@@ -97,6 +110,7 @@ def run(config: Config) -> None:
     if config.training.wandb_logging and wandb.run is not None:
 
         dir = os.path.join("models", wandb.run.name)
+
         os.mkdir(dir)
 
         with open(os.path.join(dir, "config.yaml"), "w") as f:

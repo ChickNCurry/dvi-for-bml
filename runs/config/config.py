@@ -18,6 +18,7 @@ class CommonConfig:
 class DVIProcessConfig:
     _target_: str = "src.components.dvi_process.DIS"
     num_steps: int = 16
+    has_hyper_net: bool = False
 
 
 @dataclass
@@ -87,7 +88,7 @@ class GpuDevConfig:
 @dataclass
 class HydraConfig:
     mode: str = "MULTIRUN"
-    launcher: CpuConfig = field(default_factory=CpuConfig)
+    launcher: GpuDevConfig = field(default_factory=GpuDevConfig)
 
 
 @dataclass
@@ -103,4 +104,14 @@ class Config:
 
 
 cs = ConfigStore.instance()
+# cs.store(name="dvi_process", node=DVIProcessConfig)
+# cs.store(name="set_encoder", node=SetEncoderConfig)
+# cs.store(name="control", node=ControlConfig)
+# cs.store(name="decoder", node=DecoderConfig)
+# cs.store(name="training", node=TrainingConfig)
+# cs.store(name="benchmark", node=BenchmarkConfig)
+# cs.store(name="hydra", node=HydraConfig)
+# cs.store(name="gpu_dev", node=GpuDevConfig)
+# cs.store(name="gpu", node=GpuConfig)
+# cs.store(name="cpu", node=CpuConfig)
 cs.store(name="config", node=Config)

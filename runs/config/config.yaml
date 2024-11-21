@@ -8,11 +8,14 @@ common:
   non_linearity: SiLU
 
 dvi_process:
-  _target_: src.dvi_process.DIS
+  _target_: src.components.dvi_process.DIS
   num_steps: 16
 
 control:
   is_cross_attentive: false
+
+hyper_net:
+  use_hyper_net: false
 
 set_encoder:
   aggregation: max
@@ -25,9 +28,10 @@ decoder:
   is_cross_attentive: false
 
 training:
-  num_epochs: 10000
+  num_epochs: 5000
   batch_size: 1024
   learning_rate: 3e-4
+  max_clip_norm: 0.2
   wandb_logging: true
 
 benchmark:
@@ -42,7 +46,7 @@ benchmark:
 hydra:
   mode: MULTIRUN
   launcher:
-    partition: single # "gpu_4" # "dev_gpu_4"
-    timeout_min: 4320 # 2880 # 30
+    partition: "gpu_4" # "gpu_4" # "dev_gpu_4"
+    timeout_min: 360 # 2880 # 30
     mem_per_cpu: 4000 # mem_per_gpu: 4000 
-    # gres: gpu:1
+    gres: gpu:1
