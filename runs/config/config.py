@@ -9,8 +9,8 @@ class CommonConfig:
     y_dim: int = 1
     c_dim: int = 2
     z_dim: int = 2
-    h_dim: int = 64
-    num_layers: int = 3
+    h_dim: int = 128
+    num_layers: int = 6
     non_linearity: str = "SiLU"
 
 
@@ -41,10 +41,10 @@ class DecoderConfig:
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 3000
+    num_epochs: int = 5000
     batch_size: int = 1024
     learning_rate: float = 3e-4
-    max_clip_norm: float = 0.5
+    max_clip_norm: float = 0.2
     plateau_factor: float = 0.3
     plateau_patience: int = 200
     wandb_logging: bool = True
@@ -64,20 +64,22 @@ class BenchmarkConfig:
 @dataclass
 class CpuConfig:
     partition: str = "single"
-    timeout_min: int = 4320
+    timeout_min: int = 300
     mem_per_cpu: int = 4000
 
 
 @dataclass
 class GpuConfig:
     partition: str = "gpu_4"
-    timeout_min: int = 2880
+    gres: str = "gpu:1"
+    timeout_min: int = 300
     mem_per_gpu: int = 4000
 
 
 @dataclass
 class GpuDevConfig:
     partition: str = "dev_gpu_4"
+    gres: str = "gpu:1"
     timeout_min: int = 30
     mem_per_gpu: int = 4000
 

@@ -75,7 +75,7 @@ def run(config: Config) -> None:
         decoder=decoder,
     ).to(device)
 
-    optimizer = torch.optim.Adam(  # type: ignore
+    optimizer = torch.optim.AdamW(
         contextual_dvi.parameters(), lr=config.training.learning_rate
     )
 
@@ -90,6 +90,7 @@ def run(config: Config) -> None:
         dataloader=dataloader,
         optimizer=optimizer,
         scheduler=None,
+        max_clip_norm=config.training.max_clip_norm,
         wandb_logging=config.training.wandb_logging,
     )
 
