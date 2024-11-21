@@ -8,6 +8,7 @@ from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
 from src.components.control import Control
+from src.components.hyper_net import HyperNet
 
 
 class DiffusionVIProcess(nn.Module, ABC):
@@ -100,6 +101,7 @@ class DIS(DiffusionVIProcess):
         z_dim: int,
         num_steps: int,
         control: Control,
+        hyper_net: HyperNet | None,
         min: float = 0.1,
     ) -> None:
         super(DIS, self).__init__(
@@ -108,6 +110,9 @@ class DIS(DiffusionVIProcess):
         )
 
         self.control = control
+
+        if hyper_net is not None:
+            self.hyper_net = hyper_net
 
         self.beta_schedule = nn.ParameterList(
             [
@@ -144,7 +149,14 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1), (batch_size, h_dim)
 
-        beta_t = self.beta_schedule[t - 1]
+        beta_t = (
+            self.beta_schedule[t - 1]
+            if self.hyper_net is None
+            else nn.Softplus()(
+                0.9 * self.beta_schedule[t - 1]
+                + 0.1 * self.hyper_net(t, context_embedding)
+            )
+        )
         # (1)
 
         control = self.control(z_prev, t, context_embedding, mask)
@@ -170,7 +182,14 @@ class DIS(DiffusionVIProcess):
     ) -> Distribution:
         # (batch_size, z_dim), (1)
 
-        beta_t = self.beta_schedule[t - 1]
+        beta_t = (
+            self.beta_schedule[t - 1]
+            if self.hyper_net is None
+            else nn.Softplus()(
+                0.9 * self.beta_schedule[t - 1]
+                + 0.1 * self.hyper_net(t, context_embedding)
+            )
+        )
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t

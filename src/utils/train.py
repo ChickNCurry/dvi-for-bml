@@ -6,7 +6,7 @@ import wandb
 from torch import Tensor
 from torch.distributions import Distribution
 from torch.optim import Optimizer  # type: ignore
-from torch.optim.lr_scheduler import LRScheduler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -21,7 +21,8 @@ def train(
     num_epochs: int,
     dataloader: DataLoader[Any],
     optimizer: Optimizer,
-    scheduler: LRScheduler | None,
+    scheduler: ReduceLROnPlateau | None,
+    max_clip_norm: float | None,
     wandb_logging: bool,
 ) -> List[float]:
 
@@ -45,15 +46,23 @@ def train(
                 )
 
                 optimizer.zero_grad()
+
                 loss.backward()  # type: ignore
+
+                if max_clip_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        contextual_dvi.parameters(), max_clip_norm
+                    )
+
                 optimizer.step()
 
                 if scheduler is not None:
-                    scheduler.step()
+                    scheduler.step(loss)
 
                 loop.set_postfix(
                     epoch=epoch,
                     loss=loss.item(),
+                    lr=scheduler.get_last_lr() if scheduler is not None else None,
                 )
 
                 losses.append(loss.item())

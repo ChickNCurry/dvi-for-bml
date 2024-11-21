@@ -19,19 +19,7 @@ class Control(nn.Module):
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
 
-        self.mlp_before = nn.Sequential(
-            nn.Linear(h_dim, h_dim),
-            *[
-                layer
-                for layer in (
-                    getattr(nn, non_linearity)(),
-                    nn.Linear(h_dim, h_dim),
-                )
-                for _ in range(num_layers - 1)
-            ]
-        )
-
-        self.mlp_after = nn.Sequential(
+        self.mlp = nn.Sequential(
             nn.Linear(h_dim, h_dim),
             *[
                 layer
@@ -46,6 +34,18 @@ class Control(nn.Module):
         if self.is_cross_attentive:
             self.cross_attn = nn.MultiheadAttention(
                 h_dim, num_heads=1, batch_first=True
+            )
+
+            self.mlp_after = nn.Sequential(
+                nn.Linear(h_dim, h_dim),
+                *[
+                    layer
+                    for layer in (
+                        getattr(nn, non_linearity)(),
+                        nn.Linear(h_dim, h_dim),
+                    )
+                    for _ in range(num_layers - 1)
+                ]
             )
 
         self.proj_out = nn.Linear(h_dim, z_dim)
@@ -63,7 +63,7 @@ class Control(nn.Module):
         # (batch_size, h_dim)
 
         if self.is_cross_attentive:
-            h: Tensor = self.mlp_before(z + t)
+            h: Tensor = self.mlp(z + t)
             # (batch_size, h_dim)
 
             h, _ = self.cross_attn(
@@ -79,7 +79,7 @@ class Control(nn.Module):
             control: Tensor = self.proj_out(self.mlp_after(h.squeeze(1)))
             # (batch_size, z_dim)
         else:
-            control = self.proj_out(self.mlp_before(z + t + context_embedding))
+            control = self.proj_out(self.mlp(z + t + context_embedding))
             # (batch_size, z_dim)
 
         return control

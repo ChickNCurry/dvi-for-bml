@@ -16,7 +16,7 @@ class CommonConfig:
 
 @dataclass
 class DVIProcessConfig:
-    _target_: str = "src.dvi_process.DIS"
+    _target_: str = "src.components.dvi_process.DIS"
     num_steps: int = 16
 
 
@@ -41,9 +41,12 @@ class DecoderConfig:
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 10000
+    num_epochs: int = 3000
     batch_size: int = 1024
     learning_rate: float = 3e-4
+    max_clip_norm: float = 0.5
+    plateau_factor: float = 0.3
+    plateau_patience: int = 200
     wandb_logging: bool = True
 
 
