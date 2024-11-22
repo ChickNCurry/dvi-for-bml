@@ -92,8 +92,8 @@ def run(config: DictConfig) -> None:
         contextual_dvi.parameters(), lr=config.training.learning_rate
     )
 
-    if config.training.wandb_logging:
-        wandb.init(project="dvi-for-bml", config=OmegaConf.to_container(config))  # type: ignore
+    if config.wandb.logging:
+        wandb.init(project=config.wandb.project, config=OmegaConf.to_container(config))  # type: ignore
 
     train(
         device=device,
@@ -104,28 +104,24 @@ def run(config: DictConfig) -> None:
         optimizer=optimizer,
         scheduler=None,
         max_clip_norm=config.training.max_clip_norm,
-        wandb_logging=config.training.wandb_logging,
+        wandb_logging=config.wandb.logging,
     )
 
-    if config.training.wandb_logging and wandb.run is not None:
+    if not os.path.exists("models"):
+        os.mkdir("models")
 
-        dir = os.path.join("models", wandb.run.name)
+    dir = os.path.join("models", wandb.run.name)
+    os.mkdir(dir)
 
-        os.mkdir(dir)
+    with open(os.path.join(dir, "config.yaml"), "w") as f:
+        OmegaConf.save(config, f)
 
-        with open(os.path.join(dir, "config.yaml"), "w") as f:
-            OmegaConf.save(config, f)
+    path = os.path.join(dir, "contextual_dvi.pth")
 
-        path = os.path.join(dir, "contextual_dvi.pth")
+    torch.save(contextual_dvi.state_dict(), path)
 
-        torch.save(contextual_dvi.state_dict(), path)
-
-        artifact = wandb.Artifact("contextual_dvi.pth", type=wandb.run.name)
-        artifact.add_file(path)
-
-        wandb.run.log_artifact(artifact)
-
-    wandb.finish()
+    if config.wandb.logging and wandb.run is not None:
+        wandb.run.log_model(path=path, name=f"{wandb.run.name}.pth")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+mode: MULTIRUN
+launcher:
+  partition: single
+  timeout_min: 120
+  mem_per_cpu: 4000
