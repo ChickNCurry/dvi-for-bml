@@ -110,9 +110,7 @@ class DIS(DiffusionVIProcess):
         )
 
         self.control = control
-
-        if hyper_net is not None:
-            self.hyper_net = hyper_net
+        self.hyper_net = hyper_net
 
         self.beta_schedule = nn.ParameterList(
             [

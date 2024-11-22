@@ -4,7 +4,7 @@ import hydra
 import torch
 import wandb
 from hydra.utils import instantiate
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 # from runs.config.config import Config
@@ -88,7 +88,7 @@ def run(config: DictConfig) -> None:
         decoder=decoder,
     ).to(device)
 
-    optimizer = torch.optim.AdamW(
+    optimizer = torch.optim.AdamW(  # type: ignore
         contextual_dvi.parameters(), lr=config.training.learning_rate
     )
 
