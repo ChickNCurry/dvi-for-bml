@@ -53,12 +53,12 @@ def run(config: DictConfig) -> None:
 
     hyper_net = (
         HyperNet(
-            config.common.h_dim,
-            config.common.z_dim,
-            config.common.non_linearity,
-            config.dvi_process.num_steps,
-            config.control_and_hyper_net.is_cross_attentive,
-            config.control_and_hyper_net.num_heads,
+            h_dim=config.common.h_dim,
+            z_dim=config.common.z_dim,
+            non_linearity=config.common.non_linearity,
+            num_steps=config.dvi_process.num_steps,
+            is_cross_attentive=config.control_and_hyper_net.is_cross_attentive,
+            num_heads=config.control_and_hyper_net.num_heads,
         )
         if config.control_and_hyper_net.use_hyper_net
         else None
