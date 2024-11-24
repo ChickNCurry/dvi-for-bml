@@ -10,5 +10,6 @@ control_and_hyper_net.use_hyper_net=True \
 control_and_hyper_net.is_cross_attentive=True,False \
 control_and_hyper_net.num_heads=1,2,3 \
 training.max_clip_norm=0.5 \
+training.alpha=None,1.0,0.8,0.6 \
 wandb.project=dvi-for-bml-cross-attn \
 # training.num_epochs=1 \

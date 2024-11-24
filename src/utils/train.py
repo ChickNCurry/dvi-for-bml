@@ -24,6 +24,7 @@ def train(
     scheduler: ReduceLROnPlateau | None,
     max_clip_norm: float | None,
     wandb_logging: bool,
+    alpha: float | None,
 ) -> List[float]:
 
     # torch.autograd.set_detect_anomaly(True)
@@ -42,7 +43,7 @@ def train(
                 loss = (
                     step_better(device, contextual_dvi, target_constructor, batch)
                     if contextual_dvi.decoder is None
-                    else step_bml_better(device, contextual_dvi, batch)
+                    else step_bml_better(device, contextual_dvi, batch, alpha)
                 )
 
                 optimizer.zero_grad()
@@ -165,6 +166,7 @@ def step_bml_better(
     device: torch.device,
     contextual_dvi: ContextualDVI,
     batch: Tensor,
+    alpha: float | None,
 ) -> Tensor:
 
     assert contextual_dvi.decoder is not None
@@ -176,14 +178,17 @@ def step_bml_better(
     data = torch.cat([x_data, y_data], dim=-1)
     # (batch_size, context_size, x_dim + y_dim)
 
-    # rand_context_sizes = torch.randint(
-    #     1, data.shape[1] + 1, (data.shape[0],), device=device
-    # ).unsqueeze(-1)
-
-    rand_context_sizes = torch.tensor(
-        np.ceil(np.random.beta(a=1, b=2, size=(data.shape[0], 1)) * data.shape[1]),
-        device=device,
-    )
+    if alpha is None:
+        rand_context_sizes = torch.randint(
+            1, data.shape[1] + 1, (data.shape[0],), device=device
+        ).unsqueeze(-1)
+    else:
+        rand_context_sizes = torch.tensor(
+            np.ceil(
+                np.random.beta(a=alpha, b=2, size=(data.shape[0], 1)) * data.shape[1]
+            ),
+            device=device,
+        )
     # (batch_size, 1)
 
     position_indices = torch.arange(data.shape[1], device=device).expand(

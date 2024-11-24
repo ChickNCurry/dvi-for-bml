@@ -20,6 +20,7 @@ training:
   batch_size: 1024
   learning_rate: 3e-4
   max_clip_norm: 0.5
+  alpha: 1.0
   
 common:
   x_dim: 1

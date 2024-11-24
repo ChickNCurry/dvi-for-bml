@@ -107,6 +107,7 @@ def run(config: DictConfig) -> None:
         scheduler=None,
         max_clip_norm=config.training.max_clip_norm,
         wandb_logging=config.wandb.logging,
+        alpha=config.training.alpha,
     )
 
     if wandb.run is not None:
