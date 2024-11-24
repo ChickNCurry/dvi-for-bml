@@ -7,7 +7,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
-# from runs.config.config import Config
 from src.components.contextual_dvi import ContextualDVI
 from src.components.control import Control
 from src.components.decoder import Decoder
@@ -48,7 +47,8 @@ def run(config: DictConfig) -> None:
         num_layers=config.common.num_layers,
         non_linearity=config.common.non_linearity,
         num_steps=config.dvi_process.num_steps,
-        is_cross_attentive=config.control.is_cross_attentive,
+        is_cross_attentive=config.control_and_hyper_net.is_cross_attentive,
+        num_heads=config.control_and_hyper_net.num_heads,
     )
 
     hyper_net = (
@@ -57,8 +57,10 @@ def run(config: DictConfig) -> None:
             config.common.z_dim,
             config.common.non_linearity,
             config.dvi_process.num_steps,
+            config.control_and_hyper_net.is_cross_attentive,
+            config.control_and_hyper_net.num_heads,
         )
-        if config.hyper_net.use_hyper_net
+        if config.control_and_hyper_net.use_hyper_net
         else None
     )
 
@@ -107,21 +109,26 @@ def run(config: DictConfig) -> None:
         wandb_logging=config.wandb.logging,
     )
 
-    if not os.path.exists("models"):
-        os.mkdir("models")
+    if wandb.run is not None:
 
-    dir = os.path.join("models", wandb.run.name)
-    os.mkdir(dir)
+        if not os.path.exists("models"):
+            os.mkdir("models")
 
-    with open(os.path.join(dir, "config.yaml"), "w") as f:
-        OmegaConf.save(config, f)
+        dir = os.path.join("models", wandb.run.name)
+        os.mkdir(dir)
 
-    path = os.path.join(dir, "contextual_dvi.pth")
+        with open(os.path.join(dir, "config.yaml"), "w") as f:
+            OmegaConf.save(config, f)
 
-    torch.save(contextual_dvi.state_dict(), path)
+        model_path = os.path.join(dir, "cdvi.pth")
+        optimizer_path = os.path.join(dir, "optim.pth")
 
-    if config.wandb.logging and wandb.run is not None:
-        wandb.run.log_model(path=path, name=f"{wandb.run.name}.pth")
+        torch.save(contextual_dvi.state_dict(), model_path)
+        torch.save(optimizer.state_dict(), optimizer_path)
+
+        if config.wandb.logging and wandb.run is not None:
+            wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_cdvi.pth")
+            wandb.run.log_model(path=optimizer_path, name=f"{wandb.run.name}_optim.pth")
 
 
 if __name__ == "__main__":

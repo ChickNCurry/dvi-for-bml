@@ -11,6 +11,7 @@ class Control(nn.Module):
         non_linearity: str,
         num_steps: int,
         is_cross_attentive: bool,
+        num_heads: int = 1,
     ) -> None:
         super(Control, self).__init__()
 
@@ -18,6 +19,21 @@ class Control(nn.Module):
 
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
+
+        if self.is_cross_attentive:
+            self.mlp_key = nn.Sequential(
+                nn.Linear(h_dim, h_dim),
+                getattr(nn, non_linearity)(),
+                nn.Linear(h_dim, h_dim),
+            )
+            self.mlp_value = nn.Sequential(
+                nn.Linear(h_dim, h_dim),
+                getattr(nn, non_linearity)(),
+                nn.Linear(h_dim, h_dim),
+            )
+            self.cross_attn = nn.MultiheadAttention(
+                h_dim, num_heads=num_heads, batch_first=True
+            )
 
         self.mlp = nn.Sequential(
             nn.Linear(h_dim, h_dim),
@@ -30,23 +46,6 @@ class Control(nn.Module):
                 for _ in range(num_layers - 1)
             ]
         )
-
-        if self.is_cross_attentive:
-            self.cross_attn = nn.MultiheadAttention(
-                h_dim, num_heads=1, batch_first=True
-            )
-
-            self.mlp_after = nn.Sequential(
-                nn.Linear(h_dim, h_dim),
-                *[
-                    layer
-                    for layer in (
-                        getattr(nn, non_linearity)(),
-                        nn.Linear(h_dim, h_dim),
-                    )
-                    for _ in range(num_layers - 1)
-                ]
-            )
 
         self.proj_out = nn.Linear(h_dim, z_dim)
 
@@ -63,23 +62,30 @@ class Control(nn.Module):
         # (batch_size, h_dim)
 
         if self.is_cross_attentive:
-            h: Tensor = self.mlp(z + t)
-            # (batch_size, h_dim)
+            h: Tensor = (z + t).unsqueeze(1)
+            # (batch_size, 1, h_dim)
 
             h, _ = self.cross_attn(
-                query=h.unsqueeze(1),  # (batch_size, 1, h_dim)
-                key=context_embedding,  # (batch_size, context_size, h_dim)
-                value=context_embedding,  # (batch_size, context_size, h_dim)
+                query=h,  # (batch_size, 1, h_dim)
+                key=self.mlp_key(
+                    context_embedding
+                ),  # (batch_size, context_size, h_dim)
+                value=self.mlp_value(
+                    context_embedding
+                ),  # (batch_size, context_size, h_dim)
                 attn_mask=(
                     mask.unsqueeze(1) if mask is not None else None
                 ),  # (batch_size, 1, context_size)
             )
+            # (batch_size, 1, h_dim)
+
+            h = h.squeeze(1)
+            # (batch_size, h_dim)
+        else:
+            h = z + t + context_embedding
             # (batch_size, h_dim)
 
-            control: Tensor = self.proj_out(self.mlp_after(h.squeeze(1)))
-            # (batch_size, z_dim)
-        else:
-            control = self.proj_out(self.mlp(z + t + context_embedding))
-            # (batch_size, z_dim)
+        control: Tensor = self.proj_out(self.mlp(h))
+        # (batch_size, z_dim)
 
         return control

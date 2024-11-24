@@ -56,7 +56,9 @@ def visualize(
             y_target=y_context,
             mask=None,
             context_embedding=(
-                non_aggregated if config.decoder.is_cross_attentive else aggregated
+                non_aggregated
+                if config.decoder.value.is_cross_attentive
+                else aggregated
             ),
         )
 
@@ -96,7 +98,8 @@ def visualize(
         ax[1].hist2d(
             z_samples[-1][:, 0].cpu().detach().numpy(),
             z_samples[-1][:, 1].cpu().detach().numpy(),
-            bins=20,
+            bins=50,
+            range=((-3, 3), (-3, 3)),
         )
 
     plt.show()

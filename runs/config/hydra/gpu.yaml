@@ -1,6 +1,6 @@
 mode: MULTIRUN
 launcher:
   partition: gpu_4
-  timeout_min: 120
+  timeout_min: 180
   mem_per_gpu: 4000
   gres: gpu:1
