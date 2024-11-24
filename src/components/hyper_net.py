@@ -15,6 +15,7 @@ class HyperNet(nn.Module):
         super(HyperNet, self).__init__()
 
         self.is_cross_attentive = is_cross_attentive
+        self.num_heads = num_heads
 
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
 
@@ -30,7 +31,7 @@ class HyperNet(nn.Module):
                 nn.Linear(h_dim, h_dim),
             )
             self.cross_attn = nn.MultiheadAttention(
-                h_dim, num_heads=num_heads, batch_first=True
+                h_dim, num_heads=self.num_heads, batch_first=True
             )
 
         self.mlp = nn.Sequential(
@@ -39,26 +40,31 @@ class HyperNet(nn.Module):
             nn.Linear(h_dim, z_dim),
         )
 
-    def forward(self, t: int, context_embedding: Tensor) -> Tensor:
-        # (1), (batch_size, h_dim)
+    def forward(self, t: int, context_embedding: Tensor, mask: Tensor | None) -> Tensor:
+        # (1), (batch_size, h_dim), (batch_size, context_size)
 
         h: Tensor = self.proj_t(torch.tensor([t], device=context_embedding.device))
         # (1, h_dim)
 
+        mask = mask.unsqueeze(1).repeat(self.num_heads * mask.shape[0], 1, 1) if mask is not None else None
+        # (num_heads * batch_size, 1, context_size)
+
         if self.is_cross_attentive:
-            h = h.unsqueeze(1)
-            # (1, 1, h_dim)
+            h = h.unsqueeze(1).expand(context_embedding.shape[0], -1, -1)
+            # (batch_size, 1, h_dim)
+
+            mask = mask.unsqueeze(1).repeat(self.num_heads, 1, 1) if mask is not None else None
+            # (num_heads * batch_size, 1, context_size)
 
             h, _ = self.cross_attn(
-                query=h.expand(
-                    context_embedding.shape[0], -1, -1
-                ),  # (batch_size, 1, h_dim)
+                query=h,  # (batch_size, 1, h_dim)
                 key=self.mlp_key(
                     context_embedding
                 ),  # (batch_size, context_size, h_dim)
                 value=self.mlp_value(
                     context_embedding
                 ),  # (batch_size, context_size, h_dim)
+                attn_mask=mask,  # (num_heads * batch_size, 1, context_size)
             )
             # (batch_size, 1, h_dim)
 

@@ -152,7 +152,7 @@ class DIS(DiffusionVIProcess):
             if self.hyper_net is None
             else nn.Softplus()(
                 0.9 * self.beta_schedule[t - 1]
-                + 0.1 * self.hyper_net(t, context_embedding)
+                + 0.1 * self.hyper_net(t, context_embedding, mask)
             )
         )
         # (1)
@@ -185,7 +185,7 @@ class DIS(DiffusionVIProcess):
             if self.hyper_net is None
             else nn.Softplus()(
                 0.9 * self.beta_schedule[t - 1]
-                + 0.1 * self.hyper_net(t, context_embedding)
+                + 0.1 * self.hyper_net(t, context_embedding, mask)
             )
         )
         # (1)

@@ -32,9 +32,9 @@ def run(config: DictConfig) -> None:
         num_layers=config.common.num_layers,
         non_linearity=config.common.non_linearity,
         is_attentive=config.set_encoder.is_attentive,
-        is_aggregative=not config.control.is_cross_attentive
+        is_aggregative=not config.control_and_hyper_net.is_cross_attentive
         or not config.decoder.is_cross_attentive,
-        is_non_aggregative=config.control.is_cross_attentive
+        is_non_aggregative=config.control_and_hyper_net.is_cross_attentive
         or config.decoder.is_cross_attentive,
         use_context_size=config.set_encoder.use_context_size,
         aggregation=config.set_encoder.aggregation,

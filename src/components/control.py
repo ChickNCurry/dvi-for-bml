@@ -16,6 +16,7 @@ class Control(nn.Module):
         super(Control, self).__init__()
 
         self.is_cross_attentive = is_cross_attentive
+        self.num_heads = num_heads
 
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
@@ -32,7 +33,7 @@ class Control(nn.Module):
                 nn.Linear(h_dim, h_dim),
             )
             self.cross_attn = nn.MultiheadAttention(
-                h_dim, num_heads=num_heads, batch_first=True
+                h_dim, num_heads=self.num_heads, batch_first=True
             )
 
         self.mlp = nn.Sequential(
@@ -65,6 +66,9 @@ class Control(nn.Module):
             h: Tensor = (z + t).unsqueeze(1)
             # (batch_size, 1, h_dim)
 
+            mask = mask.unsqueeze(1).repeat(self.num_heads * mask.shape[0], 1, 1) if mask is not None else None
+            # (num_heads * batch_size, 1, context_size)
+
             h, _ = self.cross_attn(
                 query=h,  # (batch_size, 1, h_dim)
                 key=self.mlp_key(
@@ -73,9 +77,7 @@ class Control(nn.Module):
                 value=self.mlp_value(
                     context_embedding
                 ),  # (batch_size, context_size, h_dim)
-                attn_mask=(
-                    mask.unsqueeze(1) if mask is not None else None
-                ),  # (batch_size, 1, context_size)
+                attn_mask=mask,  # (num_heads * batch_size, 1, context_size)
             )
             # (batch_size, 1, h_dim)
 
