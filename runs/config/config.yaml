@@ -16,7 +16,7 @@ wandb:
   logging: true
 
 training:
-  num_epochs: 8000
+  num_epochs: 16000
   batch_size: 1024
   learning_rate: 3e-4
   max_clip_norm: 0.5
