@@ -41,20 +41,22 @@ class HyperNet(nn.Module):
         )
 
     def forward(self, t: int, context_embedding: Tensor, mask: Tensor | None) -> Tensor:
-        # (1), (batch_size, h_dim), (batch_size, context_size)
+        # (1), (batch_size, h_dim) or (batch_size, context_size, h_dim), (batch_size, context_size)
 
         h: Tensor = self.proj_t(torch.tensor([t], device=context_embedding.device))
         # (1, h_dim)
-
-        mask = mask.unsqueeze(1).repeat(self.num_heads * mask.shape[0], 1, 1) if mask is not None else None
-        # (num_heads * batch_size, 1, context_size)
 
         if self.is_cross_attentive:
             h = h.unsqueeze(1).expand(context_embedding.shape[0], -1, -1)
             # (batch_size, 1, h_dim)
 
-            mask = mask.unsqueeze(1).repeat(self.num_heads, 1, 1) if mask is not None else None
-            # (num_heads * batch_size, 1, context_size)
+            if mask is not None:
+                mask = mask.unsqueeze(1)
+                # (batch_size, 1, context_size)
+
+                if self.num_heads > 1:
+                    mask = mask.repeat(self.num_heads, 1, 1)
+                    # (num_heads * batch_size, 1, context_size)
 
             h, _ = self.cross_attn(
                 query=h,  # (batch_size, 1, h_dim)

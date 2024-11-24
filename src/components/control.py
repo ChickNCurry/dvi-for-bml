@@ -66,8 +66,13 @@ class Control(nn.Module):
             h: Tensor = (z + t).unsqueeze(1)
             # (batch_size, 1, h_dim)
 
-            mask = mask.unsqueeze(1).repeat(self.num_heads * mask.shape[0], 1, 1) if mask is not None else None
-            # (num_heads * batch_size, 1, context_size)
+            if mask is not None:
+                mask = mask.unsqueeze(1)
+                # (batch_size, 1, context_size)
+
+                if self.num_heads > 1:
+                    mask = mask.repeat(self.num_heads, 1, 1)
+                    # (num_heads * batch_size, 1, context_size)
 
             h, _ = self.cross_attn(
                 query=h,  # (batch_size, 1, h_dim)
