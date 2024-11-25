@@ -9,8 +9,8 @@ class HyperNet(nn.Module):
         z_dim: int,
         non_linearity: str,
         num_steps: int,
-        is_cross_attentive: bool = False,
-        num_heads: int = 1,
+        is_cross_attentive: bool,
+        num_heads: int,
     ) -> None:
         super(HyperNet, self).__init__()
 
@@ -41,7 +41,8 @@ class HyperNet(nn.Module):
         )
 
     def forward(self, t: int, context_embedding: Tensor, mask: Tensor | None) -> Tensor:
-        # (1), (batch_size, h_dim) or (batch_size, context_size, h_dim), (batch_size, context_size)
+        # (batch_size, h_dim) or (batch_size, context_size, h_dim)
+        # (batch_size, context_size)
 
         h: Tensor = self.proj_t(torch.tensor([t], device=context_embedding.device))
         # (1, h_dim)
@@ -58,16 +59,11 @@ class HyperNet(nn.Module):
                     mask = mask.repeat(self.num_heads, 1, 1)
                     # (num_heads * batch_size, 1, context_size)
 
-            h, _ = self.cross_attn(
-                query=h,  # (batch_size, 1, h_dim)
-                key=self.mlp_key(
-                    context_embedding
-                ),  # (batch_size, context_size, h_dim)
-                value=self.mlp_value(
-                    context_embedding
-                ),  # (batch_size, context_size, h_dim)
-                attn_mask=mask,  # (num_heads * batch_size, 1, context_size)
-            )
+            key = self.mlp_key(context_embedding)
+            value = self.mlp_value(context_embedding)
+            # (batch_size, context_size, h_dim)
+
+            h, _ = self.cross_attn(query=h, key=key, value=value, attn_mask=mask)
             # (batch_size, 1, h_dim)
 
             h = h.squeeze(1)

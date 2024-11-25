@@ -157,7 +157,7 @@ class DIS(DiffusionVIProcess):
         )
         # (1)
 
-        control = self.control(z_prev, t, context_embedding, mask)
+        control = self.control(t, z_prev, context_embedding, mask)
         # (batch_size, z_dim)
 
         z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
@@ -253,7 +253,7 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control(z_prev, t, context_embedding, mask)
+        control = self.control(t, z_prev, context_embedding, mask)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(z_prev, t, p_z_0, p_z_T)
@@ -282,7 +282,7 @@ class CMCD(DiffusionVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control(z_next, t, context_embedding, mask)
+        control = self.control(t, z_next, context_embedding, mask)
         # (batch_size, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(z_next, t, p_z_0, p_z_T)

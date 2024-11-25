@@ -11,7 +11,7 @@ class Control(nn.Module):
         non_linearity: str,
         num_steps: int,
         is_cross_attentive: bool,
-        num_heads: int = 1,
+        num_heads: int,
     ) -> None:
         super(Control, self).__init__()
 
@@ -51,19 +51,21 @@ class Control(nn.Module):
         self.proj_out = nn.Linear(h_dim, z_dim)
 
     def forward(
-        self, z: Tensor, t: int, context_embedding: Tensor, mask: Tensor | None
+        self, t: int, z: Tensor, context_embedding: Tensor, mask: Tensor | None
     ) -> Tensor:
         # (batch_size, z_dim),
-        # (1),
         # (batch_size, h_dim) or (batch_size, context_size, h_dim)
         # (batch_size, context_size)
 
-        z = self.proj_z(z)
         t = self.proj_t(torch.tensor([t], device=z.device))
+        z = self.proj_z(z)
+        # (batch_size, h_dim)
+
+        h: Tensor = t + z
         # (batch_size, h_dim)
 
         if self.is_cross_attentive:
-            h: Tensor = (z + t).unsqueeze(1)
+            h = h.unsqueeze(1)
             # (batch_size, 1, h_dim)
 
             if mask is not None:
@@ -74,22 +76,17 @@ class Control(nn.Module):
                     mask = mask.repeat(self.num_heads, 1, 1)
                     # (num_heads * batch_size, 1, context_size)
 
-            h, _ = self.cross_attn(
-                query=h,  # (batch_size, 1, h_dim)
-                key=self.mlp_key(
-                    context_embedding
-                ),  # (batch_size, context_size, h_dim)
-                value=self.mlp_value(
-                    context_embedding
-                ),  # (batch_size, context_size, h_dim)
-                attn_mask=mask,  # (num_heads * batch_size, 1, context_size)
-            )
+            key = self.mlp_key(context_embedding)
+            value = self.mlp_value(context_embedding)
+            # (batch_size, context_size, h_dim)
+
+            h, _ = self.cross_attn(query=h, key=key, value=value, attn_mask=mask)
             # (batch_size, 1, h_dim)
 
             h = h.squeeze(1)
             # (batch_size, h_dim)
         else:
-            h = z + t + context_embedding
+            h = h + context_embedding
             # (batch_size, h_dim)
 
         control: Tensor = self.proj_out(self.mlp(h))

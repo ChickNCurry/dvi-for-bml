@@ -15,6 +15,7 @@ class Decoder(nn.Module):
         has_lat_path: bool,
         has_det_path: bool,
         is_cross_attentive: bool,
+        num_heads: int,
     ) -> None:
         super(Decoder, self).__init__()
 
@@ -22,12 +23,21 @@ class Decoder(nn.Module):
         self.has_lat_path = has_lat_path
         self.has_det_path = has_det_path
         self.is_cross_attentive = is_cross_attentive
+        self.num_heads = num_heads
 
         if self.is_cross_attentive:
-            self.proj_x_target = nn.Linear(x_dim, h_dim)
-            self.proj_x_context = nn.Linear(x_dim, h_dim)
+            self.mlp_query = nn.Sequential(
+                nn.Linear(x_dim, h_dim),
+                getattr(nn, non_linearity)(),
+                nn.Linear(h_dim, h_dim),
+            )
+            self.mlp_key = nn.Sequential(
+                nn.Linear(x_dim, h_dim),
+                getattr(nn, non_linearity)(),
+                nn.Linear(h_dim, h_dim),
+            )
             self.cross_attn = nn.MultiheadAttention(
-                h_dim, num_heads=1, batch_first=True
+                h_dim, num_heads=self.num_heads, batch_first=True
             )
 
         self.mlp = nn.Sequential(
@@ -61,17 +71,21 @@ class Decoder(nn.Module):
 
         if self.has_det_path and context_embedding is not None:
             if self.is_cross_attentive:
+                mask = mask.unsqueeze(1) if mask is not None else None
+                # (batch_size, 1, context_size)
+
+                query = self.mlp_query(x_target)
+                # (batch_size, target_size, h_dim)
+
+                key = self.mlp_key(
+                    context_embedding[:, :, 0:1]
+                )  # (batch_size, context_size, h_dim)
+
+                value = context_embedding
+                # (batch_size, context_size, h_dim)
+
                 c, _ = self.cross_attn(
-                    query=self.proj_x_target(
-                        x_target
-                    ),  # (batch_size, target_size, h_dim)
-                    key=self.proj_x_context(
-                        context_embedding[:, :, 0:1]
-                    ),  # (batch_size, context_size, h_dim)
-                    value=context_embedding,  # (batch_size, context_size, h_dim)
-                    attn_mask=(
-                        mask.unsqueeze(1) if mask is not None else None
-                    ),  # (batch_size, 1, context_size)
+                    query=query, key=key, value=value, attn_mask=mask
                 )
             else:
                 c = context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)

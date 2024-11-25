@@ -1,19 +1,21 @@
+from abc import ABC, abstractmethod
 from typing import Tuple
 
 import torch
 from torch import Tensor, nn
 
 
-class Encoder(nn.Module):
+class Encoder(nn.Module, ABC):
     def __init__(
         self,
     ) -> None:
         super(Encoder, self).__init__()
 
+    @abstractmethod
     def forward(
         self, context: Tensor, mask: Tensor | None
     ) -> Tuple[Tensor | None, Tensor | None]:
-        raise NotImplementedError
+        pass
 
 
 class SetEncoder(Encoder):
@@ -63,7 +65,8 @@ class SetEncoder(Encoder):
     def forward(
         self, context: Tensor, mask: Tensor | None
     ) -> Tuple[Tensor | None, Tensor | None]:
-        # (batch_size, context_size, c_dim), (batch_size, context_size)
+        # (batch_size, context_size, c_dim)
+        # (batch_size, context_size)
 
         c: Tensor = self.proj_in(context)
         # (batch_size, context_size, h_dim)
@@ -96,13 +99,12 @@ class SetEncoder(Encoder):
                 # (batch_size, h_dim)
 
             if self.use_context_size:
-                e = (
-                    self.context_size_embedding(
+                if mask is None:
+                    e = self.context_size_embedding(
                         torch.tensor([context.shape[1]], device=c.device)
                     ).expand(c.shape[0], -1)
-                    if mask is None
-                    else self.context_size_embedding(mask.sum(dim=1).int())
-                )
+                else:
+                    e = self.context_size_embedding(mask.sum(dim=1).int())
                 # (batch_size, h_dim)
 
                 aggregated = aggregated + e if aggregated is not None else None
