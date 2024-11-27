@@ -1,6 +1,6 @@
 import torch
 from torch import Tensor
-from typing import Any, List
+from typing import Any, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
@@ -20,10 +20,12 @@ def create_grid(mins: List[float], maxs: List[float], num: int) -> NDArray[np.fl
     return grid
 
 
-def eval_kde_on_grid(grid: NDArray[np.float64], samples: Tensor) -> NDArray[np.float64]:
+def eval_kde_on_grid(
+    grid: NDArray[np.float64], samples: NDArray[np.float64]
+) -> NDArray[np.float64]:
     # (x_grid, y_grid, ..., z_dim), (num_samples, z_dim)
 
-    kde = gaussian_kde(samples.T.numpy())
+    kde = gaussian_kde(samples.T)
 
     grid_flat = grid.reshape(-1, grid.shape[-1]).T
     # (z_dim, x_grid * y_grid * ...)
@@ -55,8 +57,6 @@ def normalize_vals(
 
     spacings = [(max - min) / num for min, max in zip(mins, maxs)]
 
-    print((vals.sum() * np.prod(spacings)))
-
     vals = vals / (vals.sum() * np.prod(spacings))
 
     return vals
@@ -77,18 +77,32 @@ def visualize_vals_on_grid_2d(
     plt.show()
 
 
+def visualize_vals_on_grid_1d(
+    grid: NDArray[np.float64], vals: NDArray[np.float64]
+) -> None:
+    # (dim1, dim2, ...)
+
+    plt.plot(grid[:, 0], vals)
+    plt.show()
+
+
 def visualize_samples_2d(
-    samples: Tensor, bins: int = 50, range: List[List[float]] = [[-5, 5], [-5, 5]]
+    samples: NDArray[np.float64],
+    bins: int = 50,
+    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
 ) -> None:
     # (num_samples, z_dim)
 
-    plt.hist2d(
-        samples[:, 0].numpy(),
-        samples[:, 1].numpy(),
-        density=True,
-        bins=bins,
-        range=range,
-    )
+    plt.hist2d(samples[:, 0], samples[:, 1], density=True, bins=bins, range=range)
+    plt.show()
+
+
+def visualize_samples_1d(
+    samples: NDArray[np.float64], bins: int = 50, range: Tuple[float, float] = (-5, 5)
+) -> None:
+    # (num_samples, z_dim)
+
+    plt.hist(samples[:, 0], bins=bins, range=range, density=True)
     plt.show()
 
 
@@ -107,3 +121,16 @@ def compute_jsd(p_vals: NDArray[np.float64], q_vals: NDArray[np.float64]) -> Any
     )
 
     return jsd
+
+
+def compute_bd(p_vals: NDArray[np.float64], q_vals: NDArray[np.float64]) -> Any:
+    # (dim1, dim2, ...)
+    # (dim1, dim2, ...)
+
+    p_vals = p_vals / np.sum(p_vals)
+    q_vals = q_vals / np.sum(q_vals)
+
+    bc = np.sum(np.sqrt(p_vals * q_vals))
+    bd = -np.log(bc)
+
+    return bd
