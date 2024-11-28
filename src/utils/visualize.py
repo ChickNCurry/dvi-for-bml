@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 
 import torch
 from matplotlib import pyplot as plt
@@ -6,6 +6,9 @@ from omegaconf import DictConfig
 from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
+import numpy as np
+from numpy.typing import NDArray
+from matplotlib import cm
 
 from src.components.control import Control
 from src.components.decoder import Decoder, LikelihoodTimesPrior
@@ -23,7 +26,7 @@ def visualize(
     config: DictConfig,
     num_samples: int,
     max_context_size: int,
-) -> None:
+) -> Tuple[List[Distribution], List[NDArray[np.float64]]]:
 
     x_data, y_data = next(iter(dataloader))
     x_data, y_data = x_data.to(device), y_data.to(device)
@@ -38,6 +41,9 @@ def visualize(
 
     fig = plt.figure(figsize=(9, 3 * max_context_size), constrained_layout=True)
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
+
+    targets = []
+    samples = []
 
     for row, subfig in enumerate(subfigs):
         subfig.suptitle(f"Context Size: {row + 1}")
@@ -62,11 +68,16 @@ def visualize(
             ),
         )
 
+        targets.append(p_z_T)
+
         _, z_samples = dvi_process.run_chain(
             p_z_T,
             non_aggregated if control.is_cross_attentive else aggregated,
             None,
         )
+
+        samples.append(z_samples[-1].cpu().detach().numpy())
+
         y_dist: Distribution = decoder(
             x_data,
             z_samples[-1],
@@ -102,4 +113,56 @@ def visualize(
             range=((-3, 3), (-3, 3)),
         )
 
+    plt.show()
+
+    return targets, samples  # type: ignore
+
+
+def visualize_vals_on_grid_1d(
+    grid: NDArray[np.float64], vals: NDArray[np.float64]
+) -> None:
+    # (dim1, dim2, ..., z_dim)
+    # (dim1, dim2, ...)
+
+    plt.plot(grid[:, 0], vals)
+    plt.show()
+
+
+def visualize_vals_on_grid_2d(
+    grid: NDArray[np.float64],
+    vals: NDArray[np.float64],
+    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
+) -> None:
+    # (dim1, dim2, ..., z_dim)
+    # (dim1, dim2, ...)
+
+    fig = plt.figure(figsize=(8, 4))
+
+    ax1 = fig.add_subplot(121)
+    ax1.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+
+    ax2 = fig.add_subplot(122, projection="3d")
+    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+
+    plt.tight_layout()
+    plt.show()
+
+
+def visualize_samples_1d(
+    samples: NDArray[np.float64], bins: int = 50, range: Tuple[float, float] = (-5, 5)
+) -> None:
+    # (num_samples, z_dim)
+
+    plt.hist(samples[:, 0], bins=bins, range=range, density=True)
+    plt.show()
+
+
+def visualize_samples_2d(
+    samples: NDArray[np.float64],
+    bins: int = 50,
+    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
+) -> None:
+    # (num_samples, z_dim)
+
+    plt.hist2d(samples[:, 0], samples[:, 1], density=True, bins=bins, range=range)
     plt.show()

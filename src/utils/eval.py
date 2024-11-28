@@ -1,112 +1,80 @@
 import torch
-from torch import Tensor
-from typing import Any, List, Tuple
+from typing import Any, List
 import numpy as np
 from numpy.typing import NDArray
 
 from scipy.stats import gaussian_kde  # type: ignore
-from matplotlib import pyplot as plt
-from matplotlib import cm
 from torch.distributions import Distribution
 
 
-def create_grid(mins: List[float], maxs: List[float], num: int) -> NDArray[np.float64]:
+def create_grid(mins: List[float], maxs: List[float], num: int) -> NDArray[np.float32]:
     dims = [np.linspace(min, max, num) for min, max in zip(mins, maxs)]
     # (dims, nums)
 
-    grid: NDArray[np.float64] = np.stack(np.meshgrid(*dims), axis=-1)
+    grid: NDArray[np.float32] = np.stack(np.meshgrid(*dims), axis=-1)
     # (dim1, dim2, ..., z_dim)
 
     return grid
 
 
 def eval_kde_on_grid(
-    grid: NDArray[np.float64], samples: NDArray[np.float64]
-) -> NDArray[np.float64]:
-    # (x_grid, y_grid, ..., z_dim), (num_samples, z_dim)
+    grid: NDArray[np.float32],
+    samples: NDArray[np.float32],
+    bw_method: str | None = None,
+) -> NDArray[np.float32]:
+    # (dim1, dim2, ..., z_dim), (num_samples, z_dim)
 
-    kde = gaussian_kde(samples.T)
+    kde = gaussian_kde(samples.T, bw_method=bw_method)
 
     grid_flat = grid.reshape(-1, grid.shape[-1]).T
-    # (z_dim, x_grid * y_grid * ...)
+    # (z_dim, dim1 * dim2 * ...)
 
-    vals: NDArray[np.float64] = kde(grid_flat).reshape(grid.shape[: grid.shape[-1]])
+    vals: NDArray[np.float32] = kde(grid_flat)
+    vals = vals.reshape(grid.shape[: grid.shape[-1]])
     # (dim1, dim2, ...)
 
     return vals
 
 
 def eval_dist_on_grid(
-    grid: NDArray[np.float64], dist: Distribution
-) -> NDArray[np.float64]:
-    # (x_grid, y_grid, ..., z_dim)
-
-    grid_tensor = torch.from_numpy(grid)
+    grid: NDArray[np.float32], dist: Distribution
+) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
-    vals: NDArray[np.float64] = dist.log_prob(grid_tensor).sum(dim=-1).exp().numpy()
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    grid_tensor = torch.from_numpy(grid_flat).float()
+    # (z_dim, dim1 * dim2 * ...)
+
+    log_prob = getattr(dist, "log_prob_test", None)
+
+    if log_prob is not None:
+        vals: NDArray[np.float32] = (
+            log_prob(grid_tensor).sum(dim=-1).exp().detach().cpu().numpy()
+        )
+    else:
+        vals = dist.log_prob(grid_tensor).sum(dim=-1).exp().detach().cpu().numpy()
+
+    vals = vals.reshape(grid.shape[: grid.shape[-1]])
     # (dim1, dim2, ...)
 
     return vals
 
 
-def normalize_vals(
-    vals: NDArray[np.float64], mins: List[float], maxs: List[float], num: int
-) -> NDArray[np.float64]:
+def normalize_vals_on_grid(
+    vals: NDArray[np.float32], mins: List[float], maxs: List[float], num: int
+) -> NDArray[np.float32]:
     # (dim1, dim2, ...)
 
     spacings = [(max - min) / num for min, max in zip(mins, maxs)]
 
-    vals = vals / (vals.sum() * np.prod(spacings))
+    normalizer = vals.sum() * np.prod(spacings)
+
+    vals = vals / normalizer if normalizer != 0 else vals
 
     return vals
 
 
-def visualize_vals_on_grid_2d(
-    grid: NDArray[np.float64], vals: NDArray[np.float64]
-) -> None:
-    # (dim1, dim2, ..., z_dim)
-    # (dim1, dim2, ...)
-
-    plt.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
-    plt.colorbar()
-    plt.show()
-
-    ax = plt.axes(projection="3d")
-    ax.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
-    plt.show()
-
-
-def visualize_vals_on_grid_1d(
-    grid: NDArray[np.float64], vals: NDArray[np.float64]
-) -> None:
-    # (dim1, dim2, ...)
-
-    plt.plot(grid[:, 0], vals)
-    plt.show()
-
-
-def visualize_samples_2d(
-    samples: NDArray[np.float64],
-    bins: int = 50,
-    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
-) -> None:
-    # (num_samples, z_dim)
-
-    plt.hist2d(samples[:, 0], samples[:, 1], density=True, bins=bins, range=range)
-    plt.show()
-
-
-def visualize_samples_1d(
-    samples: NDArray[np.float64], bins: int = 50, range: Tuple[float, float] = (-5, 5)
-) -> None:
-    # (num_samples, z_dim)
-
-    plt.hist(samples[:, 0], bins=bins, range=range, density=True)
-    plt.show()
-
-
-def compute_jsd(p_vals: NDArray[np.float64], q_vals: NDArray[np.float64]) -> Any:
+def compute_jsd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
     # (dim1, dim2, ...)
     # (dim1, dim2, ...)
 
@@ -123,7 +91,7 @@ def compute_jsd(p_vals: NDArray[np.float64], q_vals: NDArray[np.float64]) -> Any
     return jsd
 
 
-def compute_bd(p_vals: NDArray[np.float64], q_vals: NDArray[np.float64]) -> Any:
+def compute_bd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
     # (dim1, dim2, ...)
     # (dim1, dim2, ...)
 
