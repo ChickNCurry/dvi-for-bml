@@ -110,7 +110,7 @@ class Decoder(nn.Module):
         return y_dist
 
 
-class LikelihoodTimesPrior(Distribution):
+class LikelihoodTimesPrior(Distribution, nn.Module):
     def __init__(
         self,
         decoder: Decoder,

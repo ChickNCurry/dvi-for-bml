@@ -37,12 +37,12 @@ def eval_kde_on_grid(
 
 
 def eval_dist_on_grid(
-    grid: NDArray[np.float32], dist: Distribution
+    grid: NDArray[np.float32], dist: Distribution, device: torch.device
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
     grid_flat = grid.reshape(-1, grid.shape[-1])
-    grid_tensor = torch.from_numpy(grid_flat).float()
+    grid_tensor = torch.from_numpy(grid_flat).float().to(device)
     # (z_dim, dim1 * dim2 * ...)
 
     log_prob = getattr(dist, "log_prob_test", None)
