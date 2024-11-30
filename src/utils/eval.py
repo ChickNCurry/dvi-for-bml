@@ -3,6 +3,7 @@ from typing import Any, List, Tuple
 import numpy as np
 import torch
 from numpy.typing import NDArray
+from scipy.special import logsumexp  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from torch.distributions import Distribution
 
@@ -48,7 +49,7 @@ def eval_hist_on_grid(
     vals, _ = np.histogramdd(samples, bins=num, range=outer_edges, density=True)
     # (dim1, dim2, ...)
 
-    vals = vals.T.reshape(-1).astype(np.float32)
+    vals = vals.T.reshape(-1).astype(np.float32)  # TODO: why transpose needed?
     # (dim1 * dim2 * ...)
 
     return vals
@@ -60,8 +61,6 @@ def eval_dist_on_grid(
     # (dim1, dim2, ..., z_dim)
 
     grid_flat = grid.reshape(-1, grid.shape[-1])
-    # (dim1 * dim2 * ..., z_dim)
-
     grid_tensor = torch.from_numpy(grid_flat).float().to(device)
     # (dim1 * dim2 * ..., z_dim)
 
@@ -112,3 +111,27 @@ def compute_bd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
     bd = -np.log(bc)
 
     return bd
+
+
+def compute_lmpl(
+    grid: NDArray[np.float32],
+    dist: Distribution,
+    intervals: List[Tuple[float, float]],
+    num: int,
+    device: torch.device,
+) -> Any:
+    # (dim1, dim2, ..., z_dim)
+
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    grid_tensor = torch.from_numpy(grid_flat).float().to(device)
+    # (dim1 * dim2 * ..., z_dim)
+
+    log_probs = dist.log_prob(grid_tensor).sum(-1).detach().cpu().numpy()
+    # (dim1 * dim2 * ...)
+
+    spacings = [(max - min) / num for min, max in intervals]
+    log_normalizer = np.log(np.prod(spacings))  # TODO: what about divinding by sum?
+
+    lmpl = logsumexp(log_probs) - log_normalizer  # scales with context size
+
+    return lmpl
