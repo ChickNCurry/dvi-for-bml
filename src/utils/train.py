@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List
 
 import numpy as np
 import torch
@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.components.contextual_dvi import ContextualDVI
+from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
 
 

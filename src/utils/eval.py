@@ -1,8 +1,8 @@
-import torch
 from typing import Any, List
-import numpy as np
-from numpy.typing import NDArray
 
+import numpy as np
+import torch
+from numpy.typing import NDArray
 from scipy.stats import gaussian_kde  # type: ignore
 from torch.distributions import Distribution
 

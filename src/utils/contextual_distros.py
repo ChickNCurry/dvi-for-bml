@@ -1,7 +1,6 @@
 import itertools
 from typing import List, Tuple
 
-import numpy as np
 import torch
 from torch import Size, Tensor
 from torch.distributions import Distribution, Normal

@@ -1,28 +1,23 @@
 from typing import List, Tuple
 
+import numpy as np
 import torch
+from matplotlib import cm
 from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 from omegaconf import DictConfig
 from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
-import numpy as np
-from numpy.typing import NDArray
-from matplotlib import cm
 
-from src.components.control import Control
-from src.components.decoder import Decoder, LikelihoodTimesPrior
-from src.components.dvi_process import DiffusionVIProcess
-from src.components.encoder import SetEncoder
+from src.components.cdvi import ContextualDVI
+from src.components.decoder import LikelihoodTimesPrior
 
 
-def visualize(
+def visualize_cdvi_for_bml(
     device: torch.device,
-    dvi_process: DiffusionVIProcess,
-    set_encoder: SetEncoder,
-    decoder: Decoder,
+    cdvi: ContextualDVI,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
-    control: Control,
     config: DictConfig,
     num_samples: int,
     max_context_size: int,
@@ -54,34 +49,40 @@ def visualize(
         y_context = y_data[:, :context_size, :]
         context = torch.cat([x_context, y_context], dim=-1)
 
-        aggregated, non_aggregated = set_encoder(context, None)
+        aggregated, non_aggregated = cdvi.encoder(context, None)
 
         p_z_T = LikelihoodTimesPrior(
-            decoder=decoder,
+            decoder=cdvi.decoder,
             x_target=x_context,
             y_target=y_context,
             mask=None,
             context_embedding=(
-                non_aggregated
-                if config.decoder.value.is_cross_attentive
-                else aggregated
+                non_aggregated if config.decoder.is_cross_attentive else aggregated
             ),
         )
 
         targets.append(p_z_T)
 
-        _, z_samples = dvi_process.run_chain(
+        _, z_samples = cdvi.dvi_process.run_chain(
             p_z_T,
-            non_aggregated if control.is_cross_attentive else aggregated,
+            (
+                non_aggregated
+                if cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
             None,
         )
 
         samples.append(z_samples[-1].cpu().detach().numpy())
 
-        y_dist: Distribution = decoder(
+        y_dist: Distribution = cdvi.decoder(
             x_data,
             z_samples[-1],
-            non_aggregated if control.is_cross_attentive else aggregated,
+            (
+                non_aggregated
+                if cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
             None,
         )
 
