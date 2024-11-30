@@ -122,46 +122,50 @@ def visualize_cdvi_for_bml(
 def visualize_vals_on_grid_1d(
     grid: NDArray[np.float64], vals: NDArray[np.float64]
 ) -> None:
-    # (dim1, dim2, ..., z_dim)
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ..., z_dim)
+    # (dim1 * dim2 * ...)
 
-    plt.plot(grid[:, 0], vals)
+    plt.plot(grid, vals)
     plt.show()
 
 
 def visualize_vals_on_grid_2d(
     grid: NDArray[np.float64],
     vals: NDArray[np.float64],
-    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
 ) -> None:
-    # (dim1, dim2, ..., z_dim)
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ..., z_dim)
+    # (dim1 * dim2 * ...)
+
+    num = int(np.sqrt(grid.shape[0]))
+    x = grid[:, 0].reshape(num, num)
+    y = grid[:, 1].reshape(num, num)
+    v = vals.reshape(num, num)
 
     fig = plt.figure(figsize=(8, 4))
 
     ax1 = fig.add_subplot(121)
-    ax1.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+    ax1.contourf(x, y, v, cmap=cm.coolwarm)  # type: ignore
 
     ax2 = fig.add_subplot(122, projection="3d")
-    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+    ax2.plot_surface(x, y, v, cmap=cm.coolwarm)  # type: ignore
 
     plt.tight_layout()
     plt.show()
 
 
 def visualize_samples_1d(
-    samples: NDArray[np.float64], bins: int = 50, range: Tuple[float, float] = (-5, 5)
+    samples: NDArray[np.float64], bins: int, range: Tuple[float, float]
 ) -> None:
     # (num_samples, z_dim)
 
-    plt.hist(samples[:, 0], bins=bins, range=range, density=True)
+    plt.hist(samples[:, 0], bins=bins, density=True, range=range)
     plt.show()
 
 
 def visualize_samples_2d(
     samples: NDArray[np.float64],
-    bins: int = 50,
-    range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
+    bins: int,
+    range: List[Tuple[float, float]],
 ) -> None:
     # (num_samples, z_dim)
 

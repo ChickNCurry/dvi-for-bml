@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import numpy as np
 import torch
@@ -7,14 +7,17 @@ from scipy.stats import gaussian_kde  # type: ignore
 from torch.distributions import Distribution
 
 
-def create_grid(mins: List[float], maxs: List[float], num: int) -> NDArray[np.float32]:
-    dims = [np.linspace(min, max, num) for min, max in zip(mins, maxs)]
+def create_grid(intervals: List[Tuple[float, float]], num: int) -> NDArray[np.float32]:
+    dims = [np.linspace(min, max, num) for min, max in intervals]
     # (dims, nums)
 
     grid: NDArray[np.float32] = np.stack(np.meshgrid(*dims), axis=-1)
     # (dim1, dim2, ..., z_dim)
 
-    return grid
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    # (dim1 * dim2 * ..., z_dim)
+
+    return grid_flat
 
 
 def eval_kde_on_grid(
@@ -22,16 +25,11 @@ def eval_kde_on_grid(
     samples: NDArray[np.float32],
     bw_method: str | None = None,
 ) -> NDArray[np.float32]:
-    # (dim1, dim2, ..., z_dim), (num_samples, z_dim)
+    # (dim1 * dim2 * ..., z_dim), (num_samples, z_dim)
 
     kde = gaussian_kde(samples.T, bw_method=bw_method)
-
-    grid_flat = grid.reshape(-1, grid.shape[-1]).T
-    # (z_dim, dim1 * dim2 * ...)
-
-    vals: NDArray[np.float32] = kde(grid_flat)
-    vals = vals.reshape(grid.shape[: grid.shape[-1]])
-    # (dim1, dim2, ...)
+    vals: NDArray[np.float32] = kde(grid.T)
+    # (dim1 * dim2 * ...)
 
     return vals
 
@@ -39,11 +37,10 @@ def eval_kde_on_grid(
 def eval_dist_on_grid(
     grid: NDArray[np.float32], dist: Distribution, device: torch.device
 ) -> NDArray[np.float32]:
-    # (dim1, dim2, ..., z_dim)
+    # (dim1 * dim2 * ..., z_dim)
 
-    grid_flat = grid.reshape(-1, grid.shape[-1])
-    grid_tensor = torch.from_numpy(grid_flat).float().to(device)
-    # (z_dim, dim1 * dim2 * ...)
+    grid_tensor = torch.from_numpy(grid).float().to(device)
+    # (dim1 * dim2 * ..., z_dim)
 
     log_prob = getattr(dist, "log_prob_test", None)
 
@@ -54,19 +51,17 @@ def eval_dist_on_grid(
     else:
         vals = dist.log_prob(grid_tensor).sum(dim=-1).exp().detach().cpu().numpy()
 
-    vals = vals.reshape(grid.shape[: grid.shape[-1]])
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ...)
 
     return vals
 
 
 def normalize_vals_on_grid(
-    vals: NDArray[np.float32], mins: List[float], maxs: List[float], num: int
+    vals: NDArray[np.float32], intervals: List[Tuple[float, float]], num: int
 ) -> NDArray[np.float32]:
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ...)
 
-    spacings = [(max - min) / num for min, max in zip(mins, maxs)]
-
+    spacings = [(max - min) / num for min, max in intervals]
     normalizer = vals.sum() * np.prod(spacings)
 
     vals = vals / normalizer if normalizer != 0 else vals
@@ -75,8 +70,8 @@ def normalize_vals_on_grid(
 
 
 def compute_jsd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
-    # (dim1, dim2, ...)
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ...)
+    # (dim1 * dim2 * ...)
 
     eps = 1e-10
     p_vals = p_vals + eps
@@ -92,11 +87,11 @@ def compute_jsd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any
 
 
 def compute_bd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
-    # (dim1, dim2, ...)
-    # (dim1, dim2, ...)
+    # (dim1 * dim2 * ...)
+    # (dim1 * dim2 * ...)
 
-    p_vals = p_vals / np.sum(p_vals)
-    q_vals = q_vals / np.sum(q_vals)
+    p_vals = p_vals / np.sum(p_vals) if p_vals.sum() != 0 else p_vals
+    q_vals = q_vals / np.sum(q_vals) if q_vals.sum() != 0 else q_vals
 
     bc = np.sum(np.sqrt(p_vals * q_vals))
     bd = -np.log(bc)
