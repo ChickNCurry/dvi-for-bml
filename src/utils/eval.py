@@ -14,10 +14,7 @@ def create_grid(intervals: List[Tuple[float, float]], num: int) -> NDArray[np.fl
     grid: NDArray[np.float32] = np.stack(np.meshgrid(*dims), axis=-1)
     # (dim1, dim2, ..., z_dim)
 
-    grid_flat = grid.reshape(-1, grid.shape[-1])
-    # (dim1 * dim2 * ..., z_dim)
-
-    return grid_flat
+    return grid
 
 
 def eval_kde_on_grid(
@@ -25,10 +22,33 @@ def eval_kde_on_grid(
     samples: NDArray[np.float32],
     bw_method: str | None = None,
 ) -> NDArray[np.float32]:
-    # (dim1 * dim2 * ..., z_dim), (num_samples, z_dim)
+    # (dim1, dim2, ..., z_dim), (num_samples, z_dim)
+
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    # (dim1 * dim2 * ..., z_dim)
 
     kde = gaussian_kde(samples.T, bw_method=bw_method)
-    vals: NDArray[np.float32] = kde(grid.T)
+    vals: NDArray[np.float32] = kde(grid_flat.T)
+    # (dim1 * dim2 * ...)
+
+    return vals
+
+
+def eval_hist_on_grid(
+    samples: NDArray[np.float32], intervals: List[Tuple[float, float]], num: int
+) -> NDArray[np.float32]:
+    # (num_samples, z_dim)
+
+    step_sizes = [(max - min) / num for min, max in intervals]
+    outer_edges = [
+        (min - step_size, max + step_size)
+        for (min, max), step_size in zip(intervals, step_sizes)
+    ]
+
+    vals, _ = np.histogramdd(samples, bins=num, range=outer_edges, density=True)
+    # (dim1, dim2, ...)
+
+    vals = vals.T.reshape(-1).astype(np.float32)
     # (dim1 * dim2 * ...)
 
     return vals
@@ -37,20 +57,15 @@ def eval_kde_on_grid(
 def eval_dist_on_grid(
     grid: NDArray[np.float32], dist: Distribution, device: torch.device
 ) -> NDArray[np.float32]:
+    # (dim1, dim2, ..., z_dim)
+
+    grid_flat = grid.reshape(-1, grid.shape[-1])
     # (dim1 * dim2 * ..., z_dim)
 
-    grid_tensor = torch.from_numpy(grid).float().to(device)
+    grid_tensor = torch.from_numpy(grid_flat).float().to(device)
     # (dim1 * dim2 * ..., z_dim)
 
-    log_prob = getattr(dist, "log_prob_test", None)
-
-    if log_prob is not None:
-        vals: NDArray[np.float32] = (
-            log_prob(grid_tensor).sum(dim=-1).exp().detach().cpu().numpy()
-        )
-    else:
-        vals = dist.log_prob(grid_tensor).sum(dim=-1).exp().detach().cpu().numpy()
-
+    vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
     # (dim1 * dim2 * ...)
 
     return vals

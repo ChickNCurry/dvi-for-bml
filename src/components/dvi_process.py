@@ -86,10 +86,13 @@ class DiffusionVIProcess(nn.Module, ABC):
             )
 
             log_w += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
+            # (batch_size, z_dim) or (batch_size, 1)
 
         log_w += p_z_T.log_prob(z[-1]) - p_z_0.log_prob(z[0])
+        # (batch_size, z_dim) or (batch_size, 1)
 
         log_w = log_w.mean(dim=0).sum()
+        # (1)
 
         return log_w, z
 

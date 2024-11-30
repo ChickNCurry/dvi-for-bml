@@ -122,10 +122,13 @@ def visualize_cdvi_for_bml(
 def visualize_vals_on_grid_1d(
     grid: NDArray[np.float64], vals: NDArray[np.float64]
 ) -> None:
-    # (dim1 * dim2 * ..., z_dim)
+    # (dim1, dim2, ..., z_dim)
     # (dim1 * dim2 * ...)
 
-    plt.plot(grid, vals)
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    # (dim1 * dim2 * ..., z_dim)
+
+    plt.plot(grid_flat, vals)
     plt.show()
 
 
@@ -133,21 +136,19 @@ def visualize_vals_on_grid_2d(
     grid: NDArray[np.float64],
     vals: NDArray[np.float64],
 ) -> None:
-    # (dim1 * dim2 * ..., z_dim)
+    # (dim1, dim2, ..., z_dim)
     # (dim1 * dim2 * ...)
 
-    num = int(np.sqrt(grid.shape[0]))
-    x = grid[:, 0].reshape(num, num)
-    y = grid[:, 1].reshape(num, num)
+    num = grid.shape[0]
     v = vals.reshape(num, num)
 
     fig = plt.figure(figsize=(8, 4))
 
     ax1 = fig.add_subplot(121)
-    ax1.contourf(x, y, v, cmap=cm.coolwarm)  # type: ignore
+    ax1.contourf(grid[:, :, 0], grid[:, :, 1], v, cmap=cm.coolwarm)  # type: ignore
 
     ax2 = fig.add_subplot(122, projection="3d")
-    ax2.plot_surface(x, y, v, cmap=cm.coolwarm)  # type: ignore
+    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], v, cmap=cm.coolwarm)  # type: ignore
 
     plt.tight_layout()
     plt.show()

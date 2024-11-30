@@ -24,7 +24,10 @@ class ContextualGaussian(Distribution):
         return self.gaussian.sample()  # type: ignore
 
     def log_prob(self, x: Tensor) -> Tensor:
-        return self.gaussian.log_prob(x)  # type: ignore
+        log_prob: Tensor = self.gaussian.log_prob(x)  # type: ignore
+        # (batch_size, z_dim)
+
+        return log_prob
 
 
 class ContextualGMM(Distribution):
@@ -70,7 +73,7 @@ class ContextualGMM(Distribution):
         return samples
 
     def log_prob(self, x: Tensor) -> Tensor:
-        return torch.logsumexp(
+        log_prob = torch.logsumexp(
             torch.stack(
                 [
                     torch.log(self.weights[0]) + self.component_a.log_prob(x),  # type: ignore
@@ -78,7 +81,9 @@ class ContextualGMM(Distribution):
                 ]
             ),
             dim=0,
-        )
+        )  # (batch_size, z_dim)
+
+        return log_prob
 
 
 class TaskPosteriorGMM(Distribution):
@@ -197,7 +202,7 @@ class TaskPosteriorGMM(Distribution):
         return samples
 
     def log_prob(self, x: Tensor) -> Tensor:
-        return torch.logsumexp(
+        log_prob = torch.logsumexp(
             torch.stack(
                 [
                     torch.log(self.weights[i]) + self.components[i].log_prob(x)  # type: ignore
@@ -205,4 +210,6 @@ class TaskPosteriorGMM(Distribution):
                 ],
             ),
             dim=0,
-        )
+        )  # (batch_size, z_dim)
+
+        return log_prob
