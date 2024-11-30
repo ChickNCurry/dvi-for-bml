@@ -12,7 +12,7 @@ from src.components.decoder import Decoder
 from src.components.dvi_process import DiffusionVIProcess
 from src.components.encoder import Encoder, SetEncoder
 from src.components.hyper_net import HyperNet
-from src.utils.context_datasets import MetaLearningDataset
+from src.utils.datasets import MetaLearningDataset
 
 
 class ContextualDVI(nn.Module):
