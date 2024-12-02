@@ -5,8 +5,8 @@ import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-from src.components.cdvi import load_from_cfg
-from src.utils.train import train
+from src.components.cdvi import load_cdvi_for_bml
+from src.utils.train import BetterBMLTrainer
 
 
 @hydra.main(version_base=None, config_name="config", config_path="config")
@@ -14,7 +14,7 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cdvi, dataloader, optimizer = load_from_cfg(cfg, device)
+    cdvi, dataloader, optimizer = load_cdvi_for_bml(cfg, device)
 
     if cfg.wandb.logging:
         wandb.init(
@@ -22,16 +22,18 @@ def run(cfg: DictConfig) -> None:
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
 
-    train(
+    trainer = BetterBMLTrainer(
         device=device,
-        contextual_dvi=cdvi,
-        target_constructor=None,
-        num_epochs=cfg.training.num_epochs,
+        cdvi=cdvi,
         dataloader=dataloader,
         optimizer=optimizer,
         scheduler=None,
-        max_clip_norm=cfg.training.max_clip_norm,
         wandb_logging=cfg.wandb.logging,
+    )
+
+    trainer.train(
+        num_epochs=cfg.training.num_epochs,
+        max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
     )
 
