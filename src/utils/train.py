@@ -1,11 +1,11 @@
-from typing import Any, Callable, List
+from abc import ABC, abstractmethod
+from typing import Any, List
 
 import numpy as np
 import torch
 import wandb
 from torch import Tensor
-from torch.distributions import Distribution
-from torch.optim import Optimizer  # type: ignore
+from torch.optim import Optimizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -14,225 +14,336 @@ from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
 
 
-def train(
-    device: torch.device,
-    contextual_dvi: ContextualDVI,
-    target_constructor: Any,
-    num_epochs: int,
-    dataloader: DataLoader[Any],
-    optimizer: Optimizer,
-    scheduler: ReduceLROnPlateau | None,
-    max_clip_norm: float | None,
-    wandb_logging: bool,
-    alpha: float | None,
-) -> List[float]:
+class Trainer(ABC):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        dataloader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: ReduceLROnPlateau | None,
+        wandb_logging: bool,
+    ) -> None:
+        self.device = device
+        self.cdvi = cdvi
+        self.dataloader = dataloader
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.wandb_logging = wandb_logging
 
-    # torch.autograd.set_detect_anomaly(True)
+    def train(
+        self,
+        num_epochs: int,
+        max_clip_norm: float | None,
+        alpha: float | None,
+        validate: bool = False,
+    ) -> List[float]:
 
-    losses = []
+        # torch.autograd.set_detect_anomaly(True)
 
-    for epoch in range(num_epochs):
+        losses = []
 
-        contextual_dvi.train()
-        with torch.inference_mode(False):
+        for epoch in range(num_epochs):
 
-            loop = tqdm(dataloader, total=len(dataloader))
+            self.cdvi.train()
+            with torch.inference_mode(False):
 
-            for batch in loop:
+                loop = tqdm(self.dataloader, total=len(self.dataloader))
 
-                loss = (
-                    step_better(device, contextual_dvi, target_constructor, batch)
-                    if contextual_dvi.decoder is None
-                    else step_bml_better(device, contextual_dvi, batch, alpha)
-                )
+                for batch in loop:
 
-                optimizer.zero_grad()
+                    self.optimizer.zero_grad()
 
-                loss.backward()  # type: ignore
+                    loss = self.step(batch, alpha)
+                    loss.backward()  # type: ignore
 
-                if max_clip_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        contextual_dvi.parameters(), max_clip_norm
+                    if max_clip_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.cdvi.parameters(), max_clip_norm
+                        )
+
+                    self.optimizer.step()
+
+                    if self.scheduler is not None:
+                        self.scheduler.step(loss)
+
+                    loop.set_postfix(
+                        epoch=epoch,
+                        loss=loss.item(),
+                        scheduler=(
+                            self.scheduler.get_last_lr()
+                            if self.scheduler is not None
+                            else None
+                        ),
                     )
 
-                optimizer.step()
+                    losses.append(loss.item())
 
-                if scheduler is not None:
-                    scheduler.step(loss)
+                    if self.wandb_logging:
+                        wandb.log({"train/loss": loss.item()})
 
-                loop.set_postfix(
-                    epoch=epoch,
-                    loss=loss.item(),
-                    lr=scheduler.get_last_lr() if scheduler is not None else None,
-                )
+            if not validate:
+                continue
 
-                losses.append(loss.item())
+            self.cdvi.eval()
+            with torch.inference_mode(True):
 
-                if wandb_logging:
-                    wandb.log({"train/loss": loss.item()})
+                loop = tqdm(self.dataloader, total=len(self.dataloader))
 
-    return losses
+                for batch in loop:
 
+                    metric = self.validate(batch, alpha)
 
-def step(
-    device: torch.device,
-    contextual_dvi: ContextualDVI,
-    target_constructor: Callable[[Tensor], Distribution],
-    batch: Tensor,
-) -> Tensor:
+                    loop.set_postfix(
+                        epoch=epoch,
+                        metric=metric.item(),
+                    )
 
-    batch = batch.to(device)
+        return losses
 
-    random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
-    context = batch[:, 0:random_context_size, :]
+    @abstractmethod
+    def step(self, batch: Tensor, alpha: float | None) -> Tensor:
+        pass
 
-    p_z_T = target_constructor(context)
-    context_embedding = contextual_dvi.encoder(context)
-    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, context_embedding, None)
-
-    loss = -log_w
-
-    return loss
+    @abstractmethod
+    def validate(self, batch: Tensor, alpha: float | None) -> None:
+        pass
 
 
-def step_better(
-    device: torch.device,
-    contextual_dvi: ContextualDVI,
-    target_constructor: Callable[[Tensor, Tensor], Distribution],
-    batch: Tensor,
-) -> Tensor:
-
-    batch = batch.to(device)
-
-    rand_context_sizes = torch.randint(
-        low=1, high=batch.shape[1] + 1, size=(batch.shape[0],), device=device
-    )
-
-    position_indices = torch.arange(batch.shape[1], device=device).expand(
-        batch.shape[0], -1
-    )
-    mask = (position_indices < rand_context_sizes.unsqueeze(-1)).float()
-    context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
-
-    p_z_T = target_constructor(context, mask)
-
-    aggregated, _ = contextual_dvi.encoder(context, mask)
-    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, aggregated, mask)
-
-    loss = -log_w
-
-    return loss
-
-
-def step_bml(
-    device: torch.device,
-    contextual_dvi: ContextualDVI,
-    batch: Tensor,
-) -> Tensor:
-
-    assert contextual_dvi.decoder is not None
-
-    x_data, y_data = batch
-    x_data, y_data = x_data.to(device), y_data.to(device)
-    # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
-
-    rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
-
-    x_context = x_data[:, 0:rand_sub_context_size, :]
-    y_context = y_data[:, 0:rand_sub_context_size, :]
-
-    context = torch.cat([x_context, y_context], dim=-1)
-    # (batch_size, context_size, x_dim + y_dim)
-
-    context_embedding = contextual_dvi.encoder(context)
-    # (batch_size, h_dim)
-
-    p_z_T = LikelihoodTimesPrior(
-        decoder=contextual_dvi.decoder,
-        x_target=x_context,
-        y_target=y_context,
-        mask=None,
-        context_embedding=context_embedding,
-    )
-
-    log_w, _ = contextual_dvi.dvi_process.run_chain(p_z_T, context_embedding, None)
-
-    loss = -log_w
-
-    return loss
-
-
-def step_bml_better(
-    device: torch.device,
-    contextual_dvi: ContextualDVI,
-    batch: Tensor,
-    alpha: float | None,
-) -> Tensor:
-
-    assert contextual_dvi.decoder is not None
-
-    x_data, y_data = batch
-    x_data, y_data = x_data.to(device), y_data.to(device)
-    # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
-
-    data = torch.cat([x_data, y_data], dim=-1)
-    # (batch_size, context_size, x_dim + y_dim)
-
-    if alpha is None:
-        rand_context_sizes = torch.randint(
-            1, data.shape[1] + 1, (data.shape[0],), device=device
-        ).unsqueeze(-1)
-    else:
-        rand_context_sizes = torch.tensor(
-            np.ceil(
-                np.random.beta(a=alpha, b=2, size=(data.shape[0], 1)) * data.shape[1]
-            ),
-            device=device,
+class StaticTargetTrainer(Trainer):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        dataloader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: ReduceLROnPlateau | None,
+        wandb_logging: bool,
+    ) -> None:
+        super().__init__(
+            device,
+            cdvi,
+            dataloader,
+            optimizer,
+            scheduler,
+            wandb_logging,
         )
-    # (batch_size, 1)
 
-    position_indices = torch.arange(data.shape[1], device=device).expand(
-        data.shape[0], -1
-    )  # (batch_size, context_size)
+        assert self.cdvi.contextual_target is not None
 
-    mask = (position_indices < rand_context_sizes).float()
-    # (batch_size, context_size)
+    def step(self, batch: Tensor, alpha: float | None) -> Tensor:
+        batch = batch.to(self.device)
 
-    context = data * mask.unsqueeze(-1).expand(-1, -1, data.shape[2])
-    # (batch_size, context_size, x_dim + y_dim)
+        random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
+        context = batch[:, 0:random_context_size, :]
 
-    x_context = context[:, :, 0 : x_data.shape[2]]
-    # (batch_size, context_size, x_dim)
+        p_z_T = self.cdvi.contextual_target(context, None)
 
-    y_context = context[:, :, x_data.shape[2] : data.shape[2]]
-    # (batch_size, context_size, y_dim)
+        aggregated, _ = self.cdvi.encoder(context, None)
+        log_w, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, None)
 
-    aggregated, non_aggregated = contextual_dvi.encoder(context, mask)
-    # (batch_size, h_dim)
+        loss = -log_w
 
-    p_z_T = LikelihoodTimesPrior(
-        decoder=contextual_dvi.decoder,
-        x_target=x_context,
-        y_target=y_context,
-        mask=mask,
-        context_embedding=(
-            non_aggregated if contextual_dvi.decoder.is_cross_attentive else aggregated
-        ),
-    )
+        return loss
 
-    log_w, _ = contextual_dvi.dvi_process.run_chain(
-        p_z_T,
-        (
-            non_aggregated
-            if contextual_dvi.dvi_process.control.is_cross_attentive
-            else aggregated
-        ),
-        mask,
-    )
+    def validate(self, batch: Tensor, alpha: float | None) -> Tensor:
+        raise NotImplementedError
 
-    loss = -log_w
 
-    return loss
+class BetterStaticTargetTrainer(Trainer):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        dataloader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: ReduceLROnPlateau | None,
+        wandb_logging: bool,
+    ) -> None:
+        super().__init__(
+            device,
+            cdvi,
+            dataloader,
+            optimizer,
+            scheduler,
+            wandb_logging,
+        )
+
+        assert self.cdvi.contextual_target is not None
+
+    def step(self, batch: Tensor, alpha: float | None) -> Tensor:
+
+        batch = batch.to(self.device)
+
+        rand_context_sizes = torch.randint(
+            low=1, high=batch.shape[1] + 1, size=(batch.shape[0],), device=self.device
+        )
+
+        position_indices = torch.arange(batch.shape[1], device=self.device).expand(
+            batch.shape[0], -1
+        )
+
+        mask = (position_indices < rand_context_sizes.unsqueeze(-1)).float()
+        context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
+
+        p_z_T = self.cdvi.contextual_target(context, mask)
+
+        aggregated, _ = self.cdvi.encoder(context, mask)
+        log_w, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, mask)
+
+        loss = -log_w
+
+        return loss
+
+    def validate(self, batch: Tensor, alpha: float | None) -> Tensor:
+        raise NotImplementedError
+
+
+class BMLTrainer(Trainer):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        dataloader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: ReduceLROnPlateau | None,
+        wandb_logging: bool,
+    ) -> None:
+        super().__init__(
+            device,
+            cdvi,
+            dataloader,
+            optimizer,
+            scheduler,
+            wandb_logging,
+        )
+
+        assert self.cdvi.decoder is not None
+
+    def step(self, batch: Tensor, alpha: float | None) -> Tensor:
+
+        x_data, y_data = batch
+        x_data, y_data = x_data.to(self.device), y_data.to(self.device)
+        # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+
+        rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
+
+        x_context = x_data[:, 0:rand_sub_context_size, :]
+        y_context = y_data[:, 0:rand_sub_context_size, :]
+
+        context = torch.cat([x_context, y_context], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
+
+        context_embedding = self.cdvi.encoder(context)
+        # (batch_size, h_dim)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            mask=None,
+            context_embedding=context_embedding,
+        )
+
+        log_w, _ = self.cdvi.dvi_process.run_chain(p_z_T, context_embedding, None)
+
+        loss = -log_w
+
+        return loss
+
+    def validate(self, batch: Tensor, alpha: float | None) -> Tensor:
+        raise NotImplementedError
+
+
+class BetterBMLTrainer(Trainer):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        dataloader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: ReduceLROnPlateau | None,
+        wandb_logging: bool,
+    ) -> None:
+        super().__init__(
+            device,
+            cdvi,
+            dataloader,
+            optimizer,
+            scheduler,
+            wandb_logging,
+        )
+
+        assert self.cdvi.decoder is not None
+
+    def step(self, batch: Tensor, alpha: float | None) -> Tensor:
+
+        x_data, y_data = batch
+        x_data, y_data = x_data.to(self.device), y_data.to(self.device)
+        # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
+
+        if alpha is None:
+            rand_context_sizes = torch.randint(
+                1, data.shape[1] + 1, (data.shape[0],), device=self.device
+            ).unsqueeze(-1)
+        else:
+            rand_context_sizes = torch.tensor(
+                np.ceil(
+                    np.random.beta(a=alpha, b=2, size=(data.shape[0], 1))
+                    * data.shape[1]
+                ),
+                device=self.device,
+            )
+        # (batch_size, 1)
+
+        position_indices = torch.arange(data.shape[1], device=self.device).expand(
+            data.shape[0], -1
+        )  # (batch_size, context_size)
+
+        mask = (position_indices < rand_context_sizes).float()
+        # (batch_size, context_size)
+
+        context = data * mask.unsqueeze(-1).expand(-1, -1, data.shape[2])
+        # (batch_size, context_size, x_dim + y_dim)
+
+        x_context = context[:, :, 0 : x_data.shape[2]]
+        # (batch_size, context_size, x_dim)
+
+        y_context = context[:, :, x_data.shape[2] : data.shape[2]]
+        # (batch_size, context_size, y_dim)
+
+        aggregated, non_aggregated = self.cdvi.encoder(context, mask)
+        # (batch_size, h_dim)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            mask=mask,
+            context_embedding=(
+                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
+            ),
+        )
+
+        log_w, _ = self.cdvi.dvi_process.run_chain(
+            p_z_T,
+            (
+                non_aggregated
+                if self.cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
+            mask,
+        )
+
+        loss = -log_w
+
+        return loss
+
+    def validate(self, batch: Tensor, alpha: float | None) -> None:
+        raise NotImplementedError
 
 
 # def step_bml_alternative(

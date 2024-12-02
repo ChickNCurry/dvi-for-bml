@@ -1,11 +1,12 @@
-from typing import Tuple
+from typing import Callable, Tuple
 
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from torch import nn
+from torch import Tensor, nn
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
+from torch.distributions import Distribution
 
 from src.components.control import Control
 from src.components.decoder import Decoder
@@ -21,15 +22,17 @@ class ContextualDVI(nn.Module):
         encoder: Encoder,
         dvi_process: DiffusionVIProcess,
         decoder: Decoder | None,
+        contextual_target: Callable[[Tensor], Distribution] | None,
     ) -> None:
         super().__init__()
 
         self.encoder = encoder
         self.dvi_process = dvi_process
         self.decoder = decoder
+        self.contextual_target = contextual_target
 
 
-def load_from_cfg(
+def load_cdvi_for_bml(
     cfg: DictConfig, device: torch.device
 ) -> Tuple[ContextualDVI, DataLoader, AdamW]:
     benchmark = instantiate(cfg.benchmark)
@@ -99,6 +102,7 @@ def load_from_cfg(
         encoder=set_encoder,
         dvi_process=dvi_process,
         decoder=decoder,
+        contextual_target=None,
     ).to(device)
 
     optimizer = AdamW(cdvi.parameters(), lr=cfg.training.learning_rate)
