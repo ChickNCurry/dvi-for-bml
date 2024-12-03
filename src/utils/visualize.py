@@ -15,6 +15,7 @@ from src.components.decoder import LikelihoodTimesPrior
 from src.utils.eval import (
     create_grid,
     eval_dist_on_grid,
+    eval_hist_on_grid,
     eval_kde_on_grid,
     normalize_vals_on_grid,
 )
@@ -220,9 +221,14 @@ def visualize_cdvi_for_bml_test(
             zorder=2,
         )
 
+        ax[0].set_title("Predictions")
+
         grid = create_grid(intervals, num)
 
-        dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
+        # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
+        dvi_vals = eval_hist_on_grid(
+            z_samples[-1].cpu().detach().numpy(), intervals, num
+        )
         dvi_vals = normalize_vals_on_grid(dvi_vals, intervals, num)
         dvi_vals = dvi_vals.reshape(num, num)
 
@@ -232,6 +238,9 @@ def visualize_cdvi_for_bml_test(
 
         ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
         ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+
+        ax[1].set_title("Task Posterior")
+        ax[2].set_title("Likelihood Times Prior")
 
     plt.show()
 

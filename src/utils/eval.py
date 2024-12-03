@@ -127,8 +127,10 @@ def compute_bd(
     # p_vals = p_vals / np.sum(p_vals) if p_vals.sum() != 0 else p_vals
     # q_vals = q_vals / np.sum(q_vals) if q_vals.sum() != 0 else q_vals
 
+    eps = 1e-10
+
     bc = np.sum(np.sqrt(p_vals * q_vals) * area)
-    bd = -np.log(bc)
+    bd = -np.log(bc + eps)
 
     return bd
 

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import torch
 import wandb
 from torch import Tensor
@@ -10,6 +11,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.components.cdvi import ContextualDVI
+from src.components.decoder import LikelihoodTimesPrior
+from src.utils.eval import (
+    compute_bd,
+    compute_jsd,
+    create_grid,
+    eval_dist_on_grid,
+    eval_kde_on_grid,
+    normalize_vals_on_grid,
+)
 
 
 class Trainer(ABC):
@@ -82,7 +92,7 @@ class Trainer(ABC):
                     if self.wandb_logging:
                         wandb.log({"train/loss": loss.item()})
 
-            if not validate:
+            if not validate or epoch % 10 != 0:
                 continue
 
             self.cdvi.eval()
@@ -188,7 +198,7 @@ class AlternatingTrainer(ABC):
                             }
                         )
 
-            if not validate:
+            if not validate or epoch % 10 != 0:
                 continue
 
             self.cdvi.eval()
@@ -217,6 +227,104 @@ class AlternatingTrainer(ABC):
     def train_step_cdvi(self, batch: Tensor, alpha: float | None) -> Tensor:
         pass
 
-    @abstractmethod
-    def val_step(self, batch: Tensor) -> Dict[str, Tensor]:
-        pass
+    def val_step(
+        self,
+        batch: Tensor,
+        sample_size: int = 256,
+        context_sizes: np.ndarray = np.arange(1, 4),
+        intervals=[(-6, 6), (-6, 6)],
+        num=16,
+    ) -> Dict[str, Tensor]:
+
+        x_data, y_data = batch
+        x_data, y_data = x_data.to(self.device), y_data.to(self.device)
+        # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
+
+        grid = create_grid(intervals, num)
+
+        lmpls = []
+        mses = []
+        jsds = []
+        bds = []
+
+        for context_size in context_sizes:
+
+            lmpls_per_task = []
+            mses_per_task = []
+            jsds_per_task = []
+            bds_per_task = []
+
+            for i in range(0, data.shape[0]):
+
+                data_per_task = data[i].unsqueeze(0).expand(sample_size, -1, -1)
+                # (sample_size, context_size, x_dim + y_dim)
+
+                context = data_per_task[:, 0:context_size, :]
+                # (sample_size, context_size, x_dim + y_dim)
+
+                x_data = data_per_task[:, :, 0 : x_data.shape[2]]
+                # (sample_size, context_size, x_dim)
+
+                y_data = data_per_task[:, :, x_data.shape[2] : data.shape[2]]
+                # (sample_size, context_size, y_dim)
+
+                aggregated, non_aggregated = self.cdvi.encoder(context, None)
+                # (sample_size, h_dim)
+
+                p_z_T = LikelihoodTimesPrior(
+                    decoder=self.cdvi.decoder,
+                    x_target=x_data,
+                    y_target=y_data,
+                    context_embedding=(
+                        non_aggregated
+                        if self.cdvi.decoder.is_cross_attentive
+                        else aggregated
+                    ),
+                    mask=None,
+                )
+
+                _, _, z_samples = self.cdvi.dvi_process.run_chain(
+                    p_z_T=p_z_T,
+                    context_embedding=(
+                        non_aggregated
+                        if self.cdvi.dvi_process.control.is_cross_attentive
+                        else aggregated
+                    ),
+                    mask=None,
+                )
+                # (1), (num_steps, sample_size, z_dim)
+
+                lmpl = -np.log(sample_size) + torch.logsumexp(
+                    p_z_T.log_likelihood(z_samples[-1]), dim=0
+                )
+
+                mse = p_z_T.val_mse(z_samples[-1])
+
+                target_vals = eval_dist_on_grid(grid, p_z_T, device=self.device)
+                dvi_vals = eval_kde_on_grid(grid, z_samples[-1].detach().cpu().numpy())
+
+                target_vals = normalize_vals_on_grid(target_vals, intervals, num)
+                dvi_vals = normalize_vals_on_grid(dvi_vals, intervals, num)
+
+                jsd = compute_jsd(target_vals, dvi_vals, intervals, num)
+                bd = compute_bd(target_vals, dvi_vals, intervals, num)
+
+                lmpls_per_task.append(lmpl.item())
+                mses_per_task.append(mse.item())
+                jsds_per_task.append(jsd.item())
+                bds_per_task.append(bd.item())
+
+            lmpls.append(np.median(lmpls_per_task).item())
+            mses.append(np.median(mses_per_task).item())
+            jsds.append(np.median(jsds_per_task).item())
+            bds.append(np.median(bds_per_task).item())
+
+        lmpls_dict = {f"lmpl_{i + 1}": lmpls[i] for i in range(len(lmpls))}
+        mses_dict = {f"mse_{i + 1}": mses[i] for i in range(len(mses))}
+        jsds_dict = {f"jsd_{i + 1}": jsds[i] for i in range(len(jsds))}
+        bds_dict = {f"bd_{i + 1}": bds[i] for i in range(len(bds))}
+
+        return {**lmpls_dict, **mses_dict, **jsds_dict, **bds_dict}
