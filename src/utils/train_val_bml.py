@@ -9,10 +9,10 @@ from torch.utils.data import DataLoader
 
 from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
-from src.utils.train_val import TrainerAndValidater
+from src.utils.train_val import AlternatingTrainer, Trainer
 
 
-class BMLTrainerAndValidater(TrainerAndValidater):
+class BMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
@@ -70,7 +70,7 @@ class BMLTrainerAndValidater(TrainerAndValidater):
         raise NotImplementedError
 
 
-class BetterBMLTrainerAndValidater(TrainerAndValidater):
+class BetterBMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
@@ -168,13 +168,11 @@ class BetterBMLTrainerAndValidater(TrainerAndValidater):
         data = torch.cat([x_data, y_data], dim=-1)
         # (batch_size, context_size, x_dim + y_dim)
 
-        elbos = []
         lmpls = []
         mses = []
 
         for context_size in np.arange(1, 4):
 
-            elbos_per_task = []
             lmpls_per_task = []
             mses_per_task = []
 
@@ -236,79 +234,237 @@ class BetterBMLTrainerAndValidater(TrainerAndValidater):
         return {**lmpls_dict, **mses_dict}
 
 
-class AlternatingBMLTrainer(TrainerAndValidater):
+class AlternatingBMLTrainer(AlternatingTrainer):
     def __init__(
         self,
         device: torch.device,
         cdvi: ContextualDVI,
-        dataloader: DataLoader[Any],
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
     ) -> None:
         super().__init__(
             device,
             cdvi,
-            dataloader,
+            train_loader,
+            val_loader,
             optimizer,
-            scheduler,
             wandb_logging,
         )
 
         assert self.cdvi.decoder is not None
 
-    def train_step(
-        self, batch: Tensor, alpha: float | None
-    ) -> Tuple[Tensor, Dict[str, Tensor]]:
+    def setup_step(self, batch: Tensor, alpha: float | None) -> Tuple[Tensor, Tensor]:
 
         x_data, y_data = batch
         x_data, y_data = x_data.to(self.device), y_data.to(self.device)
         # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
 
         data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
+
+        if alpha is None:
+            rand_context_sizes = torch.randint(
+                1, data.shape[1] + 1, (data.shape[0],), device=self.device
+            ).unsqueeze(-1)
+        else:
+            rand_context_sizes = torch.tensor(
+                np.ceil(
+                    np.random.beta(a=alpha, b=2, size=(data.shape[0], 1))
+                    * data.shape[1]
+                ),
+                device=self.device,
+            )
+        # (batch_size, 1)
+
+        position_indices = torch.arange(data.shape[1], device=self.device).expand(
+            data.shape[0], -1
+        )  # (batch_size, context_size)
+
+        mask = (position_indices < rand_context_sizes).float()
+        # (batch_size, context_size)
+
+        context = data * mask.unsqueeze(-1).expand(-1, -1, data.shape[2])
+        # (batch_size, context_size, x_dim + y_dim)
+
+        x_context = context[:, :, 0 : x_data.shape[2]]
+        # (batch_size, context_size, x_dim)
+
+        y_context = context[:, :, x_data.shape[2] : data.shape[2]]
+        # (batch_size, context_size, y_dim)
+
+        aggregated, non_aggregated = self.cdvi.encoder(context, mask)
+        # (batch_size, h_dim)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            mask=mask,
+            context_embedding=(
+                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
+            ),
+        )
+
+        elbo, log_like, _ = self.cdvi.dvi_process.run_chain(
+            p_z_T,
+            (
+                non_aggregated
+                if self.cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
+            mask,
+        )  # (1), (num_steps, batch_size, z_dim)
+
+        return elbo, log_like
+
+    def train_step_decoder(self, batch: Tensor, alpha: float | None) -> Tensor:
+        self.cdvi.freeze(only_decoder=False)
+
+        _, log_like = self.setup_step(batch, alpha)
+
+        loss = -log_like
+
+        return loss
+
+    def train_step_cdvi(self, batch: Tensor, alpha: float | None) -> Tensor:
+        self.cdvi.freeze(only_decoder=True)
+
+        elbo, _ = self.setup_step(batch, alpha)
+
+        loss = -elbo
+
+        return loss
+
+    def val_step(self, batch: Tensor) -> Dict[str, Tensor]:
+        return NotImplementedError
 
 
-# def step_bml_alternative(
-#     dvi_process: DiffusionVIProcess,
-#     set_encoder: SetEncoder,
-#     decoder: Decoder,
-#     batch: Tensor,
-#     device: torch.device,
-#     target_constructor: Callable[[Tensor], Distribution],
-# ) -> Tensor:
+class TestAlternatingBMLTrainer(AlternatingTrainer):
+    def __init__(
+        self,
+        device: torch.device,
+        cdvi: ContextualDVI,
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
+        optimizer: Optimizer,
+        wandb_logging: bool,
+    ) -> None:
+        super().__init__(
+            device,
+            cdvi,
+            train_loader,
+            val_loader,
+            optimizer,
+            wandb_logging,
+        )
 
-#     x_data, y_data = batch
-#     x_data, y_data = x_data.to(device), y_data.to(device)
-#     # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
+        assert self.cdvi.decoder is not None
 
-#     data = torch.cat([x_data, y_data], dim=-1)
-#     # (batch_size, context_size, x_dim + y_dim)
+    def train_step_decoder(self, batch: Tensor, alpha: float | None) -> Tensor:
+        self.cdvi.freeze(only_decoder=False)
 
-#     data = set_encoder(data)
-#     # (batch_size, h_dim)
+        x_data, y_data = batch
+        x_data, y_data = x_data.to(self.device), y_data.to(self.device)
+        # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
 
-#     rand_sub_context_size: int = np.random.randint(1, x_data.shape[1] + 1)
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
 
-#     x_context = x_data[:, 0:rand_sub_context_size, :]
-#     y_context = y_data[:, 0:rand_sub_context_size, :]
+        aggregated, non_aggregated = self.cdvi.encoder(data, None)
+        # (batch_size, h_dim)
 
-#     context = torch.cat([x_context, y_context], dim=-1)
-#     # (batch_size, context_size, x_dim + y_dim)
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_data,
+            y_target=y_data,
+            mask=None,
+            context_embedding=(
+                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
+            ),
+        )
 
-#     context = set_encoder(context)
-#     # (batch_size, h_dim)
+        _, log_like, _ = self.cdvi.dvi_process.run_chain(
+            p_z_T,
+            (
+                non_aggregated
+                if self.cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
+            None,
+        )  # (1), (num_steps, batch_size, z_dim)
 
-#     p_z_T = target_constructor(context)
-#     log_w, z_samples = dvi_process.run_chain(p_z_T, data)
+        loss = -log_like
 
-#     log_like_data: Tensor = (
-#         decoder(x_data, z_samples[-1], data).log_prob(y_data).mean(dim=0).sum()
-#     )
+        return loss
 
-#     log_like_context: Tensor = (
-#         decoder(x_context, z_samples[-1], context).log_prob(y_context).mean(dim=0).sum()
-#     )
+    def train_step_cdvi(self, batch: Tensor, alpha: float | None) -> Tensor:
+        self.cdvi.freeze(only_decoder=True)
 
-#     loss = -log_like_data - log_like_context - log_w
+        x_data, y_data = batch
+        x_data, y_data = x_data.to(self.device), y_data.to(self.device)
+        # (batch_size, context_size, x_dim), (batch_size, context_size, y_dim)
 
-#     return loss
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, context_size, x_dim + y_dim)
+
+        if alpha is None:
+            rand_context_sizes = torch.randint(
+                1, data.shape[1] + 1, (data.shape[0],), device=self.device
+            ).unsqueeze(-1)
+        else:
+            rand_context_sizes = torch.tensor(
+                np.ceil(
+                    np.random.beta(a=alpha, b=2, size=(data.shape[0], 1))
+                    * data.shape[1]
+                ),
+                device=self.device,
+            )
+        # (batch_size, 1)
+
+        position_indices = torch.arange(data.shape[1], device=self.device).expand(
+            data.shape[0], -1
+        )  # (batch_size, context_size)
+
+        mask = (position_indices < rand_context_sizes).float()
+        # (batch_size, context_size)
+
+        context = data * mask.unsqueeze(-1).expand(-1, -1, data.shape[2])
+        # (batch_size, context_size, x_dim + y_dim)
+
+        x_context = context[:, :, 0 : x_data.shape[2]]
+        # (batch_size, context_size, x_dim)
+
+        y_context = context[:, :, x_data.shape[2] : data.shape[2]]
+        # (batch_size, context_size, y_dim)
+
+        aggregated, non_aggregated = self.cdvi.encoder(context, mask)
+        # (batch_size, h_dim)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            mask=mask,
+            context_embedding=(
+                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
+            ),
+        )
+
+        elbo, _, _ = self.cdvi.dvi_process.run_chain(
+            p_z_T,
+            (
+                non_aggregated
+                if self.cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
+            mask,
+        )  # (1), (num_steps, batch_size, z_dim)
+
+        loss = -elbo
+
+        return loss
+
+    def val_step(self, batch: Tensor) -> Dict[str, Tensor]:
+        return NotImplementedError

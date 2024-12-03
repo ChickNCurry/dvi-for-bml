@@ -8,10 +8,10 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from src.components.cdvi import ContextualDVI
-from src.utils.train_val import TrainerAndValidater
+from src.utils.train_val import Trainer
 
 
-class StaticTargetTrainerAndValidater(TrainerAndValidater):
+class StaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
@@ -53,7 +53,7 @@ class StaticTargetTrainerAndValidater(TrainerAndValidater):
         raise NotImplementedError
 
 
-class BetterStaticTargetTrainerAndValidater(TrainerAndValidater):
+class BetterStaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,

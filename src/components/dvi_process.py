@@ -88,13 +88,19 @@ class DiffusionVIProcess(nn.Module, ABC):
             elbo += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
             # (batch_size, z_dim) or (batch_size, 1)
 
-        elbo += p_z_T.log_prob(z[-1]) - p_z_0.log_prob(z[0])
+        log_like = p_z_T.log_prob(z[-1])
+        # (batch_size, z_dim) or (batch_size, 1)
+
+        elbo += log_like - p_z_0.log_prob(z[0])
         # (batch_size, z_dim) or (batch_size, 1)
 
         elbo = elbo.mean(dim=0).sum()
         # (1)
 
-        return elbo, z
+        log_like = log_like.mean(dim=0).sum()
+        # (1)
+
+        return elbo, log_like, z
 
 
 class DIS(DiffusionVIProcess):
