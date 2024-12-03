@@ -4,9 +4,10 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch import Tensor, nn
-from torch.optim.adamw import AdamW
-from torch.utils.data import DataLoader
 from torch.distributions import Distribution
+from torch.optim import Optimizer
+from torch.optim.adamw import AdamW
+from torch.utils.data import DataLoader, random_split
 
 from src.components.control import Control
 from src.components.decoder import Decoder
@@ -34,10 +35,17 @@ class ContextualDVI(nn.Module):
 
 def load_cdvi_for_bml(
     cfg: DictConfig, device: torch.device
-) -> Tuple[ContextualDVI, DataLoader, AdamW]:
+) -> Tuple[ContextualDVI, Optimizer, DataLoader, DataLoader]:
     benchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
-    dataloader = DataLoader(dataset, cfg.training.batch_size, True)
+
+    num_val_tasks = 32
+    train_set, val_set = random_split(
+        dataset, [len(dataset) - num_val_tasks, num_val_tasks]
+    )
+
+    train_loader = DataLoader(train_set, cfg.training.batch_size, True)
+    val_loader = DataLoader(val_set, num_val_tasks, False)
 
     set_encoder = SetEncoder(
         c_dim=cfg.common.c_dim,
@@ -107,4 +115,4 @@ def load_cdvi_for_bml(
 
     optimizer = AdamW(cdvi.parameters(), lr=cfg.training.learning_rate)
 
-    return cdvi, dataloader, optimizer
+    return cdvi, optimizer, train_loader, val_loader

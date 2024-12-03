@@ -66,7 +66,7 @@ class DiffusionVIProcess(nn.Module, ABC):
 
         z = [p_z_0.sample()]
 
-        log_w: Tensor = torch.zeros(
+        elbo: Tensor = torch.zeros(
             size=(context_embedding.shape[0], self.z_dim),
             device=context_embedding.device,
         )
@@ -85,16 +85,16 @@ class DiffusionVIProcess(nn.Module, ABC):
                 z[t], t - 1, context_embedding, mask, p_z_0, p_z_T
             )
 
-            log_w += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
+            elbo += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
             # (batch_size, z_dim) or (batch_size, 1)
 
-        log_w += p_z_T.log_prob(z[-1]) - p_z_0.log_prob(z[0])
+        elbo += p_z_T.log_prob(z[-1]) - p_z_0.log_prob(z[0])
         # (batch_size, z_dim) or (batch_size, 1)
 
-        log_w = log_w.mean(dim=0).sum()
+        elbo = elbo.mean(dim=0).sum()
         # (1)
 
-        return log_w, z
+        return elbo, z
 
 
 class DIS(DiffusionVIProcess):

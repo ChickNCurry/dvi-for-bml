@@ -132,9 +132,39 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         self.context_embedding = context_embedding
         self.mask = mask
 
-    def log_prob(self, z: Tensor) -> Tensor:
+    def mse(self, z: Tensor) -> Tensor:
         # (batch_size, z_dim)
 
+        y_pred: Tensor = self.decoder(
+            self.x_target, z, self.context_embedding, self.mask
+        ).mean
+        # (batch_size, target_size, y_dim)
+
+        if self.mask is not None:
+            y_pred = y_pred * self.mask.unsqueeze(-1).expand(
+                -1, -1, y_pred.shape[-1]
+            )  # (batch_size, target_size, y_dim)
+
+        mse: Tensor = ((y_pred - self.y_target) ** 2).sum(2).mean(1).mean(0)
+        # (1)
+
+        return mse
+
+    def val_mse(self, z: Tensor) -> Tensor:
+        # (batch_size, z_dim)
+
+        y_pred: Tensor = self.decoder(
+            self.x_target, z, self.context_embedding, self.mask
+        ).mean
+        # (batch_size, target_size, y_dim)
+
+        mse: Tensor = (
+            (y_pred.sum(-1).mean(0) - self.y_target.sum(-1).mean(0)) ** 2
+        ).mean(0)
+
+        return mse
+
+    def log_likelihood(self, z: Tensor) -> Tensor:
         log_likelihood: Tensor = self.decoder(
             self.x_target, z, self.context_embedding, self.mask
         ).log_prob(self.y_target)
@@ -145,8 +175,15 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
                 -1, -1, log_likelihood.shape[-1]
             )  # (batch_size, target_size, y_dim)
 
-        log_likelihood = log_likelihood.sum(dim=1).sum(dim=1, keepdim=True)
+        log_likelihood = log_likelihood.sum(dim=1).sum(dim=-1, keepdim=True)
         # (batch_size, 1)
+
+        return log_likelihood
+
+    def log_prob(self, z: Tensor) -> Tensor:
+        # (batch_size, z_dim)
+
+        log_likelihood: Tensor = self.log_likelihood(z)
 
         log_prior: Tensor = self.prior.log_prob(z).sum(dim=1, keepdim=True)  # type: ignore
         # (batch_size, 1)

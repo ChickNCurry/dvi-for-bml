@@ -83,31 +83,51 @@ def normalize_vals_on_grid(
     return vals
 
 
-def compute_jsd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
+def compute_jsd(
+    p_vals: NDArray[np.float32],
+    q_vals: NDArray[np.float32],
+    intervals: List[Tuple[float, float]],
+    num: int,
+) -> Any:
     # (dim1 * dim2 * ...)
     # (dim1 * dim2 * ...)
+
+    spacings = [(max - min) / num for min, max in intervals]
+    area = np.prod(spacings)
 
     eps = 1e-10
     p_vals = p_vals + eps
     q_vals = q_vals + eps
 
     m_vals = 0.5 * (p_vals + q_vals)
+
     jsd = 0.5 * np.sum(
-        p_vals * (np.log(p_vals) - np.log(m_vals))
-        + q_vals * (np.log(q_vals) - np.log(m_vals))
+        area
+        * (
+            p_vals * (np.log(p_vals) - np.log(m_vals))
+            + q_vals * (np.log(q_vals) - np.log(m_vals))
+        )
     )
 
     return jsd
 
 
-def compute_bd(p_vals: NDArray[np.float32], q_vals: NDArray[np.float32]) -> Any:
+def compute_bd(
+    p_vals: NDArray[np.float32],
+    q_vals: NDArray[np.float32],
+    intervals: List[Tuple[float, float]],
+    num: int,
+) -> Any:
     # (dim1 * dim2 * ...)
     # (dim1 * dim2 * ...)
 
-    p_vals = p_vals / np.sum(p_vals) if p_vals.sum() != 0 else p_vals
-    q_vals = q_vals / np.sum(q_vals) if q_vals.sum() != 0 else q_vals
+    spacings = [(max - min) / num for min, max in intervals]
+    area = np.prod(spacings)
 
-    bc = np.sum(np.sqrt(p_vals * q_vals))
+    # p_vals = p_vals / np.sum(p_vals) if p_vals.sum() != 0 else p_vals
+    # q_vals = q_vals / np.sum(q_vals) if q_vals.sum() != 0 else q_vals
+
+    bc = np.sum(np.sqrt(p_vals * q_vals) * area)
     bd = -np.log(bc)
 
     return bd

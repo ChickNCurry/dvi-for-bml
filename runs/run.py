@@ -6,7 +6,7 @@ import wandb
 from omegaconf import DictConfig, OmegaConf
 
 from src.components.cdvi import load_cdvi_for_bml
-from src.utils.train import BetterBMLTrainer
+from src.utils.train_val import BetterBMLTrainer
 
 
 @hydra.main(version_base=None, config_name="config", config_path="config")
@@ -31,7 +31,7 @@ def run(cfg: DictConfig) -> None:
         wandb_logging=cfg.wandb.logging,
     )
 
-    trainer.train(
+    trainer.train_and_validate(
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
