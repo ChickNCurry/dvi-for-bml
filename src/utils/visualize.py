@@ -148,7 +148,7 @@ def visualize_cdvi_for_bml_test(
     x_data_sorted = x_data_sorted.cpu().detach().numpy()
     y_data_sorted = y_data[:, indices, :].cpu().detach().numpy()
 
-    fig = plt.figure(figsize=(12, 3 * max_context_size), constrained_layout=True)
+    fig = plt.figure(figsize=(12, 3 * max_context_size * 2), constrained_layout=True)
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
 
     targets = []
@@ -156,7 +156,7 @@ def visualize_cdvi_for_bml_test(
 
     for row, subfig in enumerate(subfigs):
         subfig.suptitle(f"Context Size: {row + 1}")
-        ax = subfig.subplots(nrows=1, ncols=3, width_ratios=[3, 1, 1])
+        ax = subfig.subplots(nrows=2, ncols=2, width_ratios=[3, 1])
 
         context_size = row + 1
         x_context = x_data[:, :context_size, :]
@@ -203,7 +203,7 @@ def visualize_cdvi_for_bml_test(
         y_mu_sorted = y_dist.mean[:, indices, :].cpu().detach().numpy()
 
         for k in range(num_samples):
-            ax[0].plot(
+            ax[0][0].plot(
                 x_data_sorted[k].squeeze(1),
                 y_mu_sorted[k].squeeze(1),
                 alpha=0.2,
@@ -211,8 +211,8 @@ def visualize_cdvi_for_bml_test(
                 zorder=0,
             )
 
-        ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
-        ax[0].scatter(
+        ax[0][0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[0][0].scatter(
             x_context.cpu().detach().numpy(),
             y_context.cpu().detach().numpy(),
             marker="X",
@@ -221,7 +221,7 @@ def visualize_cdvi_for_bml_test(
             zorder=2,
         )
 
-        ax[0].set_title("Predictions")
+        ax[0][0].set_title("Predictions from Task Posterior")
 
         grid = create_grid(ranges, num_cells)
 
@@ -248,7 +248,7 @@ def visualize_cdvi_for_bml_test(
         y_mu_test_sorted = y_dist_test.mean[:, indices, :].cpu().detach().numpy()
 
         for k in range(num_samples):
-            ax[0].plot(
+            ax[1][0].plot(
                 x_data_sorted[k].squeeze(1),
                 y_mu_test_sorted[k].squeeze(1),
                 alpha=0.2,
@@ -256,11 +256,23 @@ def visualize_cdvi_for_bml_test(
                 zorder=0,
             )
 
-        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1][0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[1][0].scatter(
+            x_context.cpu().detach().numpy(),
+            y_context.cpu().detach().numpy(),
+            marker="X",
+            c="red",
+            s=100,
+            zorder=2,
+        )
 
-        ax[1].set_title("Task Posterior")
-        ax[2].set_title("Likelihood Times Prior")
+        ax[1][0].set_title("Predictions from Likelihood Times Prior")
+
+        ax[0][1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1][1].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+
+        ax[0][1].set_title("Task Posterior")
+        ax[1][1].set_title("Likelihood Times Prior")
 
     plt.show()
 
