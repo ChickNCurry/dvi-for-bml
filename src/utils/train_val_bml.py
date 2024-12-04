@@ -9,8 +9,7 @@ from torch.utils.data import DataLoader
 
 from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
-from src.utils.train_val import AlternatingTrainer, Trainer
-from src.utils.eval import (
+from src.utils.grid import (
     compute_bd,
     compute_jsd,
     create_grid,
@@ -18,6 +17,7 @@ from src.utils.eval import (
     eval_kde_on_grid,
     normalize_vals_on_grid,
 )
+from src.utils.train_val import AlternatingTrainer, Trainer
 
 
 class BMLTrainer(Trainer):

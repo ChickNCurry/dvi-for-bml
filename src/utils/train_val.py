@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
-from src.utils.eval import (
+from src.utils.grid import (
     compute_bd,
     compute_jsd,
     create_grid,

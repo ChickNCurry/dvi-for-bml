@@ -12,12 +12,12 @@ from torch.utils.data import DataLoader
 
 from src.components.cdvi import ContextualDVI
 from src.components.decoder import LikelihoodTimesPrior
-from src.utils.eval import (
+from src.utils.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
     eval_kde_on_grid,
-    normalize_vals_on_grid,
+    sample_from_vals,
 )
 
 
@@ -28,7 +28,7 @@ def visualize_cdvi_for_bml(
     config: DictConfig,
     num_samples: int,
     max_context_size: int,
-) -> Tuple[List[Distribution], List[NDArray[np.float64]]]:
+) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
 
     x_data, y_data = next(iter(dataloader))
     x_data, y_data = x_data.to(device), y_data.to(device)
@@ -133,9 +133,9 @@ def visualize_cdvi_for_bml_test(
     config: DictConfig,
     num_samples: int,
     max_context_size: int,
-    intervals: List[Tuple[float, float]],
-    num: int,
-) -> Tuple[List[Distribution], List[NDArray[np.float64]]]:
+    ranges: List[Tuple[float, float]],
+    num_cells: int,
+) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
 
     x_data, y_data = next(iter(dataloader))
     x_data, y_data = x_data.to(device), y_data.to(device)
@@ -223,18 +223,38 @@ def visualize_cdvi_for_bml_test(
 
         ax[0].set_title("Predictions")
 
-        grid = create_grid(intervals, num)
+        grid = create_grid(ranges, num_cells)
 
         # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
         dvi_vals = eval_hist_on_grid(
-            z_samples[-1].cpu().detach().numpy(), intervals, num
+            z_samples[-1].cpu().detach().numpy(), ranges, num_cells
         )
-        dvi_vals = normalize_vals_on_grid(dvi_vals, intervals, num)
-        dvi_vals = dvi_vals.reshape(num, num)
 
         target_vals = eval_dist_on_grid(grid, p_z_T, device=device)
-        target_vals = normalize_vals_on_grid(target_vals, intervals, num)
-        target_vals = target_vals.reshape(num, num)
+        target_samples = sample_from_vals(grid, target_vals, num_samples)
+        target_samples = torch.from_numpy(target_samples).to(device)
+
+        y_dist_test: Distribution = cdvi.decoder(
+            x_data,
+            target_samples,
+            (
+                non_aggregated
+                if cdvi.dvi_process.control.is_cross_attentive
+                else aggregated
+            ),
+            None,
+        )
+
+        y_mu_test_sorted = y_dist_test.mean[:, indices, :].cpu().detach().numpy()
+
+        for k in range(num_samples):
+            ax[0].plot(
+                x_data_sorted[k].squeeze(1),
+                y_mu_test_sorted[k].squeeze(1),
+                alpha=0.2,
+                c="tab:orange",
+                zorder=0,
+            )
 
         ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
         ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
@@ -247,43 +267,8 @@ def visualize_cdvi_for_bml_test(
     return targets, samples  # type: ignore
 
 
-def visualize_vals_on_grid_1d(
-    grid: NDArray[np.float64], vals: NDArray[np.float64]
-) -> None:
-    # (dim1, dim2, ..., z_dim)
-    # (dim1 * dim2 * ...)
-
-    grid_flat = grid.reshape(-1, grid.shape[-1])
-    # (dim1 * dim2 * ..., z_dim)
-
-    plt.plot(grid_flat, vals)
-    plt.show()
-
-
-def visualize_vals_on_grid_2d(
-    grid: NDArray[np.float64],
-    vals: NDArray[np.float64],
-) -> None:
-    # (dim1, dim2, ..., z_dim)
-    # (dim1 * dim2 * ...)
-
-    num = grid.shape[0]
-    v = vals.reshape(num, num)
-
-    fig = plt.figure(figsize=(8, 4))
-
-    ax1 = fig.add_subplot(121)
-    ax1.contourf(grid[:, :, 0], grid[:, :, 1], v, cmap=cm.coolwarm)  # type: ignore
-
-    ax2 = fig.add_subplot(122, projection="3d")
-    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], v, cmap=cm.coolwarm)  # type: ignore
-
-    plt.tight_layout()
-    plt.show()
-
-
 def visualize_samples_1d(
-    samples: NDArray[np.float64], bins: int, range: Tuple[float, float]
+    samples: NDArray[np.float32], bins: int, range: Tuple[float, float]
 ) -> None:
     # (num_samples, z_dim)
 
@@ -292,11 +277,46 @@ def visualize_samples_1d(
 
 
 def visualize_samples_2d(
-    samples: NDArray[np.float64],
+    samples: NDArray[np.float32],
     bins: int,
     range: List[Tuple[float, float]],
 ) -> None:
     # (num_samples, z_dim)
 
     plt.hist2d(samples[:, 0], samples[:, 1], density=True, bins=bins, range=range)
+    plt.show()
+
+
+def visualize_vals_on_grid_1d(
+    grid: NDArray[np.float32], vals: NDArray[np.float32]
+) -> None:
+    # (dim1, dim2, ..., z_dim)
+    # (dim1, dim2, ...)
+
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    # (dim1 * dim2 * ..., z_dim)
+
+    vals_flat = vals.reshape(-1)
+    # (dim1 * dim2 * ...)
+
+    plt.plot(grid_flat, vals_flat)
+    plt.show()
+
+
+def visualize_vals_on_grid_2d(
+    grid: NDArray[np.float32],
+    vals: NDArray[np.float32],
+) -> None:
+    # (dim1, dim2, ..., z_dim)
+    # (dim1, dim2, ...)
+
+    fig = plt.figure(figsize=(8, 4))
+
+    ax1 = fig.add_subplot(121)
+    ax1.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+
+    ax2 = fig.add_subplot(122, projection="3d")
+    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+
+    plt.tight_layout()
     plt.show()
