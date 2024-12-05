@@ -23,7 +23,7 @@ class ContextualDVI(nn.Module):
         encoder: Encoder,
         dvi_process: DiffusionVIProcess,
         decoder: Decoder | None,
-        contextual_target: Callable[[Tensor], Distribution] | None,
+        contextual_target: Callable[[Tensor, Tensor | None], Distribution] | None,
     ) -> None:
         super().__init__()
 

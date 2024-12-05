@@ -3,12 +3,12 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import torch
 from torch import Tensor
-from torch.optim import Optimizer
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
 from src.components.cdvi import ContextualDVI
-from src.utils.train_val import Trainer
+from src.train.train import Trainer
 
 
 class StaticTargetTrainer(Trainer):
@@ -32,9 +32,11 @@ class StaticTargetTrainer(Trainer):
             wandb_logging,
         )
 
+    def train_step(
+        self, batch: Tensor, alpha: float | None
+    ) -> Tuple[Tensor, Dict[str, float]]:
         assert self.cdvi.contextual_target is not None
 
-    def train_step(self, batch: Tensor, alpha: float | None) -> Tensor:
         batch = batch.to(self.device)
 
         random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
@@ -43,13 +45,13 @@ class StaticTargetTrainer(Trainer):
         p_z_T = self.cdvi.contextual_target(context, None)
 
         aggregated, _ = self.cdvi.encoder(context, None)
-        elbo, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, None)
+        elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, None)
 
         loss = -elbo
 
-        return loss
+        return loss, {}
 
-    def val_step(self, batch: Tensor, alpha: float | None) -> Dict[str, Tensor]:
+    def val_step(self, batch: Tensor) -> Dict[str, float]:
         raise NotImplementedError
 
 
@@ -74,9 +76,10 @@ class BetterStaticTargetTrainer(Trainer):
             wandb_logging,
         )
 
+    def train_step(
+        self, batch: Tensor, alpha: float | None
+    ) -> Tuple[Tensor, Dict[str, float]]:
         assert self.cdvi.contextual_target is not None
-
-    def train_step(self, batch: Tensor, alpha: float | None) -> Tensor:
 
         batch = batch.to(self.device)
 
@@ -94,11 +97,11 @@ class BetterStaticTargetTrainer(Trainer):
         p_z_T = self.cdvi.contextual_target(context, mask)
 
         aggregated, _ = self.cdvi.encoder(context, mask)
-        elbo, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, mask)
+        elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, mask)
 
         loss = -elbo
 
-        return loss
+        return loss, {}
 
-    def val_step(self, batch: Tensor, alpha: float | None) -> Dict[str, Tensor]:
+    def val_step(self, batch: Tensor) -> Dict[str, float]:
         raise NotImplementedError

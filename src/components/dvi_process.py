@@ -58,7 +58,7 @@ class DiffusionVIProcess(nn.Module, ABC):
         p_z_T: Distribution,
         context_embedding: Tensor,
         mask: Tensor | None,
-    ) -> Tuple[Tensor, List[Tensor]]:
+    ) -> Tuple[Tensor, Tensor, List[Tensor]]:
 
         p_z_0 = self.get_prior(
             batch_size=context_embedding.shape[0], device=context_embedding.device

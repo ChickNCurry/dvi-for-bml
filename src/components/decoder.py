@@ -132,24 +132,6 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         self.context_embedding = context_embedding
         self.mask = mask
 
-    def mse(self, z: Tensor) -> Tensor:
-        # (batch_size, z_dim)
-
-        y_pred: Tensor = self.decoder(
-            self.x_target, z, self.context_embedding, self.mask
-        ).mean
-        # (batch_size, target_size, y_dim)
-
-        if self.mask is not None:
-            y_pred = y_pred * self.mask.unsqueeze(-1).expand(
-                -1, -1, y_pred.shape[-1]
-            )  # (batch_size, target_size, y_dim)
-
-        mse: Tensor = ((y_pred - self.y_target) ** 2).sum(2).mean(1).mean(0)
-        # (1)
-
-        return mse
-
     def val_mse(self, z: Tensor) -> Tensor:
         # (batch_size, z_dim)
 
@@ -164,26 +146,58 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
 
         return mse
 
-    def log_likelihood(self, z: Tensor) -> Tensor:
-        log_likelihood: Tensor = self.decoder(
-            self.x_target, z, self.context_embedding, self.mask
-        ).log_prob(self.y_target)
+    def mse(
+        self,
+        z: Tensor,
+        x_target: Tensor,
+        y_target: Tensor,
+        mask: Tensor | None,
+    ) -> Tensor:
+        # (batch_size, z_dim)
+
+        y_pred: Tensor = self.decoder(
+            x_target, z, self.context_embedding, self.mask
+        ).mean
         # (batch_size, target_size, y_dim)
 
-        if self.mask is not None:
-            log_likelihood = log_likelihood * self.mask.unsqueeze(-1).expand(
-                -1, -1, log_likelihood.shape[-1]
+        if mask is not None:
+            y_pred = y_pred * mask.unsqueeze(-1).expand(
+                -1, -1, y_pred.shape[-1]
             )  # (batch_size, target_size, y_dim)
 
-        log_likelihood = log_likelihood.sum(dim=1).sum(dim=-1, keepdim=True)
+        mse: Tensor = ((y_pred - y_target) ** 2).sum(2).mean(1).mean(0)
+        # (1)
+
+        return mse
+
+    def log_like(
+        self,
+        z: Tensor,
+        x_target: Tensor,
+        y_target: Tensor,
+        mask: Tensor | None,
+    ) -> Tensor:
+        log_like: Tensor = self.decoder(
+            x_target, z, self.context_embedding, self.mask
+        ).log_prob(y_target)
+        # (batch_size, target_size, y_dim)
+
+        if mask is not None:
+            log_like = log_like * mask.unsqueeze(-1).expand(
+                -1, -1, log_like.shape[-1]
+            )  # (batch_size, target_size, y_dim)
+
+        log_like = log_like.sum(dim=1).sum(dim=-1, keepdim=True)
         # (batch_size, 1)
 
-        return log_likelihood
+        return log_like
 
     def log_prob(self, z: Tensor) -> Tensor:
         # (batch_size, z_dim)
 
-        log_likelihood: Tensor = self.log_likelihood(z)
+        log_likelihood: Tensor = self.log_like(
+            z, self.x_target, self.y_target, self.mask
+        )  # (batch_size, 1)
 
         log_prior: Tensor = self.prior.log_prob(z).sum(dim=1, keepdim=True)  # type: ignore
         # (batch_size, 1)
