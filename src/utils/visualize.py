@@ -138,15 +138,22 @@ def visualize_cdvi_for_bml_test(
 ) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
 
     x_data, y_data = next(iter(dataloader))
-    x_data, y_data = x_data.to(device), y_data.to(device)
-    x_data, y_data = x_data.expand(num_samples, -1, -1), y_data.expand(
-        num_samples, -1, -1
-    )
 
-    x_data_sorted, indices = x_data.sort(dim=1)
-    indices = indices[1].squeeze(1)
-    x_data_sorted = x_data_sorted.cpu().detach().numpy()
-    y_data_sorted = y_data[:, indices, :].cpu().detach().numpy()
+    x_data = x_data.to(device)
+    y_data = y_data.to(device)
+    # (1, context_size, x_dim)
+    # (1, context_size, y_dim)
+
+    x_data = x_data.expand(1, num_samples, -1, -1)
+    y_data = y_data.expand(1, num_samples, -1, -1)
+    # (1, num_samples, context_size, x_dim)
+    # (1, num_samples, context_size, y_dim)
+
+    x_data_sorted, indices = x_data.sort(dim=2)
+    x_data_sorted = x_data_sorted.cpu().squeeze(0).detach().numpy()
+    y_data_sorted = y_data.gather(2, indices).squeeze(0).cpu().detach().numpy()
+    # (num_samples, context_size, x_dim)
+    # (num_samples, context_size, y_dim)
 
     fig = plt.figure(figsize=(12, 3 * max_context_size * 2), constrained_layout=True)
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
@@ -159,9 +166,14 @@ def visualize_cdvi_for_bml_test(
         ax = subfig.subplots(nrows=2, ncols=2, width_ratios=[3, 1])
 
         context_size = row + 1
-        x_context = x_data[:, :context_size, :]
-        y_context = y_data[:, :context_size, :]
+
+        x_context = x_data[:, :, :context_size, :]
+        y_context = y_data[:, :, :context_size, :]
+        # (1, num_samples, context_size, x_dim)
+        # (1, num_samples, context_size, y_dim)
+
         context = torch.cat([x_context, y_context], dim=-1)
+        # (1, num_samples, context_size, x_dim + y_dim)
 
         aggregated, non_aggregated = cdvi.encoder(context, None)
 
@@ -187,7 +199,8 @@ def visualize_cdvi_for_bml_test(
             None,
         )
 
-        samples.append(z_samples[-1].cpu().detach().numpy())
+        tp_samples = z_samples[-1].cpu().detach().numpy()
+        samples.append(tp_samples)
 
         y_dist: Distribution = cdvi.decoder(
             x_data,
@@ -200,12 +213,13 @@ def visualize_cdvi_for_bml_test(
             None,
         )
 
-        y_mu_sorted = y_dist.mean[:, indices, :].cpu().detach().numpy()
+        y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
+        # (num_samples, target_size, y_dim)
 
         for k in range(num_samples):
             ax[0][0].plot(
-                x_data_sorted[k].squeeze(1),
-                y_mu_sorted[k].squeeze(1),
+                x_data_sorted[k].squeeze(-1),
+                y_mu_sorted[k].squeeze(-1),
                 alpha=0.2,
                 c="tab:blue",
                 zorder=0,
@@ -227,12 +241,14 @@ def visualize_cdvi_for_bml_test(
 
         # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
         dvi_vals = eval_hist_on_grid(
-            z_samples[-1].cpu().detach().numpy(), ranges, num_cells
+            z_samples[-1].reshape(-1, z_samples[-1].shape[-1]).cpu().detach().numpy(),
+            ranges,
+            num_cells,
         )
 
         target_vals = eval_dist_on_grid(grid, p_z_T, device=device)
         target_samples = sample_from_vals(grid, target_vals, num_samples)
-        target_samples = torch.from_numpy(target_samples).to(device)
+        target_samples = torch.from_numpy(target_samples).unsqueeze(0).to(device)
 
         y_dist_test: Distribution = cdvi.decoder(
             x_data,
@@ -245,12 +261,14 @@ def visualize_cdvi_for_bml_test(
             None,
         )
 
-        y_mu_test_sorted = y_dist_test.mean[:, indices, :].cpu().detach().numpy()
+        y_mu_test_sorted = (
+            y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
+        )
 
         for k in range(num_samples):
             ax[1][0].plot(
-                x_data_sorted[k].squeeze(1),
-                y_mu_test_sorted[k].squeeze(1),
+                x_data_sorted[k].squeeze(-1),
+                y_mu_test_sorted[k].squeeze(-1),
                 alpha=0.2,
                 c="tab:orange",
                 zorder=0,
@@ -276,7 +294,7 @@ def visualize_cdvi_for_bml_test(
 
     plt.show()
 
-    return targets, samples  # type: ignore
+    return targets, tp_samples  # type: ignore
 
 
 def visualize_samples_1d(

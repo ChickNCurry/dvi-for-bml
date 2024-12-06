@@ -23,6 +23,7 @@ class Trainer(ABC):
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
+        num_subtasks: int = 32,
     ) -> None:
         self.device = device
         self.cdvi = cdvi
@@ -31,8 +32,9 @@ class Trainer(ABC):
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.wandb_logging = wandb_logging
+        self.num_subtasks = num_subtasks
 
-    def train_and_validate(
+    def train(
         self,
         num_epochs: int,
         max_clip_norm: float | None,

@@ -32,7 +32,7 @@ def run(cfg: DictConfig) -> None:
         wandb_logging=cfg.wandb.logging,
     )
 
-    trainer.train_and_validate(
+    trainer.train(
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,

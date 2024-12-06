@@ -69,7 +69,10 @@ def eval_dist_on_grid(
     grid_tensor = torch.from_numpy(grid_flat).float().to(device)
     # (dim1 * dim2 * ..., z_dim)
 
-    vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
+    grid_tensor = grid_tensor.unsqueeze(0)
+    # (1, dim1 * dim2 * ..., z_dim)
+
+    vals = dist.log_prob(grid_tensor).squeeze(0).sum(-1).exp().detach().cpu().numpy()
     vals = vals / np.sum(vals) if np.sum(vals) != 0 else vals
     # (dim1 * dim2 * ...)
 

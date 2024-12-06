@@ -8,15 +8,15 @@ from torch.distributions import Distribution, Normal
 
 class ContextualGaussian(Distribution):
     def __init__(self, context: Tensor, scale: float) -> None:
-        # (batch_size, context_size, z_dim)
+        # (batch_size, num_subtasks, context_size, z_dim)
 
         super(ContextualGaussian, self).__init__(validate_args=False)
 
-        assert context.shape[1] == 1
+        assert context.shape[2] == 1
 
-        mu = torch.mean(context, dim=1)
+        mu = torch.mean(context, dim=2)
         sigma = torch.ones_like(mu, device=mu.device) * scale
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         self.gaussian = Normal(mu, sigma)  # type: ignore
 
@@ -25,7 +25,7 @@ class ContextualGaussian(Distribution):
 
     def log_prob(self, x: Tensor) -> Tensor:
         log_prob: Tensor = self.gaussian.log_prob(x)  # type: ignore
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         return log_prob
 
@@ -38,37 +38,50 @@ class ContextualGMM(Distribution):
         scales: Tuple[float, float],
         weights: Tuple[float, float],
     ) -> None:
-        # (batch_size, context_size, z_dim)
+        # (batch_size, num_subtasks, context_size, z_dim)
 
         super(ContextualGMM, self).__init__(validate_args=False)
 
-        assert context.shape[1] == 1
+        assert context.shape[2] == 1
 
         self.batch_size = context.shape[0]
+        self.num_subtasks = context.shape[1]
 
-        mu = torch.mean(context, dim=1)
+        mu = torch.mean(context, dim=2)
         sigma = torch.ones_like(mu, device=mu.device)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         self.component_a = Normal(mu + offsets[0], sigma * scales[0])  # type: ignore
         self.component_b = Normal(mu + offsets[1], sigma * scales[1])  # type: ignore
         self.weights = torch.tensor([weights[0], weights[1]])
 
     def sample(self, sample_shape: Size | None = None) -> Tensor:
-        component_indices = torch.multinomial(self.weights, self.batch_size, True)
-        # (batch_size)
+        component_indices = torch.multinomial(
+            self.weights, self.batch_size * self.num_subtasks, True
+        )  # (batch_size * num_subtasks)
+        component_indices = component_indices.reshape(
+            self.batch_size, self.num_subtasks
+        )  # (batch_size, num_subtasks)
 
         samples_a = self.component_a.sample()  # type: ignore
         samples_b = self.component_b.sample()  # type: ignore
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         samples = torch.stack(
             [
-                samples_a[i] if component_indices[i] == 0 else samples_b[i]
+                torch.stack(
+                    [
+                        (
+                            samples_a[i, j, :]
+                            if component_indices[i, j] == 0
+                            else samples_b[i, j, :]
+                        )
+                        for j in range(self.num_subtasks)
+                    ]
+                )
                 for i in range(self.batch_size)
-            ],
-        )
-        # (batch_size, z_dim)
+            ]
+        )  # (batch_size, num_subtasks, z_dim)
 
         return samples
 
@@ -81,36 +94,37 @@ class ContextualGMM(Distribution):
                 ]
             ),
             dim=0,
-        )  # (batch_size, z_dim)
+        )  # (batch_size, num_subtasks, z_dim)
 
         return log_prob
 
 
 class TaskPosteriorGMM(Distribution):
     def __init__(self, context: Tensor, mask: Tensor | None) -> None:
-        # (batch_size, context_size, z_dim)
-        # (batch_size, context_size)
+        # (batch_size, num_subtasks, context_size, z_dim)
+        # (batch_size, num_subtasks, context_size)
 
         super(TaskPosteriorGMM, self).__init__(validate_args=False)
 
         self.batch_size = context.shape[0]
-        self.context_size = context.shape[1]
-        self.z_dim = context.shape[2]
+        self.num_subtasks = context.shape[1]
+        self.context_size = context.shape[2]
+        self.z_dim = context.shape[3]
 
         if mask is not None:
-            counts = mask.sum(dim=1, keepdim=True)
-            # (batch_size, 1)
+            counts = mask.sum(dim=2, keepdim=True)
+            # (batch_size, num_subtasks, 1)
 
-            sum = context.sum(dim=1)
-            # (batch_size, z_dim)
+            sum = context.sum(dim=2)
+            # (batch_size, num_subtasks, z_dim)
 
             self.mu = sum / counts
-            # (batch_size, z_dim)
+            # (batch_size, num_subtasks, z_dim)
 
             self.sigma = torch.ones_like(
                 self.mu, device=self.mu.device
             ) * self.exp_decay(counts, 1)
-            # (batch_size, z_dim)
+            # (batch_size, num_subtasks, z_dim)
 
             self.components = self.get_components()
             self.weights = self.get_weights_via_counts(counts)
@@ -119,17 +133,18 @@ class TaskPosteriorGMM(Distribution):
             counts = (
                 torch.tensor([self.context_size], device=context.device)
                 .unsqueeze(0)
-                .expand(self.batch_size, -1)
+                .unsqueeze(1)
+                .expand(self.batch_size, self.num_subtasks, -1)
             )
-            # (batch_size, 1)
+            # (batch_size, num_subtasks, 1)
 
-            self.mu = torch.mean(context, dim=1)
-            # (batch_size, z_dim)
+            self.mu = torch.mean(context, dim=2)
+            # (batch_size, num_subtasks, z_dim)
 
             self.sigma = torch.ones_like(
                 self.mu, device=self.mu.device
             ) * self.exp_decay(counts, 1)
-            # (batch_size, z_dim)
+            # (batch_size, num_subtasks, z_dim)
 
             self.components = self.get_components()
             self.weights = self.get_weights()
@@ -142,7 +157,7 @@ class TaskPosteriorGMM(Distribution):
             modified_mu = self.mu.clone()
 
             for dim in range(self.z_dim):
-                modified_mu[:, dim] = modified_mu[:, dim] * permutation[dim]
+                modified_mu[:, :, dim] = modified_mu[:, :, dim] * permutation[dim]
 
             modified_component = Normal(modified_mu, self.sigma)  # type: ignore
 
@@ -151,19 +166,19 @@ class TaskPosteriorGMM(Distribution):
         return components
 
     def get_weights_via_counts(self, counts: Tensor) -> Tensor:
-        # (batch_size, 1)
+        # (batch_size, num_subtasks, 1)
 
         calibration = (len(self.components) - 1) / len(self.components)
 
         rest_weights = self.exp_decay(counts, calibration)
         norm_rest_weight = rest_weights / (len(self.components) - 1)
         main_weight = 1 - rest_weights
-        # (batch_size, 1)
+        # (batch_size, num_subtasks, 1)
 
         weights = torch.stack(
-            tensors=[main_weight] + [norm_rest_weight] * (len(self.components) - 1),
+            [main_weight] + [norm_rest_weight] * (len(self.components) - 1),
         )
-        # (num_components, batch_size)
+        # (num_components, batch_size, num_subtasks, 1)
 
         return weights
 
@@ -186,18 +201,26 @@ class TaskPosteriorGMM(Distribution):
 
     def sample(self, sample_shape: Size | None = None) -> Tensor:
         possible_samples = torch.stack([c.sample() for c in self.components])  # type: ignore
-        # (num_components, batch_size, z_dim)
+        # (num_components, batch_size, num_subtasks, z_dim)
 
-        component_indices = torch.multinomial(self.weights, self.batch_size, True)
-        # (batch_size)
+        component_indices = torch.multinomial(
+            self.weights, self.batch_size * self.num_subtasks, True
+        )  # (batch_size * num_subtasks)
+        component_indices = component_indices.reshape(
+            self.batch_size, self.num_subtasks
+        )  # (batch_size, num_subtasks)
 
         samples = torch.stack(
             [
-                possible_samples[component_indices[i], i, :]
+                torch.stack(
+                    [
+                        possible_samples[component_indices[i, j], i, j, :]
+                        for j in range(self.num_subtasks)
+                    ]
+                )
                 for i in range(self.batch_size)
-            ],
-        )
-        # (batch_size, z_dim)
+            ]
+        )  # (batch_size, num_subtasks, z_dim)
 
         return samples
 
@@ -210,6 +233,6 @@ class TaskPosteriorGMM(Distribution):
                 ],
             ),
             dim=0,
-        )  # (batch_size, z_dim)
+        )  # (batch_size, num_subtasks, z_dim)
 
         return log_prob

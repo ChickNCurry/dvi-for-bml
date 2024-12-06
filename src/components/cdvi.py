@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, random_split
 
 from src.components.control import Control
 from src.components.decoder import Decoder
-from components.cdvi_process import CDVIProcess
+from src.components.cdvi_process import CDVIProcess
 from src.components.encoder import Encoder, SetEncoder
 from src.components.hyper_net import HyperNet
 from src.utils.datasets import MetaLearningDataset

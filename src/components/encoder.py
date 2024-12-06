@@ -68,11 +68,17 @@ class SetEncoder(Encoder):
         # (batch_size, num_subtasks, context_size, c_dim)
         # (batch_size, num_subtasks, context_size)
 
+        batch_size = context.shape[0]
+        num_subtasks = context.shape[1]
+        context_size = context.shape[2]
+
         c: Tensor = self.proj_in(context)
         # (batch_size, num_subtasks, context_size, h_dim)
 
         if self.is_attentive:
+            c = c.reshape(batch_size * num_subtasks, context_size, -1)
             c, _ = self.self_attn(c, c, c, need_weights=False)
+            c = c.reshape(batch_size, num_subtasks, context_size, -1)
             # (batch_size, num_subtasks, context_size, h_dim)
 
         c = self.mlp(c)
@@ -124,7 +130,9 @@ class TestEncoder(Encoder):
         self.proj_c = nn.Linear(c_dim, h_dim)
 
     def forward(self, c: Tensor, mask: Tensor | None) -> Tuple[Tensor, None]:
+        # (batch_size, num_subtasks, context_size, c_dim)
 
-        c = self.proj_c(c.squeeze(1))
+        c = self.proj_c(c.squeeze(2))
+        # (batch_size, num_subtasks, h_dim)
 
         return c, None

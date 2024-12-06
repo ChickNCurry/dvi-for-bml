@@ -81,24 +81,24 @@ class CDVIProcess(nn.Module, ABC):
             t = i + 1
 
             fwd_kernel = self.forward_kernel(
-                z[t - 1], t, context_embedding, mask, p_z_0, p_z_T
+                t, z[t - 1], context_embedding, mask, p_z_0, p_z_T
             )
 
             z.append(fwd_kernel.rsample())
 
             bwd_kernel = self.backward_kernel(
-                z[t], t - 1, context_embedding, mask, p_z_0, p_z_T
+                t - 1, z[t], context_embedding, mask, p_z_0, p_z_T
             )
 
             elbo += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
-            # (batch_size, num_subtasks, z_dim) or (batch_size, num_subtasks, 1)
+            # (batch_size, num_subtasks, z_dim or 1)
 
         log_like = p_z_T.log_prob(z[-1])
         elbo += log_like - p_z_0.log_prob(z[0])
-        # (batch_size, num_subtasks, z_dim) or (batch_size, num_subtasks, 1)
+        # (batch_size, num_subtasks, z_dim or 1)
 
-        elbo = elbo.mean(dim=0).mean(dim=1).sum()
-        log_like = log_like.mean(dim=0).mean(dim=1).sum()
+        elbo = elbo.mean(dim=0).mean(dim=0).sum()
+        log_like = log_like.mean(dim=0).mean(dim=0).sum()
         # (1)
 
         return elbo, log_like, z
@@ -177,7 +177,7 @@ class DIS(CDVIProcess):
         # (batch_size, num_subtasks, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
-        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
@@ -208,7 +208,7 @@ class DIS(CDVIProcess):
         # (batch_size, num_subtasks, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
-        z_sigma = z_sigma.expand(z_mu.shape[0], -1)
+        z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore

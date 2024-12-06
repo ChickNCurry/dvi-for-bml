@@ -37,14 +37,18 @@ class StaticTargetTrainer(Trainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert self.cdvi.contextual_target is not None
 
-        batch = batch.to(self.device)
+        batch = batch.to(self.device).unsqueeze(1)
+        # (batch_size, 1, context_size, c_dim)
 
         random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
-        context = batch[:, 0:random_context_size, :]
+        context = batch[:, :, 0:random_context_size, :]
+        # (batch_size, 1, context_size, c_dim)
 
         p_z_T = self.cdvi.contextual_target(context, None)
 
         aggregated, _ = self.cdvi.encoder(context, None)
+        # (batch_size, 1, h_dim)
+
         elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, None)
 
         loss = -elbo
@@ -81,22 +85,35 @@ class BetterStaticTargetTrainer(Trainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert self.cdvi.contextual_target is not None
 
-        batch = batch.to(self.device)
+        batch = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
+        # (batch_size, num_subtasks, context_size, c_dim)
 
         rand_context_sizes = torch.randint(
-            low=1, high=batch.shape[1] + 1, size=(batch.shape[0],), device=self.device
-        )
+            low=1,
+            high=batch.shape[2] + 1,
+            size=(batch.shape[0], batch.shape[1], 1),
+            device=self.device,
+        )  # (batch_size, num_subtasks, 1)
 
-        position_indices = torch.arange(batch.shape[1], device=self.device).expand(
-            batch.shape[0], -1
-        )
+        pos_indices = (
+            torch.arange(batch.shape[2], device=self.device)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(batch.shape[0], batch.shape[1], -1)
+        )  # (batch_size, num_subtasks, context_size)
 
-        mask = (position_indices < rand_context_sizes.unsqueeze(-1)).float()
-        context = batch * mask.unsqueeze(-1).expand(-1, -1, batch.shape[2])
+        mask = (pos_indices < rand_context_sizes).float()
+        # (batch_size, num_subtasks, context_size)
+
+        context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, batch.shape[-1])
+        # (batch_size, num_subtasks, context_size, c_dim)
 
         p_z_T = self.cdvi.contextual_target(context, mask)
+        # (batch_size, num_subtasks, z_dim)
 
         aggregated, _ = self.cdvi.encoder(context, mask)
+        # (batch_size, num_subtasks, c_dim)
+
         elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, mask)
 
         loss = -elbo
