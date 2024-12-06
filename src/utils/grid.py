@@ -61,7 +61,11 @@ def eval_hist_on_grid(
 
 
 def eval_dist_on_grid(
-    grid: NDArray[np.float32], dist: Distribution, device: torch.device
+    grid: NDArray[np.float32],
+    dist: Distribution,
+    batch_size: int,
+    sample_size: int,
+    device: torch.device,
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
@@ -69,10 +73,10 @@ def eval_dist_on_grid(
     grid_tensor = torch.from_numpy(grid_flat).float().to(device)
     # (dim1 * dim2 * ..., z_dim)
 
-    grid_tensor = grid_tensor.unsqueeze(0)
-    # (1, dim1 * dim2 * ..., z_dim)
+    grid_tensor = grid_tensor.reshape(batch_size, sample_size, -1)
+    # (batch_size, sample_size, z_dim)
 
-    vals = dist.log_prob(grid_tensor).squeeze(0).sum(-1).exp().detach().cpu().numpy()
+    vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
     vals = vals / np.sum(vals) if np.sum(vals) != 0 else vals
     # (dim1 * dim2 * ...)
 
@@ -109,7 +113,7 @@ def compute_jsd(
 
     eps = 1e-10
 
-    m_vals = 0.5 * (p_vals + q_vals)
+    m_vals = 0.5 * (p_vals + q_vals) + eps
 
     jsd = 0.5 * np.sum(
         p_vals * np.log((p_vals / m_vals) + eps)

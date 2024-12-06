@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -19,39 +19,7 @@ from src.utils.grid import (
 )
 
 
-class BMLTrainer(Trainer):
-    def __init__(
-        self,
-        device: torch.device,
-        cdvi: CDVI,
-        train_loader: DataLoader[Any],
-        val_loader: DataLoader[Any],
-        optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
-        wandb_logging: bool,
-        num_subtasks: int = 32,
-    ) -> None:
-        super().__init__(
-            device,
-            cdvi,
-            train_loader,
-            val_loader,
-            optimizer,
-            scheduler,
-            wandb_logging,
-            num_subtasks,
-        )
-
-        assert self.cdvi.decoder is not None
-
-    def val_step(
-        self,
-        batch: Tensor,
-    ) -> Dict[str, float]:
-        raise NotImplementedError
-
-
-class NoisyBMLTrainer(BMLTrainer):
+class NoisyBMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
@@ -123,7 +91,7 @@ class NoisyBMLTrainer(BMLTrainer):
         return loss, {}
 
 
-class BetterBMLTrainer(BMLTrainer):
+class BetterBMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
@@ -224,23 +192,101 @@ class BetterBMLTrainer(BMLTrainer):
 
         loss = -elbo
 
-        # lmpl = -np.log(data.shape[0]) + (
-        #     torch.logsumexp(
-        #         p_z_T.log_like(
-        #             z=z_samples[-1],
-        #             x_target=x_data,
-        #             y_target=y_data,
-        #             mask=None,
-        #         ),
-        #         dim=0,
-        #     )
-        # )
+        lmpl: Tensor = torch.median(
+            torch.logsumexp(p_z_T.log_like(z_samples[-1], x_data, y_data, None), dim=1)
+            - np.log(data.shape[1])
+        )
 
-        # mse = p_z_T.mse(
-        #     z=z_samples[-1],
-        #     x_target=x_data,
-        #     y_target=y_data,
-        #     mask=None,
-        # )
+        mse: Tensor = torch.median(p_z_T.mse(z_samples[-1], x_data, y_data).mean(1))
 
-        return loss, {}  # {"lmpl": lmpl.item(), "mse": mse.item()}
+        return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
+
+    def val_step(
+        self,
+        batch: Tensor,
+        ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+    ) -> Dict[str, float]:
+        assert self.cdvi.decoder is not None
+
+        x_data, y_data = batch
+        x_data = x_data.to(self.device)
+        y_data = y_data.to(self.device)
+        # (batch_size, context_size, x_dim)
+        # (batch_size, context_size, y_dim)
+
+        x_data = x_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
+        # (batch_size, sample_size, context_size, x_dim)
+        # (batch_size, sample_size, context_size, y_dim)
+
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, sample_size, context_size, x_dim + y_dim)
+
+        context_sizes = torch.ones(
+            size=(data.shape[0], data.shape[1], 1),
+            device=self.device,
+        )  # (batch_size, num_subtasks, 1)
+
+        pos_indices = (
+            torch.arange(data.shape[2], device=self.device)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(data.shape[0], data.shape[1], -1)
+        )  # (batch_size, sample_size, context_size)
+
+        mask = (pos_indices < context_sizes).float()
+        # (batch_size, sample_size, context_size)
+
+        context = data * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
+        # (batch_size, sample_size, context_size, x_dim + y_dim)
+
+        x_context = context[:, :, :, 0 : x_data.shape[-1]]
+        y_context = context[:, :, :, x_data.shape[-1] : data.shape[-1]]
+        # (batch_size, sample_size, context_size, x_dim)
+        # (batch_size, sample_size, context_size, y_dim)
+
+        aggr, non_aggr = self.cdvi.encoder(context, mask)
+        # (batch_size, sample_size, h_dim)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=self.cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            context_embedding=(
+                non_aggr if self.cdvi.decoder.is_cross_attentive else aggr
+            ),
+            mask=mask,
+        )
+
+        _, _, z_samples = self.cdvi.dvi_process.run_chain(
+            p_z_T=p_z_T,
+            context_embedding=(
+                non_aggr if self.cdvi.dvi_process.control.is_cross_attentive else aggr
+            ),
+            mask=mask,
+        )  # (num_steps, batch_size, sample_size, z_dim)
+
+        tp_samples = z_samples[-1].detach().cpu().numpy()
+        # (batch_size, sample_size, z_dim)
+
+        jsds = []
+        bds = []
+
+        grid = create_grid(ranges, int(np.sqrt(x_data.shape[0] * x_data.shape[1])))
+
+        for i in range(tp_samples.shape[0]):
+            target_vals = eval_dist_on_grid(
+                grid, p_z_T, x_data.shape[0], x_data.shape[1], device=self.device
+            )
+            tp_vals = eval_kde_on_grid(grid, tp_samples[i])
+
+            jsd = compute_jsd(target_vals, tp_vals)
+            bd = compute_bd(target_vals, tp_vals)
+
+            jsds.append(jsd)
+            bds.append(bd)
+
+        jsd = np.median(jsds)
+        bd = np.median(bds)
+
+        return {"jsd": jsd, "bd": bd}

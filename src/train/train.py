@@ -40,13 +40,38 @@ class Trainer(ABC):
         max_clip_norm: float | None,
         alpha: float | None,
         validate: bool = False,
-    ) -> List[float]:
+    ) -> None:
 
         # torch.autograd.set_detect_anomaly(True)
 
-        losses = []
-
         for epoch in range(num_epochs):
+
+            if validate:
+
+                self.cdvi.eval()
+                with torch.inference_mode(False):
+
+                    loop = tqdm(self.val_loader, total=len(self.val_loader))
+
+                    for batch in loop:
+
+                        metrics = self.val_step(batch)
+
+                        loop.set_postfix(
+                            ordered_dict=OrderedDict(
+                                [
+                                    ("epoch", epoch),
+                                    *[(k, v) for k, v in metrics.items()],
+                                ]
+                            )
+                        )
+
+                        if self.wandb_logging:
+                            wandb.log(
+                                {
+                                    **{f"val/{k}": v for k, v in metrics.items()},
+                                }
+                            )
 
             self.cdvi.train()
             with torch.inference_mode(False):
@@ -76,19 +101,9 @@ class Trainer(ABC):
                                 ("epoch", epoch),
                                 ("loss", loss.item()),
                                 *[(k, v) for k, v in metrics.items()],
-                                # (
-                                #     "lr",
-                                #     (
-                                #         self.scheduler.get_last_lr()
-                                #         if self.scheduler is not None
-                                #         else self.optimizer.param_groups[0]["lr"]
-                                #     ),
-                                # ),
                             ]
                         )
                     )
-
-                    losses.append(loss.item())
 
                     if self.wandb_logging:
                         wandb.log(
@@ -101,29 +116,6 @@ class Trainer(ABC):
                                 ),
                             }
                         )
-
-            if not validate or epoch % 10 != 0:
-                continue
-
-            self.cdvi.eval()
-            with torch.inference_mode(False):
-
-                loop = tqdm(self.val_loader, total=len(self.val_loader))
-
-                for batch in loop:
-
-                    metrics = self.val_step(batch)
-
-                    # loop.set_postfix(**metrics)
-
-                    if self.wandb_logging:
-                        wandb.log(
-                            {
-                                **{f"val/{k}": v for k, v in metrics.items()},
-                            }
-                        )
-
-        return losses
 
     @abstractmethod
     def train_step(

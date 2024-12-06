@@ -8,7 +8,7 @@ hydra:
   launcher:
     partition: dev_gpu_4
     timeout_min: 30
-    mem_per_gpu: 4000
+    mem_per_gpu: 8000
     gres: gpu:1
 
 wandb:

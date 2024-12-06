@@ -137,43 +137,21 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         self.context_embedding = context_embedding
         self.mask = mask
 
-    # def val_mse(self, z: Tensor) -> Tensor:
-    #     # (batch_size, num_subtasks, z_dim)
+    def mse(
+        self,
+        z: Tensor,
+        x_data: Tensor,
+        y_data: Tensor,
+    ) -> Tensor:
+        # (batch_size, num_subtasks, z_dim)
 
-    #     y_pred: Tensor = self.decoder(
-    #         self.x_target, z, self.context_embedding, self.mask
-    #     ).mean
-    #     # (batch_size, target_size, y_dim)
+        y_pred: Tensor = self.decoder(x_data, z, self.context_embedding, self.mask).mean
+        # (batch_size, num_subtasks, target_size, y_dim)
 
-    #     mse: Tensor = (
-    #         (y_pred.sum(-1).mean(0) - self.y_target.sum(-1).mean(0)) ** 2
-    #     ).mean(0)
+        mse: Tensor = ((y_pred - y_data) ** 2).sum(dim=2).sum(dim=-1, keepdim=True)
+        # (batch_size, num_subtasks, 1)
 
-    #     return mse
-
-    # def mse(
-    #     self,
-    #     z: Tensor,
-    #     x_target: Tensor,
-    #     y_target: Tensor,
-    #     mask: Tensor | None,
-    # ) -> Tensor:
-    #     # (batch_size, z_dim)
-
-    #     y_pred: Tensor = self.decoder(
-    #         x_target, z, self.context_embedding, self.mask
-    #     ).mean
-    #     # (batch_size, target_size, y_dim)
-
-    #     if mask is not None:
-    #         y_pred = y_pred * mask.unsqueeze(-1).expand(
-    #             -1, -1, y_pred.shape[-1]
-    #         )  # (batch_size, target_size, y_dim)
-
-    #     mse: Tensor = ((y_pred - y_target) ** 2).sum(2).mean(1).mean(0)
-    #     # (1)
-
-    #     return mse
+        return mse
 
     def log_like(
         self,

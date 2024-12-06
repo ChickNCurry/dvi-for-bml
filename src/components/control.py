@@ -1,5 +1,16 @@
+from typing import Callable
+
 import torch
 from torch import Tensor, nn
+
+
+class Lambda(nn.Module):
+    def __init__(self, func: Callable[[Tensor], Tensor]) -> None:
+        super(Lambda, self).__init__()
+        self.func = func
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.func(x)
 
 
 class Control(nn.Module):
@@ -41,6 +52,9 @@ class Control(nn.Module):
             *[
                 layer
                 for layer in (
+                    # Lambda(lambda x: x.transpose(1, 2)),
+                    # nn.BatchNorm1d(h_dim),  # TODO: check if this is needed
+                    # Lambda(lambda x: x.transpose(1, 2)),
                     getattr(nn, non_linearity)(),
                     nn.Linear(h_dim, h_dim),
                 )
@@ -57,11 +71,7 @@ class Control(nn.Module):
         # (batch_size, num_subtasks, h_dim) or (batch_size, num_subtasks, context_size, h_dim)
         # (batch_size, num_subtasks, context_size)
 
-        t = self.proj_t(torch.tensor([t], device=z.device))
-        z = self.proj_z(z)
-        # (batch_size, num_subtasks, h_dim)
-
-        h: Tensor = t + z
+        h: Tensor = self.proj_t(torch.tensor([t], device=z.device)) + self.proj_z(z)
         # (batch_size, num_subtasks, h_dim)
 
         if self.is_cross_attentive:
@@ -89,7 +99,7 @@ class Control(nn.Module):
             h = h + context_embedding
             # (batch_size, num_subtasks, h_dim)
 
-        control: Tensor = self.proj_out(self.mlp(h))
+        control: Tensor = self.proj_out(self.mlp(h))  # + z  # TODO skip connection
         # (batch_size, num_subtasks, z_dim)
 
         return control
