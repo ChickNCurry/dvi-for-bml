@@ -9,7 +9,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.components.cdvi import ContextualDVI
+from src.components.cdvi import CDVI
 from src.components.decoder import LikelihoodTimesPrior
 from src.utils.grid import (
     compute_bd,
@@ -25,7 +25,7 @@ class AlternatingBMLTrainer:
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -308,7 +308,7 @@ class TestAlternatingBMLTrainer(AlternatingBMLTrainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,

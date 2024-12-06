@@ -65,18 +65,18 @@ class SetEncoder(Encoder):
     def forward(
         self, context: Tensor, mask: Tensor | None
     ) -> Tuple[Tensor | None, Tensor | None]:
-        # (batch_size, context_size, c_dim)
-        # (batch_size, context_size)
+        # (batch_size, num_subtasks, context_size, c_dim)
+        # (batch_size, num_subtasks, context_size)
 
         c: Tensor = self.proj_in(context)
-        # (batch_size, context_size, h_dim)
+        # (batch_size, num_subtasks, context_size, h_dim)
 
         if self.is_attentive:
             c, _ = self.self_attn(c, c, c, need_weights=False)
-            # (batch_size, context_size, h_dim)
+            # (batch_size, num_subtasks, context_size, h_dim)
 
         c = self.mlp(c)
-        # (batch_size, context_size, h_dim)
+        # (batch_size, num_subtasks, context_size, h_dim)
 
         aggregated: Tensor | None = None
         non_aggregated: Tensor | None = None
@@ -85,34 +85,34 @@ class SetEncoder(Encoder):
             match self.aggregation:
                 case "mean":
                     aggregated = (
-                        c.mean(dim=1)
+                        c.mean(dim=2)
                         if mask is None
-                        else (c * mask.unsqueeze(-1)).sum(dim=1)
-                        / mask.sum(dim=1, keepdim=True)
+                        else (c * mask.unsqueeze(-1)).sum(dim=2)
+                        / mask.sum(dim=2, keepdim=True)
                     )
                 case "max":
                     aggregated = (
-                        c.max(dim=1)[0]
+                        c.max(dim=2)[0]
                         if mask is None
-                        else (c * mask.unsqueeze(-1)).max(dim=1)[0]
+                        else (c * mask.unsqueeze(-1)).max(dim=2)[0]
                     )
-                # (batch_size, h_dim)
+                # (batch_size, num_subtasks, h_dim)
 
             if self.use_context_size:
                 if mask is None:
                     e = self.context_size_embedding(
-                        torch.tensor([context.shape[1]], device=c.device)
-                    ).expand(c.shape[0], -1)
+                        torch.tensor([context.shape[2]], device=c.device)
+                    ).expand(c.shape[0], c.shape[1], -1)
                 else:
-                    e = self.context_size_embedding(mask.sum(dim=1).int())
-                # (batch_size, h_dim)
+                    e = self.context_size_embedding(mask.sum(dim=2).int())
+                # (batch_size, num_subtasks, h_dim)
 
                 aggregated = aggregated + e if aggregated is not None else None
-                # (batch_size, h_dim)
+                # (batch_size, num_subtasks, h_dim)
 
         if self.is_non_aggregative:
             non_aggregated = c if mask is None else c * mask.unsqueeze(-1)
-            # (batch_size, context_size, h_dim)
+            # (batch_size, num_subtasks, context_size, h_dim)
 
         return aggregated, non_aggregated
 

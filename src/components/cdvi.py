@@ -11,17 +11,17 @@ from torch.utils.data import DataLoader, random_split
 
 from src.components.control import Control
 from src.components.decoder import Decoder
-from src.components.dvi_process import DiffusionVIProcess
+from components.cdvi_process import CDVIProcess
 from src.components.encoder import Encoder, SetEncoder
 from src.components.hyper_net import HyperNet
 from src.utils.datasets import MetaLearningDataset
 
 
-class ContextualDVI(nn.Module):
+class CDVI(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        dvi_process: DiffusionVIProcess,
+        dvi_process: CDVIProcess,
         decoder: Decoder | None,
         contextual_target: Callable[[Tensor, Tensor | None], Distribution] | None,
     ) -> None:
@@ -51,7 +51,7 @@ class ContextualDVI(nn.Module):
 
 def load_cdvi_for_bml(
     cfg: DictConfig, device: torch.device
-) -> Tuple[ContextualDVI, Optimizer, DataLoader, DataLoader]:
+) -> Tuple[CDVI, Optimizer, DataLoader, DataLoader]:
     benchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
 
@@ -101,7 +101,7 @@ def load_cdvi_for_bml(
         else None
     )
 
-    dvi_process: DiffusionVIProcess = instantiate(
+    dvi_process: CDVIProcess = instantiate(
         cfg.dvi_process,
         z_dim=cfg.common.z_dim,
         control=control,
@@ -122,7 +122,7 @@ def load_cdvi_for_bml(
         num_heads=cfg.decoder.num_heads,
     )
 
-    cdvi = ContextualDVI(
+    cdvi = CDVI(
         encoder=set_encoder,
         dvi_process=dvi_process,
         decoder=decoder,

@@ -62,48 +62,48 @@ class Decoder(nn.Module):
         context_embedding: Tensor | None,
         mask: Tensor | None,
     ) -> Distribution:
-        # (batch_size, target_size, x_dim)
-        # (batch_size, z_dim)
-        # (batch_size, h_dim) or (batch_size, context_size, h_dim)
-        # (batch_size, context_size)
+        # (batch_size, num_subtasks, target_size, x_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, h_dim) or (batch_size, num_subtasks, context_size, h_dim)
+        # (batch_size, num_subtasks, context_size)
 
         c: Tensor | None = None
 
         if self.has_det_path and context_embedding is not None:
             if self.is_cross_attentive:
-                mask = mask.unsqueeze(1) if mask is not None else None
-                # (batch_size, 1, context_size)
+                mask = mask.unsqueeze(2) if mask is not None else None
+                # (batch_size, num_subtasks, 1, context_size)
 
                 query = self.mlp_query(x_target)
-                # (batch_size, target_size, h_dim)
+                # (batch_size, num_subtasks, target_size, h_dim)
 
                 key = self.mlp_key(
-                    context_embedding[:, :, 0:1]
-                )  # (batch_size, context_size, h_dim)
+                    context_embedding[:, :, :, 0:1]
+                )  # (batch_size, num_subtasks, context_size, h_dim)
 
                 value = context_embedding
-                # (batch_size, context_size, h_dim)
+                # (batch_size, num_subtasks, context_size, h_dim)
 
                 c, _ = self.cross_attn(
                     query=query, key=key, value=value, attn_mask=mask
                 )
             else:
-                c = context_embedding.unsqueeze(1).expand(-1, x_target.shape[1], -1)
-            # (batch_size, target_size, h_dim)
+                c = context_embedding.unsqueeze(2).expand(-1, -1, x_target.shape[1], -1)
+            # (batch_size, num_subtasks, target_size, h_dim)
 
         if self.has_lat_path and z is not None:
-            z = z.unsqueeze(1).expand(-1, x_target.shape[1], -1)
-            # (batch_size, target_size, z_dim)
+            z = z.unsqueeze(2).expand(-1, -1, x_target.shape[1], -1)
+            # (batch_size, num_subtasks, target_size, z_dim)
 
         h = torch.cat([t for t in [x_target, c, z] if t is not None], dim=-1)
-        # (batch_size, target_size, x_dim + z_dim + h_dim)
+        # (batch_size, num_subtasks, target_size, x_dim + z_dim + h_dim)
 
         h = self.mlp(h)
-        # (batch_size, target_size, h_dim)
+        # (batch_size, num_subtasks, target_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
         y_std = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
-        # (batch_size, target_size, y_dim)
+        # (batch_size, num_subtasks, target_size, y_dim)
 
         y_dist = Normal(y_mu, y_std)  # type: ignore
 
@@ -121,9 +121,14 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
     ) -> None:
         super(LikelihoodTimesPrior, self).__init__(validate_args=False)
 
+        device = x_target.device
+        z_dim = decoder.z_dim
+        batch_size = x_target.shape[0]
+        num_subtasks = x_target.shape[1]
+
         self.prior = Normal(  # type: ignore
-            torch.zeros((x_target.shape[0], decoder.z_dim), device=x_target.device),
-            torch.ones((x_target.shape[0], decoder.z_dim), device=x_target.device),
+            torch.zeros((batch_size, num_subtasks, z_dim), device=device),
+            torch.ones((batch_size, num_subtasks, z_dim), device=device),
         )
 
         self.decoder = decoder
@@ -133,7 +138,7 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         self.mask = mask
 
     def val_mse(self, z: Tensor) -> Tensor:
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         y_pred: Tensor = self.decoder(
             self.x_target, z, self.context_embedding, self.mask
@@ -180,26 +185,26 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         log_like: Tensor = self.decoder(
             x_target, z, self.context_embedding, self.mask
         ).log_prob(y_target)
-        # (batch_size, target_size, y_dim)
+        # (batch_size, num_subtasks, target_size, y_dim)
 
         if mask is not None:
             log_like = log_like * mask.unsqueeze(-1).expand(
-                -1, -1, log_like.shape[-1]
-            )  # (batch_size, target_size, y_dim)
+                -1, -1, -1, log_like.shape[-1]
+            )  # (batch_size, num_subtasks, target_size, y_dim)
 
-        log_like = log_like.sum(dim=1).sum(dim=-1, keepdim=True)
-        # (batch_size, 1)
+        log_like = log_like.sum(dim=2).sum(dim=-1, keepdim=True)
+        # (batch_size, num_subtasks, 1)
 
         return log_like
 
     def log_prob(self, z: Tensor) -> Tensor:
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         log_likelihood: Tensor = self.log_like(
             z, self.x_target, self.y_target, self.mask
-        )  # (batch_size, 1)
+        )  # (batch_size, num_subtasks, 1)
 
-        log_prior: Tensor = self.prior.log_prob(z).sum(dim=1, keepdim=True)  # type: ignore
-        # (batch_size, 1)
+        log_prior: Tensor = self.prior.log_prob(z).sum(dim=2, keepdim=True)  # type: ignore
+        # (batch_size, num_subtasks, 1)
 
         return log_likelihood + log_prior

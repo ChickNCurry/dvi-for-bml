@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import ContextualDVI
+from src.components.cdvi import CDVI
 from src.train.train import Trainer
 
 
@@ -15,7 +15,7 @@ class StaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -59,7 +59,7 @@ class BetterStaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,

@@ -11,13 +11,13 @@ from src.components.control import Control
 from src.components.hyper_net import HyperNet
 
 
-class DiffusionVIProcess(nn.Module, ABC):
+class CDVIProcess(nn.Module, ABC):
     def __init__(
         self,
         z_dim: int,
         num_steps: int,
     ) -> None:
-        super(DiffusionVIProcess, self).__init__()
+        super(CDVIProcess, self).__init__()
 
         assert num_steps > 0
 
@@ -26,14 +26,16 @@ class DiffusionVIProcess(nn.Module, ABC):
         self.delta_t = 1.0 / num_steps
 
     @abstractmethod
-    def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
+    def get_prior(
+        self, batch_size: int, num_subtasks: int, device: torch.device
+    ) -> Distribution:
         pass
 
     @abstractmethod
     def forward_kernel(
         self,
-        z_prev: Tensor,
         t: int,
+        z_prev: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
@@ -44,8 +46,8 @@ class DiffusionVIProcess(nn.Module, ABC):
     @abstractmethod
     def backward_kernel(
         self,
-        z_next: Tensor,
         t: int,
+        z_next: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
@@ -60,15 +62,18 @@ class DiffusionVIProcess(nn.Module, ABC):
         mask: Tensor | None,
     ) -> Tuple[Tensor, Tensor, List[Tensor]]:
 
+        device = context_embedding.device
+        batch_size = context_embedding.shape[0]
+        num_subtasks = context_embedding.shape[1]
+
         p_z_0 = self.get_prior(
-            batch_size=context_embedding.shape[0], device=context_embedding.device
+            batch_size=batch_size, num_subtasks=num_subtasks, device=device
         )
 
         z = [p_z_0.sample()]
 
         elbo: Tensor = torch.zeros(
-            size=(context_embedding.shape[0], self.z_dim),
-            device=context_embedding.device,
+            size=(batch_size, num_subtasks, self.z_dim), device=device
         )
 
         for i in range(0, self.num_steps):
@@ -86,24 +91,20 @@ class DiffusionVIProcess(nn.Module, ABC):
             )
 
             elbo += bwd_kernel.log_prob(z[t - 1]) - fwd_kernel.log_prob(z[t])
-            # (batch_size, z_dim) or (batch_size, 1)
+            # (batch_size, num_subtasks, z_dim) or (batch_size, num_subtasks, 1)
 
         log_like = p_z_T.log_prob(z[-1])
-        # (batch_size, z_dim) or (batch_size, 1)
-
         elbo += log_like - p_z_0.log_prob(z[0])
-        # (batch_size, z_dim) or (batch_size, 1)
+        # (batch_size, num_subtasks, z_dim) or (batch_size, num_subtasks, 1)
 
-        elbo = elbo.mean(dim=0).sum()
-        # (1)
-
-        log_like = log_like.mean(dim=0).sum()
+        elbo = elbo.mean(dim=0).mean(dim=1).sum()
+        log_like = log_like.mean(dim=0).mean(dim=1).sum()
         # (1)
 
         return elbo, log_like, z
 
 
-class DIS(DiffusionVIProcess):
+class DIS(CDVIProcess):
     def __init__(
         self,
         device: torch.device,
@@ -138,23 +139,26 @@ class DIS(DiffusionVIProcess):
             ]
         )
 
-    def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
+    def get_prior(
+        self, batch_size: int, num_subtasks: int, device: torch.device
+    ) -> Distribution:
         return Normal(  # type: ignore
-            torch.zeros((batch_size, self.z_dim), device=device),
-            torch.ones((batch_size, self.z_dim), device=device)
+            torch.zeros((batch_size, num_subtasks, self.z_dim), device=device),
+            torch.ones((batch_size, num_subtasks, self.z_dim), device=device)
             * self.sigma_schedule[0],
         )
 
     def forward_kernel(
         self,
-        z_prev: Tensor,
         t: int,
+        z_prev: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, h_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, h_dim)
 
         beta_t = (
             self.beta_schedule[t - 1]
@@ -167,27 +171,28 @@ class DIS(DiffusionVIProcess):
         # (1)
 
         control = self.control(t, z_prev, context_embedding, mask)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_prev + (beta_t * z_prev + control) * self.delta_t
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def backward_kernel(
         self,
-        z_next: Tensor,
         t: int,
+        z_next: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, h_dim)
 
         beta_t = (
             self.beta_schedule[t - 1]
@@ -200,16 +205,16 @@ class DIS(DiffusionVIProcess):
         # (1)
 
         z_mu = z_next - (beta_t * z_next) * self.delta_t
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma_schedule[0]
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
 
-class CMCD(DiffusionVIProcess):
+class CMCD(CDVIProcess):
     def __init__(
         self,
         device: torch.device,
@@ -242,74 +247,78 @@ class CMCD(DiffusionVIProcess):
             ]
         )
 
-    def get_prior(self, batch_size: int, device: torch.device) -> Distribution:
+    def get_prior(
+        self, batch_size: int, num_subtasks: int, device: torch.device
+    ) -> Distribution:
         return Normal(  # type: ignore
-            torch.zeros((batch_size, self.z_dim), device=device),
-            torch.ones((batch_size, self.z_dim), device=device),
+            torch.zeros((batch_size, num_subtasks, self.z_dim), device=device),
+            torch.ones((batch_size, num_subtasks, self.z_dim), device=device),
         )
 
     def forward_kernel(
         self,
-        z_prev: Tensor,
         t: int,
+        z_prev: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, h_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, h_dim)
 
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
         control = self.control(t, z_prev, context_embedding, mask)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
-        grad_log = self.get_grad_log_geo_avg(z_prev, t, p_z_0, p_z_T)
-        # (batch_size, z_dim)
+        grad_log = self.get_grad_log_geo_avg(t, z_prev, p_z_0, p_z_T)
+        # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_prev + (sigma_t.pow(2) * grad_log + control) * self.delta_t
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def backward_kernel(
         self,
-        z_next: Tensor,
         t: int,
+        z_next: Tensor,
         context_embedding: Tensor,
         mask: Tensor | None,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Distribution:
-        # (batch_size, z_dim), (1), (batch_size, h_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, h_dim)
 
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
         control = self.control(t, z_next, context_embedding, mask)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
-        grad_log = self.get_grad_log_geo_avg(z_next, t, p_z_0, p_z_T)
-        # (batch_size, z_dim)
+        grad_log = self.get_grad_log_geo_avg(t, z_next, p_z_0, p_z_T)
+        # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_next + (sigma_t.pow(2) * grad_log - control) * self.delta_t
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
         z_sigma = z_sigma.expand(z_mu.shape[0], -1)
-        # (batch_size, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def get_grad_log_geo_avg(
         self,
-        z: Tensor,
         t: int,
+        z: Tensor,
         p_z_0: Distribution,
         p_z_T: Distribution,
     ) -> Tensor:

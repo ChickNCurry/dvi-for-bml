@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import ContextualDVI
+from src.components.cdvi import CDVI
 from src.components.decoder import LikelihoodTimesPrior
 from src.train.train import Trainer
 from src.utils.grid import (
@@ -23,7 +23,7 @@ class BMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -53,7 +53,7 @@ class NoisyBMLTrainer(BMLTrainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -109,7 +109,7 @@ class BetterBMLTrainer(BMLTrainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: ContextualDVI,
+        cdvi: CDVI,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,

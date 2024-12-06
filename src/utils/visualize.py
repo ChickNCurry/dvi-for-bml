@@ -10,7 +10,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import ContextualDVI
+from src.components.cdvi import CDVI
 from src.components.decoder import LikelihoodTimesPrior
 from src.utils.grid import (
     create_grid,
@@ -23,7 +23,7 @@ from src.utils.grid import (
 
 def visualize_cdvi_for_bml(
     device: torch.device,
-    cdvi: ContextualDVI,
+    cdvi: CDVI,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     config: DictConfig,
     num_samples: int,
@@ -128,7 +128,7 @@ def visualize_cdvi_for_bml(
 
 def visualize_cdvi_for_bml_test(
     device: torch.device,
-    cdvi: ContextualDVI,
+    cdvi: CDVI,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     config: DictConfig,
     num_samples: int,
