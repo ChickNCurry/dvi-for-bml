@@ -1,20 +1,25 @@
 import os
+from typing import Any
 
 import hydra
 import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
-from src.components.cdvi import load_cdvi_for_bml
 from src.train.train_bml import BetterBMLTrainer
+from src.train.train_bml_alternating import AlternatingBMLTrainer
+from src.utils.load import load_cdvi_for_bml
 
 
-@hydra.main(version_base=None, config_name="config", config_path="config")
+@hydra.main(version_base=None, config_name="cfg", config_path="config")
 def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cdvi, optimizer, train_loader, val_loader = load_cdvi_for_bml(cfg, device)
+    cdvi, optimizer, train_loader, val_loader = load_cdvi_for_bml(
+        cfg=cfg, alternating_ratio=cfg.training.alternating_ratio, device=device
+    )
 
     if cfg.wandb.logging:
         wandb.init(
@@ -22,20 +27,37 @@ def run(cfg: DictConfig) -> None:
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
 
-    trainer = BetterBMLTrainer(
-        device=device,
-        cdvi=cdvi,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=optimizer,
-        scheduler=None,
-        wandb_logging=cfg.wandb.logging,
-    )
+    if cfg.training.alternating_ratio is None:
+        assert type(train_loader) == DataLoader[Any]
+
+        trainer = BetterBMLTrainer(
+            device=device,
+            cdvi=cdvi,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            optimizer=optimizer,
+            scheduler=None,
+            wandb_logging=cfg.wandb.logging,
+        )
+
+    else:
+        assert type(train_loader) == tuple[DataLoader[Any], DataLoader[Any]]
+
+        AlternatingBMLTrainer(
+            device=device,
+            cdvi=cdvi,
+            train_decoder_loader=train_loader[0],
+            train_cdvi_loader=train_loader[1],
+            val_loader=val_loader,
+            optimizer=optimizer,
+            wandb_logging=cfg.wandb.logging,
+        )
 
     trainer.train(
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
+        validate=True,
     )
 
     if cfg.wandb.logging and wandb.run is not None:
@@ -48,7 +70,7 @@ def run(cfg: DictConfig) -> None:
 
         model_path = os.path.join(dir, "cdvi.pth")
         optim_path = os.path.join(dir, "optim.pth")
-        cfg_path = os.path.join(dir, "config.yaml")
+        cfg_path = os.path.join(dir, "cfg.yaml")
 
         torch.save(cdvi.state_dict(), model_path)
         torch.save(optimizer.state_dict(), optim_path)
