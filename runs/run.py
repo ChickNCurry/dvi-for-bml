@@ -28,7 +28,7 @@ def run(cfg: DictConfig) -> None:
         )
 
     if cfg.training.alternating_ratio is None:
-        assert type(train_loader) == DataLoader[Any]
+        # assert type(train_loader) == DataLoader[Any]
 
         trainer = BetterBMLTrainer(
             device=device,
@@ -41,9 +41,9 @@ def run(cfg: DictConfig) -> None:
         )
 
     else:
-        assert type(train_loader) == tuple[DataLoader[Any], DataLoader[Any]]
+        # assert type(train_loader) == tuple[DataLoader[Any], DataLoader[Any]]
 
-        AlternatingBMLTrainer(
+        trainer = AlternatingBMLTrainer(
             device=device,
             cdvi=cdvi,
             train_decoder_loader=train_loader[0],
@@ -80,7 +80,7 @@ def run(cfg: DictConfig) -> None:
         if cfg.wandb.logging and wandb.run is not None:
             wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_cdvi.pth")
             wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
-            wandb.run.log_artifact(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+            wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
 
 
 if __name__ == "__main__":
