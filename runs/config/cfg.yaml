@@ -46,7 +46,7 @@ set_encoder:
 training:
     batch_size: 128
     learning_rate: 0.0003
-    num_epochs: 5000
+    num_epochs: 3000
     alternating_ratio: 0.2
     max_clip_norm: 0.5
     alpha: 1.0
