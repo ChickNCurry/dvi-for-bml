@@ -65,7 +65,7 @@ class Control(nn.Module):
         self.proj_out = nn.Linear(h_dim, z_dim)
 
     def forward(
-        self, t: int, z: Tensor, context_embedding: Tensor, mask: Tensor | None
+        self, t: int, z: Tensor, context_emb: Tensor, mask: Tensor | None
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, h_dim) or (batch_size, num_subtasks, context_size, h_dim)
@@ -86,8 +86,8 @@ class Control(nn.Module):
                     mask = mask.repeat(self.num_heads, 1, 1, 1)
                     # (num_heads * batch_size, num_subtasks, 1, context_size)
 
-            key = self.mlp_key(context_embedding)
-            value = self.mlp_value(context_embedding)
+            key = self.mlp_key(context_emb)
+            value = self.mlp_value(context_emb)
             # (batch_size, num_subtasks, context_size, h_dim)
 
             h, _ = self.cross_attn(query=h, key=key, value=value, attn_mask=mask)
@@ -96,7 +96,7 @@ class Control(nn.Module):
             h = h.squeeze(2)
             # (batch_size, num_subtasks, h_dim)
         else:
-            h = h + context_embedding
+            h = h + context_emb
             # (batch_size, num_subtasks, h_dim)
 
         control: Tensor = self.proj_out(self.mlp(h))  # + z  # TODO skip connection

@@ -76,7 +76,7 @@ def visualize_cdvi_for_bml_test(
             x_target=x_context,
             y_target=y_context,
             mask=None,
-            context_embedding=(
+            context_emb=(
                 non_aggregated if config.decoder.is_cross_attentive else aggregated
             ),
         )

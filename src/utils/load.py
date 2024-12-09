@@ -17,12 +17,13 @@ from src.utils.datasets import MetaLearningDataset
 
 
 def load_cdvi_for_bml(
-    cfg: DictConfig, alternating_ratio: float | None, device: torch.device
+    cfg: DictConfig,
+    alternating_ratio: float | None,
+    device: torch.device,
+    num_val_tasks: int = 32,
 ) -> Tuple[CDVI, Optimizer, DataLoader | Tuple[DataLoader, DataLoader], DataLoader]:
     benchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
-
-    num_val_tasks = 32
 
     if alternating_ratio is None:
         train_set, val_set = random_split(

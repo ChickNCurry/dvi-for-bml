@@ -73,14 +73,14 @@ class NoisyBMLTrainer(Trainer):
             x_target=x_context,
             y_target=y_context,
             mask=None,
-            context_embedding=(
+            context_emb=(
                 non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
             ),
         )
 
         elbo, _, _ = self.cdvi.dvi_process.run_chain(
             p_z_T=p_z_T,
-            context_embedding=(
+            context_emb=(
                 non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
             ),
             mask=None,
@@ -175,14 +175,14 @@ class BetterBMLTrainer(Trainer):
             x_target=x_context,
             y_target=y_context,
             mask=mask,
-            context_embedding=(
+            context_emb=(
                 non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
             ),
         )
 
         elbo, _, z_samples = self.cdvi.dvi_process.run_chain(
             p_z_T=p_z_T,
-            context_embedding=(
+            context_emb=(
                 non_aggregated
                 if self.cdvi.dvi_process.control.is_cross_attentive
                 else aggregated
@@ -252,15 +252,13 @@ class BetterBMLTrainer(Trainer):
             decoder=self.cdvi.decoder,
             x_target=x_context,
             y_target=y_context,
-            context_embedding=(
-                non_aggr if self.cdvi.decoder.is_cross_attentive else aggr
-            ),
+            context_emb=(non_aggr if self.cdvi.decoder.is_cross_attentive else aggr),
             mask=mask,
         )
 
         _, _, z_samples = self.cdvi.dvi_process.run_chain(
             p_z_T=p_z_T,
-            context_embedding=(
+            context_emb=(
                 non_aggr if self.cdvi.dvi_process.control.is_cross_attentive else aggr
             ),
             mask=mask,

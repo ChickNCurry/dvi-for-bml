@@ -59,7 +59,7 @@ class Decoder(nn.Module):
         self,
         x_target: Tensor,
         z: Tensor | None,
-        context_embedding: Tensor | None,
+        context_emb: Tensor | None,
         mask: Tensor | None,
     ) -> Distribution:
         # (batch_size, num_subtasks, target_size, x_dim)
@@ -69,7 +69,7 @@ class Decoder(nn.Module):
 
         c: Tensor | None = None
 
-        if self.has_det_path and context_embedding is not None:
+        if self.has_det_path and context_emb is not None:
             if self.is_cross_attentive:
                 mask = mask.unsqueeze(2) if mask is not None else None
                 # (batch_size, num_subtasks, 1, context_size)
@@ -78,17 +78,17 @@ class Decoder(nn.Module):
                 # (batch_size, num_subtasks, target_size, h_dim)
 
                 key = self.mlp_key(
-                    context_embedding[:, :, :, 0:1]
+                    context_emb[:, :, :, 0:1]
                 )  # (batch_size, num_subtasks, context_size, h_dim)
 
-                value = context_embedding
+                value = context_emb
                 # (batch_size, num_subtasks, context_size, h_dim)
 
                 c, _ = self.cross_attn(
                     query=query, key=key, value=value, attn_mask=mask
                 )
             else:
-                c = context_embedding.unsqueeze(2).expand(-1, -1, x_target.shape[1], -1)
+                c = context_emb.unsqueeze(2).expand(-1, -1, x_target.shape[1], -1)
             # (batch_size, num_subtasks, target_size, h_dim)
 
         if self.has_lat_path and z is not None:
@@ -116,7 +116,7 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         decoder: Decoder,
         x_target: Tensor,
         y_target: Tensor,
-        context_embedding: Tensor | None,
+        context_emb: Tensor | None,
         mask: Tensor | None,
     ) -> None:
         super(LikelihoodTimesPrior, self).__init__(validate_args=False)
@@ -134,7 +134,7 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         self.decoder = decoder
         self.x_target = x_target
         self.y_target = y_target
-        self.context_embedding = context_embedding
+        self.context_emb = context_emb
         self.mask = mask
 
     def mse(
@@ -145,7 +145,7 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim)
 
-        y_pred: Tensor = self.decoder(x_data, z, self.context_embedding, self.mask).mean
+        y_pred: Tensor = self.decoder(x_data, z, self.context_emb, self.mask).mean
         # (batch_size, num_subtasks, target_size, y_dim)
 
         mse: Tensor = ((y_pred - y_data) ** 2).sum(dim=2).sum(dim=-1, keepdim=True)
@@ -161,7 +161,7 @@ class LikelihoodTimesPrior(Distribution, nn.Module):
         mask: Tensor | None,
     ) -> Tensor:
         log_like: Tensor = self.decoder(
-            x_target, z, self.context_embedding, self.mask
+            x_target, z, self.context_emb, self.mask
         ).log_prob(y_target)
         # (batch_size, num_subtasks, target_size, y_dim)
 
