@@ -217,7 +217,7 @@ class CMCD(CDVIProcess):
         device: torch.device,
         z_dim: int,
         num_steps: int,
-        control: Control,
+        control: Control | None,
         hyper_net: HyperNet | None,
         min: float = 0.2,
     ) -> None:
@@ -268,18 +268,26 @@ class CMCD(CDVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control(t, z_prev, context_emb, mask)
-        # (batch_size, num_subtasks, z_dim)
+        if self.control is not None:
+            control = self.control(t, z_prev, context_emb, mask)
+            # (batch_size, num_subtasks, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(t, z_prev, p_z_0, p_z_T)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (sigma_t.pow(2) * grad_log + control) * self.delta_t
+        z_mu = (
+            z_prev
+            + (sigma_t.pow(2) * grad_log + (control if self.control is not None else 0))
+            * self.delta_t
+        )
         # (batch_size, num_subtasks, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
+
+        z_mu = torch.nan_to_num(z_mu, nan=0.0)
+        z_sigma = torch.nan_to_num(z_sigma, nan=0.0)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
@@ -298,18 +306,26 @@ class CMCD(CDVIProcess):
         sigma_t = self.sigma_schedule[t - 1]
         # (1)
 
-        control = self.control(t, z_next, context_emb, mask)
-        # (batch_size, num_subtasks, z_dim)
+        if self.control is not None:
+            control = self.control(t, z_next, context_emb, mask)
+            # (batch_size, num_subtasks, z_dim)
 
         grad_log = self.get_grad_log_geo_avg(t, z_next, p_z_0, p_z_T)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next + (sigma_t.pow(2) * grad_log - control) * self.delta_t
+        z_mu = (
+            z_next
+            + (sigma_t.pow(2) * grad_log - (control if self.control is not None else 0))
+            * self.delta_t
+        )
         # (batch_size, num_subtasks, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
+
+        z_mu = torch.nan_to_num(z_mu, nan=0.0)
+        z_sigma = torch.nan_to_num(z_sigma, nan=0.0)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 

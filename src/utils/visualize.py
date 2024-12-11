@@ -21,7 +21,7 @@ from src.utils.grid import (
 )
 
 
-def visualize_cdvi_for_bml_test(
+def visualize_dvi_np_both(
     device: torch.device,
     cdvi: CDVI,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
@@ -49,14 +49,17 @@ def visualize_cdvi_for_bml_test(
     # (num_samples, context_size, x_dim)
     # (num_samples, context_size, y_dim)
 
-    fig = plt.figure(figsize=(12, 3 * max_context_size * 2), constrained_layout=True)
+    fig = plt.figure(
+        figsize=(12, 3 * max_context_size * 2),
+        constrained_layout=True,
+    )
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
 
     targets = []
     samples = []
 
     for row, subfig in enumerate(subfigs):
-        subfig.suptitle(f"Context Size: {row + 1}")
+        subfig.suptitle(f"context size: {row + 1}")
         ax = subfig.subplots(nrows=2, ncols=2, width_ratios=[3, 1])
 
         context_size = row + 1
@@ -86,9 +89,10 @@ def visualize_cdvi_for_bml_test(
         _, _, z_samples = cdvi.dvi_process.run_chain(
             p_z_T,
             (
-                non_aggregated
-                if cdvi.dvi_process.control.is_cross_attentive
-                else aggregated
+                aggregated
+                if cdvi.dvi_process.control is None
+                or not cdvi.dvi_process.control.is_cross_attentive
+                else non_aggregated
             ),
             None,
         )
@@ -100,9 +104,10 @@ def visualize_cdvi_for_bml_test(
             x_data,
             z_samples[-1],
             (
-                non_aggregated
-                if cdvi.dvi_process.control.is_cross_attentive
-                else aggregated
+                aggregated
+                if cdvi.dvi_process.control is None
+                or not cdvi.dvi_process.control.is_cross_attentive
+                else non_aggregated
             ),
             None,
         )
@@ -129,7 +134,7 @@ def visualize_cdvi_for_bml_test(
             zorder=2,
         )
 
-        ax[0][0].set_title("Predictions from Task Posterior")
+        ax[0][0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
 
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
@@ -151,9 +156,10 @@ def visualize_cdvi_for_bml_test(
             x_data,
             target_samples,
             (
-                non_aggregated
-                if cdvi.dvi_process.control.is_cross_attentive
-                else aggregated
+                aggregated
+                if cdvi.dvi_process.control is None
+                or not cdvi.dvi_process.control.is_cross_attentive
+                else non_aggregated
             ),
             None,
         )
@@ -181,13 +187,155 @@ def visualize_cdvi_for_bml_test(
             zorder=2,
         )
 
-        ax[1][0].set_title("Predictions from Likelihood Times Prior")
+        ax[1][0].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
 
         ax[0][1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[1][1].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[0][1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
 
-        ax[0][1].set_title("Task Posterior")
-        ax[1][1].set_title("Likelihood Times Prior")
+        ax[1][1].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1][1].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
+
+        for a in ax:
+            for b in a:
+                b.set_xticks([])
+                b.set_yticks([])
+
+    plt.show()
+
+    return targets, tp_samples  # type: ignore
+
+
+def visualize_dvi_np(
+    device: torch.device,
+    cdvi: CDVI,
+    dataloader: DataLoader[Tuple[Tensor, Tensor]],
+    config: DictConfig,
+    num_samples: int,
+    max_context_size: int,
+    ranges: List[Tuple[float, float]],
+) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
+
+    x_data, y_data = next(iter(dataloader))
+
+    x_data = x_data.to(device)
+    y_data = y_data.to(device)
+    # (1, context_size, x_dim)
+    # (1, context_size, y_dim)
+
+    x_data = x_data.expand(1, num_samples, -1, -1)
+    y_data = y_data.expand(1, num_samples, -1, -1)
+    # (1, num_samples, context_size, x_dim)
+    # (1, num_samples, context_size, y_dim)
+
+    x_data_sorted, indices = x_data.sort(dim=2)
+    x_data_sorted = x_data_sorted.cpu().squeeze(0).detach().numpy()
+    y_data_sorted = y_data.gather(2, indices).squeeze(0).cpu().detach().numpy()
+    # (num_samples, context_size, x_dim)
+    # (num_samples, context_size, y_dim)
+
+    fig = plt.figure(
+        figsize=(12, 3 * max_context_size * 1),
+        constrained_layout=True,
+    )
+    subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
+
+    targets = []
+    samples = []
+
+    for row, subfig in enumerate(subfigs):
+        subfig.suptitle(f"context size: {row + 1}")
+        ax = subfig.subplots(nrows=1, ncols=2, width_ratios=[3, 1])
+
+        context_size = row + 1
+
+        x_context = x_data[:, :, :context_size, :]
+        y_context = y_data[:, :, :context_size, :]
+        # (1, num_samples, context_size, x_dim)
+        # (1, num_samples, context_size, y_dim)
+
+        context = torch.cat([x_context, y_context], dim=-1)
+        # (1, num_samples, context_size, x_dim + y_dim)
+
+        aggregated, non_aggregated = cdvi.encoder(context, None)
+
+        p_z_T = LikelihoodTimesPrior(
+            decoder=cdvi.decoder,
+            x_target=x_context,
+            y_target=y_context,
+            mask=None,
+            context_emb=(
+                non_aggregated if config.decoder.is_cross_attentive else aggregated
+            ),
+        )
+
+        targets.append(p_z_T)
+
+        _, _, z_samples = cdvi.dvi_process.run_chain(
+            p_z_T,
+            (
+                aggregated
+                if cdvi.dvi_process.control is None
+                or not cdvi.dvi_process.control.is_cross_attentive
+                else non_aggregated
+            ),
+            None,
+        )
+
+        tp_samples = z_samples[-1].cpu().detach().numpy()
+        samples.append(tp_samples)
+
+        y_dist: Distribution = cdvi.decoder(
+            x_data,
+            z_samples[-1],
+            (
+                aggregated
+                if cdvi.dvi_process.control is None
+                or not cdvi.dvi_process.control.is_cross_attentive
+                else non_aggregated
+            ),
+            None,
+        )
+
+        y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
+        # (num_samples, target_size, y_dim)
+
+        for k in range(num_samples):
+            ax[0].plot(
+                x_data_sorted[k].squeeze(-1),
+                y_mu_sorted[k].squeeze(-1),
+                alpha=0.2,
+                c="tab:blue",
+                zorder=0,
+            )
+
+        ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[0].scatter(
+            x_context.cpu().detach().numpy(),
+            y_context.cpu().detach().numpy(),
+            marker="X",
+            c="red",
+            s=100,
+            zorder=2,
+        )
+
+        ax[0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
+
+        num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
+        grid = create_grid(ranges, num_cells)
+
+        # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
+        dvi_vals = eval_hist_on_grid(
+            z_samples[-1].reshape(-1, z_samples[-1].shape[-1]).cpu().detach().numpy(),
+            ranges,
+            num_cells,
+        )
+
+        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
+
+        for a in ax:
+            a.set_yticks([])
+            a.set_xticks([])
 
     plt.show()
 
