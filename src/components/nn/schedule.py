@@ -19,16 +19,16 @@ class Schedule(ABC, nn.Module):
         pass
 
 
-class LinearSchedule(Schedule):
+class AnnealingSchedule(Schedule):
     def __init__(
         self, z_dim: int, num_steps: int, device: torch.device, min: float
     ) -> None:
-        super(LinearSchedule, self).__init__(z_dim, num_steps, device)
+        super(AnnealingSchedule, self).__init__(z_dim, num_steps, device)
 
         self.schedule = nn.ParameterList(
             [
                 nn.Parameter(torch.ones((self.z_dim), device=device) * beta)
-                for beta in np.linspace(min, 1 - min, num_steps)
+                for beta in np.linspace(min, 1, num_steps)
             ]
         )
 

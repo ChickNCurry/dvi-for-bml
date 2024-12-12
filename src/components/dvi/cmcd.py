@@ -7,7 +7,7 @@ from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
 from src.components.nn.control import Control
-from src.components.nn.schedule import CosineSchedule, LinearSchedule
+from src.components.nn.schedule import CosineSchedule, AnnealingSchedule
 
 
 class CMCD(CDVI):
@@ -28,7 +28,7 @@ class CMCD(CDVI):
         self.control = control
 
         self.sigma_schedule = CosineSchedule(z_dim, num_steps, device, min_sigma)
-        self.annealing_schedule = LinearSchedule(
+        self.annealing_schedule = AnnealingSchedule(
             z_dim, num_steps, device, min_annealing
         )
         # (num_steps, z_dim)
