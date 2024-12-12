@@ -15,6 +15,7 @@ from src.utils.grid import (
     compute_jsd,
     create_grid,
     eval_dist_on_grid,
+    eval_hist_on_grid,
     eval_kde_on_grid,
 )
 
@@ -198,6 +199,7 @@ class BetterBMLTrainer(Trainer):
     def val_step(
         self,
         batch: Tensor,
+        sample_size: int = 100,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
         assert self.dvinp.decoder is not None
@@ -208,8 +210,8 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, context_size, x_dim)
         # (batch_size, context_size, y_dim)
 
-        x_data = x_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
-        y_data = y_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
+        x_data = x_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
@@ -263,16 +265,17 @@ class BetterBMLTrainer(Trainer):
         jsds = []
         bds = []
 
-        grid = create_grid(ranges, int(np.sqrt(x_data.shape[0] * x_data.shape[1])))
+        num_cells = int(np.sqrt(sample_size))
+        grid = create_grid(ranges, num_cells)
+        target_vals = eval_dist_on_grid(grid, target, device=self.device)
 
         for i in range(tp_samples.shape[0]):
-            target_vals = eval_dist_on_grid(
-                grid, target, x_data.shape[0], x_data.shape[1], device=self.device
-            )
-            tp_vals = eval_kde_on_grid(grid, tp_samples[i])
 
-            jsd = compute_jsd(target_vals, tp_vals)
-            bd = compute_bd(target_vals, tp_vals)
+            # tp_vals = eval_kde_on_grid(grid, tp_samples[i])
+            tp_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+
+            jsd = compute_jsd(target_vals[i], tp_vals)
+            bd = compute_bd(target_vals[i], tp_vals)
 
             jsds.append(jsd)
             bds.append(bd)

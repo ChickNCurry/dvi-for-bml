@@ -63,25 +63,20 @@ def eval_hist_on_grid(
 def eval_dist_on_grid(
     grid: NDArray[np.float32],
     dist: Distribution,
-    batch_size: int,
-    sample_size: int,
     device: torch.device,
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
     grid_flat = grid.reshape(-1, grid.shape[-1])
-    grid_tensor = torch.from_numpy(grid_flat).float().to(device)
-    # (dim1 * dim2 * ..., z_dim)
-
-    grid_tensor = grid_tensor.reshape(batch_size, sample_size, -1)
-    # (batch_size, sample_size, z_dim)
+    grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
+    # (1, dim1 * dim2 * ..., z_dim)
 
     vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
-    vals = vals / np.sum(vals) if np.sum(vals) != 0 else vals
-    # (dim1 * dim2 * ...)
+    vals = vals / np.sum(vals, axis=-1, keepdims=True)
+    # (batch_size, dim1 * dim2 * ...)
 
-    vals = vals.reshape(grid.shape[:-1])
-    # (dim1, dim2, ...)
+    vals = vals.reshape(vals.shape[0], *grid.shape[:-1])
+    # (batch_size, dim1, dim2, ...)
 
     return vals
 
@@ -94,7 +89,7 @@ def sample_from_vals(
     flat_vals = vals.reshape(-1)
     # (dim1 * dim2 * ...)
 
-    flat_vals = flat_vals / np.sum(flat_vals)
+    flat_vals = flat_vals / np.sum(flat_vals) if np.sum(flat_vals) != 0 else flat_vals
 
     flat_indices = np.random.choice(flat_vals.shape[0], size=num_samples, p=flat_vals)
     # (num_samples)

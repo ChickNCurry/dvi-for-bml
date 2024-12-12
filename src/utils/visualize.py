@@ -25,7 +25,6 @@ def visualize_dvinp_both(
     device: torch.device,
     dvinp: DVINP,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
-    config: DictConfig,
     num_samples: int,
     max_context_size: int,
     ranges: List[Tuple[float, float]],
@@ -139,9 +138,7 @@ def visualize_dvinp_both(
             num_cells,
         )
 
-        target_vals = eval_dist_on_grid(
-            grid, target, x_data.shape[0], x_data.shape[1], device=device
-        )
+        target_vals = eval_dist_on_grid(grid, target, device=device).squeeze(0)
         target_samples = sample_from_vals(grid, target_vals, num_samples)
         target_samples = torch.from_numpy(target_samples).unsqueeze(0).to(device)
 
