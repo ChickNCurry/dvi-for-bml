@@ -28,7 +28,7 @@ class AnnealingSchedule(Schedule):
         self.schedule = nn.ParameterList(
             [
                 nn.Parameter(torch.ones((self.z_dim), device=device) * beta)
-                for beta in np.linspace(min, 1, num_steps)
+                for beta in np.linspace(min, 1 - min, num_steps)
             ]
         )
 
