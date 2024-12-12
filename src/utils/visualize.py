@@ -10,8 +10,8 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import CDVI
-from src.components.decoder import LikelihoodTimesPrior
+from src.components.nn.decoder import DecoderTimesPrior
+from src.components.dvinp import DVINP
 from src.utils.grid import (
     create_grid,
     eval_dist_on_grid,
@@ -21,9 +21,9 @@ from src.utils.grid import (
 )
 
 
-def visualize_dvi_np_both(
+def visualize_dvinp_both(
     device: torch.device,
-    cdvi: CDVI,
+    dvinp: DVINP,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     config: DictConfig,
     num_samples: int,
@@ -72,43 +72,36 @@ def visualize_dvi_np_both(
         context = torch.cat([x_context, y_context], dim=-1)
         # (1, num_samples, context_size, x_dim + y_dim)
 
-        aggregated, non_aggregated = cdvi.encoder(context, None)
+        r_aggr, r_non_aggr = dvinp.encoder(context, None)
 
-        p_z_T = LikelihoodTimesPrior(
-            decoder=cdvi.decoder,
+        target = DecoderTimesPrior(
+            decoder=dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=None,
-            context_emb=(
-                non_aggregated if config.decoder.is_cross_attentive else aggregated
-            ),
         )
 
-        targets.append(p_z_T)
+        targets.append(target)
 
-        _, _, z_samples = cdvi.dvi_process.run_chain(
-            p_z_T,
-            (
-                aggregated
-                if cdvi.dvi_process.control is None
-                or not cdvi.dvi_process.control.is_cross_attentive
-                else non_aggregated
-            ),
-            None,
+        _, _, z_samples = dvinp.cdvi.run_chain(
+            target=target,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
+            mask=None,
         )
 
         tp_samples = z_samples[-1].cpu().detach().numpy()
         samples.append(tp_samples)
 
-        y_dist: Distribution = cdvi.decoder(
-            x_data,
+        y_dist: Distribution = dvinp.decoder(
             z_samples[-1],
-            (
-                aggregated
-                if cdvi.dvi_process.control is None
-                or not cdvi.dvi_process.control.is_cross_attentive
-                else non_aggregated
-            ),
+            x_data,
+            x_context,
+            r_aggr,
+            r_non_aggr,
             None,
         )
 
@@ -147,20 +140,17 @@ def visualize_dvi_np_both(
         )
 
         target_vals = eval_dist_on_grid(
-            grid, p_z_T, x_data.shape[0], x_data.shape[1], device=device
+            grid, target, x_data.shape[0], x_data.shape[1], device=device
         )
         target_samples = sample_from_vals(grid, target_vals, num_samples)
         target_samples = torch.from_numpy(target_samples).unsqueeze(0).to(device)
 
-        y_dist_test: Distribution = cdvi.decoder(
-            x_data,
+        y_dist_test: Distribution = dvinp.decoder(
             target_samples,
-            (
-                aggregated
-                if cdvi.dvi_process.control is None
-                or not cdvi.dvi_process.control.is_cross_attentive
-                else non_aggregated
-            ),
+            x_data,
+            x_context,
+            r_aggr,
+            r_non_aggr,
             None,
         )
 
@@ -205,9 +195,9 @@ def visualize_dvi_np_both(
     return targets, tp_samples  # type: ignore
 
 
-def visualize_dvi_np(
+def visualize_dvinp(
     device: torch.device,
-    cdvi: CDVI,
+    dvinp: DVINP,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     config: DictConfig,
     num_samples: int,
@@ -256,43 +246,36 @@ def visualize_dvi_np(
         context = torch.cat([x_context, y_context], dim=-1)
         # (1, num_samples, context_size, x_dim + y_dim)
 
-        aggregated, non_aggregated = cdvi.encoder(context, None)
+        r_aggr, r_non_aggr = dvinp.encoder(context, None)
 
-        p_z_T = LikelihoodTimesPrior(
-            decoder=cdvi.decoder,
+        target = DecoderTimesPrior(
+            decoder=dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=None,
-            context_emb=(
-                non_aggregated if config.decoder.is_cross_attentive else aggregated
-            ),
         )
 
-        targets.append(p_z_T)
+        targets.append(target)
 
-        _, _, z_samples = cdvi.dvi_process.run_chain(
-            p_z_T,
-            (
-                aggregated
-                if cdvi.dvi_process.control is None
-                or not cdvi.dvi_process.control.is_cross_attentive
-                else non_aggregated
-            ),
+        _, _, z_samples = dvinp.cdvi.run_chain(
+            target,
+            r_aggr,
+            r_non_aggr,
             None,
         )
 
         tp_samples = z_samples[-1].cpu().detach().numpy()
         samples.append(tp_samples)
 
-        y_dist: Distribution = cdvi.decoder(
-            x_data,
+        y_dist: Distribution = dvinp.decoder(
             z_samples[-1],
-            (
-                aggregated
-                if cdvi.dvi_process.control is None
-                or not cdvi.dvi_process.control.is_cross_attentive
-                else non_aggregated
-            ),
+            x_data,
+            x_context,
+            r_aggr,
+            r_non_aggr,
             None,
         )
 

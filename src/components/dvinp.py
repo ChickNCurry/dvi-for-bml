@@ -1,34 +1,25 @@
-from typing import Callable, Tuple
+from typing import Callable
 
-import torch
-from hydra.utils import instantiate
-from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.distributions import Distribution
-from torch.optim import Optimizer
-from torch.optim.adamw import AdamW
-from torch.utils.data import DataLoader, random_split
 
-from src.components.control import Control
-from src.components.decoder import Decoder
-from src.components.cdvi_process import CDVIProcess
-from src.components.encoder import Encoder, SetEncoder
-from src.components.hyper_net import HyperNet
-from src.utils.datasets import MetaLearningDataset
+from src.components.dvi.cdvi import CDVI
+from src.components.nn.decoder import Decoder
+from src.components.nn.encoder import Encoder
 
 
-class CDVI(nn.Module):
+class DVINP(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        dvi_process: CDVIProcess,
+        cdvi: CDVI,
         decoder: Decoder | None,
         contextual_target: Callable[[Tensor, Tensor | None], Distribution] | None,
     ) -> None:
         super().__init__()
 
         self.encoder = encoder
-        self.dvi_process = dvi_process
+        self.cdvi = cdvi
         self.decoder = decoder
         self.contextual_target = contextual_target
 
@@ -38,12 +29,12 @@ class CDVI(nn.Module):
                 param.requires_grad = False
             for param in self.encoder.parameters():
                 param.requires_grad = True
-            for param in self.dvi_process.parameters():
+            for param in self.cdvi.parameters():
                 param.requires_grad = True
         else:
             for param in self.decoder.parameters():
                 param.requires_grad = True
             for param in self.encoder.parameters():
                 param.requires_grad = False
-            for param in self.dvi_process.parameters():
+            for param in self.cdvi.parameters():
                 param.requires_grad = False

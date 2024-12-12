@@ -9,8 +9,8 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.components.cdvi import CDVI
-from src.components.decoder import LikelihoodTimesPrior
+from src.components.dvinp import DVINP
+from src.components.nn.decoder import DecoderTimesPrior
 from src.utils.grid import (
     compute_bd,
     compute_jsd,
@@ -24,7 +24,7 @@ class AlternatingBMLTrainer:
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_decoder_loader: DataLoader[Any],
         train_cdvi_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
@@ -33,7 +33,7 @@ class AlternatingBMLTrainer:
         num_subtasks: int = 32,
     ) -> None:
         self.device = device
-        self.cdvi = cdvi
+        self.cdvi = dvinp
         self.train_decoder_loader = train_decoder_loader
         self.train_cdvi_loader = train_cdvi_loader
         self.val_loader = val_loader
@@ -191,35 +191,29 @@ class AlternatingBMLTrainer:
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        aggregated, non_aggregated = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.cdvi.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, context_size, h_dim)
 
-        p_z_T = LikelihoodTimesPrior(
+        target = DecoderTimesPrior(
             decoder=self.cdvi.decoder,
             x_target=x_context,
             y_target=y_context,
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
-            context_emb=(
-                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
-            ),
         )
 
-        elbo, log_like, z_samples = self.cdvi.dvi_process.run_chain(
-            p_z_T=p_z_T,
-            context_emb=(
-                non_aggregated
-                if self.cdvi.dvi_process.control.is_cross_attentive
-                else aggregated
-            ),
+        elbo, log_like, z_samples = self.cdvi.cdvi.run_chain(
+            target=target,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
         )  # (num_steps, batch_size, num_subtasks, z_dim)
 
-        lmpl: Tensor = torch.median(
-            torch.logsumexp(p_z_T.log_like(z_samples[-1], x_data, y_data, None), dim=1)
-            - np.log(data.shape[1])
-        )
-
-        mse: Tensor = torch.median(p_z_T.mse(z_samples[-1], x_data, y_data).mean(1))
+        lmpl: Tensor = target.lmpl(z_samples[-1], x_data, y_data)
+        mse: Tensor = target.mse(z_samples[-1], x_data, y_data)
 
         return elbo, log_like, {"lmpl": lmpl.item(), "mse": mse.item()}
 
@@ -289,22 +283,23 @@ class AlternatingBMLTrainer:
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
-        aggr, non_aggr = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.cdvi.encoder(context, mask)
         # (batch_size, sample_size, h_dim)
 
-        p_z_T = LikelihoodTimesPrior(
+        target = DecoderTimesPrior(
             decoder=self.cdvi.decoder,
             x_target=x_context,
             y_target=y_context,
-            context_emb=(non_aggr if self.cdvi.decoder.is_cross_attentive else aggr),
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        _, _, z_samples = self.cdvi.dvi_process.run_chain(
-            p_z_T=p_z_T,
-            context_emb=(
-                non_aggr if self.cdvi.dvi_process.control.is_cross_attentive else aggr
-            ),
+        _, _, z_samples = self.cdvi.cdvi.run_chain(
+            target=target,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
         )  # (num_steps, batch_size, sample_size, z_dim)
 
@@ -318,7 +313,7 @@ class AlternatingBMLTrainer:
 
         for i in range(tp_samples.shape[0]):
             target_vals = eval_dist_on_grid(
-                grid, p_z_T, x_data.shape[0], x_data.shape[1], device=self.device
+                grid, target, x_data.shape[0], x_data.shape[1], device=self.device
             )
             tp_vals = eval_kde_on_grid(grid, tp_samples[i])
 

@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from src.train.train_bml import BetterBMLTrainer
 from src.train.train_bml_alternating import AlternatingBMLTrainer
-from src.utils.load import load_cdvi_for_bml
+from src.utils.load import load_dvinp
 
 
 @hydra.main(version_base=None, config_name="cfg", config_path="config")
@@ -17,7 +17,7 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cdvi, optimizer, train_loader, val_loader = load_cdvi_for_bml(
+    cdvi, optimizer, train_loader, val_loader = load_dvinp(
         cfg=cfg, alternating_ratio=cfg.training.alternating_ratio, device=device
     )
 
@@ -32,7 +32,7 @@ def run(cfg: DictConfig) -> None:
 
         trainer = BetterBMLTrainer(
             device=device,
-            cdvi=cdvi,
+            dvinp=cdvi,
             train_loader=train_loader,
             val_loader=val_loader,
             optimizer=optimizer,
@@ -45,7 +45,7 @@ def run(cfg: DictConfig) -> None:
 
         trainer = AlternatingBMLTrainer(
             device=device,
-            cdvi=cdvi,
+            dvinp=cdvi,
             train_decoder_loader=train_loader[0],
             train_cdvi_loader=train_loader[1],
             val_loader=val_loader,

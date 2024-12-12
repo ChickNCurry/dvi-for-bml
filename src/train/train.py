@@ -10,14 +10,14 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.components.cdvi import CDVI
+from src.components.dvinp import DVINP
 
 
 class Trainer(ABC):
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -26,7 +26,7 @@ class Trainer(ABC):
         num_subtasks: int = 32,
     ) -> None:
         self.device = device
-        self.cdvi = cdvi
+        self.dvinp = dvinp
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
@@ -48,7 +48,7 @@ class Trainer(ABC):
 
             if validate:
 
-                self.cdvi.eval()
+                self.dvinp.eval()
                 with torch.inference_mode(False):
 
                     loop = tqdm(self.val_loader, total=len(self.val_loader))
@@ -73,7 +73,7 @@ class Trainer(ABC):
                                 }
                             )
 
-            self.cdvi.train()
+            self.dvinp.train()
             with torch.inference_mode(False):
 
                 loop = tqdm(self.train_loader, total=len(self.train_loader))
@@ -87,7 +87,7 @@ class Trainer(ABC):
 
                     if max_clip_norm is not None:
                         torch.nn.utils.clip_grad_norm_(
-                            self.cdvi.parameters(), max_clip_norm
+                            self.dvinp.parameters(), max_clip_norm
                         )
 
                     self.optimizer.step()

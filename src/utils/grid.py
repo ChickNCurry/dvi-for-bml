@@ -94,6 +94,8 @@ def sample_from_vals(
     flat_vals = vals.reshape(-1)
     # (dim1 * dim2 * ...)
 
+    flat_vals = flat_vals / np.sum(flat_vals)
+
     flat_indices = np.random.choice(flat_vals.shape[0], size=num_samples, p=flat_vals)
     # (num_samples)
 

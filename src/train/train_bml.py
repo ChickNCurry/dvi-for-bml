@@ -7,8 +7,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import CDVI
-from src.components.decoder import LikelihoodTimesPrior
+from src.components.dvinp import DVINP
+from src.components.nn.decoder import DecoderTimesPrior
 from src.train.train import Trainer
 from src.utils.grid import (
     compute_bd,
@@ -23,7 +23,7 @@ class NoisyBMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -32,7 +32,7 @@ class NoisyBMLTrainer(Trainer):
     ) -> None:
         super().__init__(
             device,
-            cdvi,
+            dvinp,
             train_loader,
             val_loader,
             optimizer,
@@ -43,7 +43,7 @@ class NoisyBMLTrainer(Trainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.cdvi.decoder is not None
+        assert self.dvinp.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -65,24 +65,24 @@ class NoisyBMLTrainer(Trainer):
         context = torch.cat([x_context, y_context], dim=-1)
         # (batch_size, 1, context_size, x_dim + y_dim)
 
-        aggregated, non_aggregated = self.cdvi.encoder(context)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context)
         # (batch_size, 1, h_dim)
+        # (batch_size, 1, context_size, h_dim)
 
-        p_z_T = LikelihoodTimesPrior(
-            decoder=self.cdvi.decoder,
+        target = DecoderTimesPrior(
+            decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=None,
-            context_emb=(
-                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
-            ),
         )
 
-        elbo, _, _ = self.cdvi.dvi_process.run_chain(
-            p_z_T=p_z_T,
-            context_emb=(
-                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
-            ),
+        elbo, _, _ = self.dvinp.cdvi.run_chain(
+            target=target,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=None,
         )
 
@@ -95,7 +95,7 @@ class BetterBMLTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -105,7 +105,7 @@ class BetterBMLTrainer(Trainer):
     ) -> None:
         super().__init__(
             device,
-            cdvi,
+            dvinp,
             train_loader,
             val_loader,
             optimizer,
@@ -117,7 +117,7 @@ class BetterBMLTrainer(Trainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.cdvi.decoder is not None
+        assert self.dvinp.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -167,37 +167,31 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        aggregated, non_aggregated = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, context_size, h_dim)
 
-        p_z_T = LikelihoodTimesPrior(
-            decoder=self.cdvi.decoder,
+        target = DecoderTimesPrior(
+            decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
-            context_emb=(
-                non_aggregated if self.cdvi.decoder.is_cross_attentive else aggregated
-            ),
         )
 
-        elbo, _, z_samples = self.cdvi.dvi_process.run_chain(
-            p_z_T=p_z_T,
-            context_emb=(
-                non_aggregated
-                if self.cdvi.dvi_process.control.is_cross_attentive
-                else aggregated
-            ),
+        elbo, _, z_samples = self.dvinp.cdvi.run_chain(
+            target=target,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
         )  # (num_steps, batch_size, num_subtasks, z_dim)
 
         loss = -elbo
 
-        lmpl: Tensor = torch.median(
-            torch.logsumexp(p_z_T.log_like(z_samples[-1], x_data, y_data, None), dim=1)
-            - np.log(data.shape[1])
-        )
-
-        mse: Tensor = torch.median(p_z_T.mse(z_samples[-1], x_data, y_data).mean(1))
+        lmpl: Tensor = target.lmpl(z_samples[-1], x_data, y_data)
+        mse: Tensor = target.mse(z_samples[-1], x_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
@@ -206,7 +200,7 @@ class BetterBMLTrainer(Trainer):
         batch: Tensor,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
-        assert self.cdvi.decoder is not None
+        assert self.dvinp.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -245,23 +239,22 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
-        aggr, non_aggr = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
         # (batch_size, sample_size, h_dim)
+        # (batch_size, sample_size, context_size, h_dim)
 
-        p_z_T = LikelihoodTimesPrior(
-            decoder=self.cdvi.decoder,
+        target = DecoderTimesPrior(
+            decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
-            context_emb=(non_aggr if self.cdvi.decoder.is_cross_attentive else aggr),
+            x_context=x_context,
+            r_aggr=r_aggr,
+            r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        _, _, z_samples = self.cdvi.dvi_process.run_chain(
-            p_z_T=p_z_T,
-            context_emb=(
-                non_aggr if self.cdvi.dvi_process.control.is_cross_attentive else aggr
-            ),
-            mask=mask,
+        _, _, z_samples = self.dvinp.cdvi.run_chain(
+            target=target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
         )  # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()
@@ -274,7 +267,7 @@ class BetterBMLTrainer(Trainer):
 
         for i in range(tp_samples.shape[0]):
             target_vals = eval_dist_on_grid(
-                grid, p_z_T, x_data.shape[0], x_data.shape[1], device=self.device
+                grid, target, x_data.shape[0], x_data.shape[1], device=self.device
             )
             tp_vals = eval_kde_on_grid(grid, tp_samples[i])
 

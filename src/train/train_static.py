@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from src.components.cdvi import CDVI
+from src.components.dvinp import DVINP
 from src.train.train import Trainer
 
 
@@ -15,7 +15,7 @@ class StaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -24,7 +24,7 @@ class StaticTargetTrainer(Trainer):
     ) -> None:
         super().__init__(
             device,
-            cdvi,
+            dvinp,
             train_loader,
             val_loader,
             optimizer,
@@ -35,7 +35,7 @@ class StaticTargetTrainer(Trainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.cdvi.contextual_target is not None
+        assert self.dvinp.contextual_target is not None
 
         batch = batch.to(self.device).unsqueeze(1)
         # (batch_size, 1, context_size, c_dim)
@@ -44,12 +44,13 @@ class StaticTargetTrainer(Trainer):
         context = batch[:, :, 0:random_context_size, :]
         # (batch_size, 1, context_size, c_dim)
 
-        p_z_T = self.cdvi.contextual_target(context, None)
+        target = self.dvinp.contextual_target(context, None)
 
-        aggregated, _ = self.cdvi.encoder(context, None)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, None)
         # (batch_size, 1, h_dim)
+        # (batch_size, 1, context_size, h_dim)
 
-        elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, None)
+        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r_aggr, r_non_aggr, None)
 
         loss = -elbo
 
@@ -63,7 +64,7 @@ class BetterStaticTargetTrainer(Trainer):
     def __init__(
         self,
         device: torch.device,
-        cdvi: CDVI,
+        dvinp: DVINP,
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -72,7 +73,7 @@ class BetterStaticTargetTrainer(Trainer):
     ) -> None:
         super().__init__(
             device,
-            cdvi,
+            dvinp,
             train_loader,
             val_loader,
             optimizer,
@@ -83,7 +84,7 @@ class BetterStaticTargetTrainer(Trainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.cdvi.contextual_target is not None
+        assert self.dvinp.contextual_target is not None
 
         batch = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
         # (batch_size, num_subtasks, context_size, c_dim)
@@ -108,13 +109,14 @@ class BetterStaticTargetTrainer(Trainer):
         context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, batch.shape[-1])
         # (batch_size, num_subtasks, context_size, c_dim)
 
-        p_z_T = self.cdvi.contextual_target(context, mask)
+        target = self.dvinp.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        aggregated, _ = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
         # (batch_size, num_subtasks, c_dim)
+        # (batch_size, num_subtasks, context_size, c_dim)
 
-        elbo, _, _ = self.cdvi.dvi_process.run_chain(p_z_T, aggregated, mask)
+        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r_aggr, r_non_aggr, mask)
 
         loss = -elbo
 

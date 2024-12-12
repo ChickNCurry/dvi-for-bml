@@ -27,30 +27,31 @@ common:
     h_dim: 64
     num_layers: 6
     non_linearity: SiLU
-control_and_hyper_net:
-    use_hyper_net: false
+control:
     is_cross_attentive: false
-    num_heads: 1
+    num_heads: null
 decoder:
     has_lat_path: true
     has_det_path: false
     is_cross_attentive: false
-    num_heads: 1
-dvi_process:
-    _target_: src.components.cdvi_process.DIS
+    num_heads: null
+cdvi:
+    _target_: src.components.dvi.dis.DIS
     num_steps: 16
 set_encoder:
     aggregation: max
-    is_attentive: true
-    use_context_size: false
+    is_attentive: false
+    num_heads: null
+    use_context_size_emb: false
 training:
     batch_size: 128
     learning_rate: 0.0003
     num_epochs: 3000
-    alternating_ratio: 0.2
+    alternating_ratio: null
+    num_val_tasks: 32
     max_clip_norm: 0.5
     alpha: 1.0
 wandb:
     logging: true
-    project: cdvi-bml-alternating
+    project: dvi-np-cluster
 

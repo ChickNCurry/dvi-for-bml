@@ -2,7 +2,7 @@ module load devel/miniconda
 conda activate dvi-for-bml
 which python
 
-python run.py --multirun \
+python ../run.py --multirun \
 hydra=gpu_dev \
 wandb.project=test \
 common.h_dim=64 \
