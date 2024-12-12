@@ -13,7 +13,26 @@ from tqdm import tqdm
 from src.components.dvinp import DVINP
 
 
-class Trainer(ABC):
+class AbstractTrainer(ABC):
+    def __init__(
+        self, optimizer: Optimizer, wandb_logging: bool, val_loader: DataLoader[Any]
+    ) -> None:
+        self.optimizer = optimizer
+        self.wandb_logging = wandb_logging
+        self.val_loader = val_loader
+
+    @abstractmethod
+    def train(
+        self,
+        num_epochs: int,
+        max_clip_norm: float | None,
+        alpha: float | None,
+        validate: bool = False,
+    ) -> None:
+        raise NotImplementedError
+
+
+class Trainer(AbstractTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -25,6 +44,8 @@ class Trainer(ABC):
         wandb_logging: bool,
         num_subtasks: int = 32,
     ) -> None:
+        super().__init__(optimizer, wandb_logging, val_loader)
+
         self.device = device
         self.dvinp = dvinp
         self.train_loader = train_loader

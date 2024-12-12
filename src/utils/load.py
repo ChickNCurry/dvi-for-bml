@@ -1,10 +1,9 @@
-from typing import Tuple
+from typing import Any, Tuple, cast
 
 import torch
 from hydra.utils import instantiate
 from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from omegaconf import DictConfig
-from torch.optim import Optimizer
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
@@ -13,13 +12,16 @@ from src.components.dvinp import DVINP
 from src.components.nn.control import Control
 from src.components.nn.decoder import Decoder
 from src.components.nn.encoder import Aggr, SetEncoder
+from src.train.train import AbstractTrainer
+from src.train.train_bml import BetterBMLTrainer
+from src.train.train_bml_alternating import AlternatingBMLTrainer
 from src.utils.datasets import MetaLearningDataset
 
 
 def load_dvinp(
     cfg: DictConfig,
     device: torch.device,
-) -> Tuple[DVINP, Optimizer, DataLoader, DataLoader | Tuple[DataLoader, DataLoader]]:
+) -> Tuple[DVINP, AbstractTrainer]:
 
     benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
@@ -109,4 +111,25 @@ def load_dvinp(
 
     optimizer = AdamW(dvinp.parameters(), lr=cfg.training.learning_rate)
 
-    return dvinp, optimizer, val_loader, train_loader
+    trainer: AbstractTrainer = (
+        BetterBMLTrainer(
+            device=device,
+            dvinp=dvinp,
+            train_loader=cast(DataLoader[Any], train_loader),
+            val_loader=val_loader,
+            optimizer=optimizer,
+            scheduler=None,
+            wandb_logging=cfg.wandb.logging,
+        )
+        if cfg.training.alternating_ratio is None
+        else AlternatingBMLTrainer(
+            device=device,
+            dvinp=dvinp,
+            train_loader=cast(Tuple[DataLoader[Any], DataLoader[Any]], train_loader),
+            val_loader=val_loader,
+            optimizer=optimizer,
+            wandb_logging=cfg.wandb.logging,
+        )
+    )
+
+    return dvinp, trainer

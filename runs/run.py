@@ -17,34 +17,13 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dvinp, optimizer, val_loader, train_loader = load_dvinp(cfg=cfg, device=device)
+    dvinp, trainer = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
         wandb.init(
             project=cfg.wandb.project,
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
-
-    trainer: BetterBMLTrainer | AlternatingBMLTrainer = (
-        BetterBMLTrainer(
-            device=device,
-            dvinp=dvinp,
-            train_loader=cast(DataLoader[Any], train_loader),
-            val_loader=val_loader,
-            optimizer=optimizer,
-            scheduler=None,
-            wandb_logging=cfg.wandb.logging,
-        )
-        if cfg.training.alternating_ratio is None
-        else AlternatingBMLTrainer(
-            device=device,
-            dvinp=dvinp,
-            train_loader=cast(Tuple[DataLoader[Any], DataLoader[Any]], train_loader),
-            val_loader=val_loader,
-            optimizer=optimizer,
-            wandb_logging=cfg.wandb.logging,
-        )
-    )
 
     trainer.train(
         num_epochs=cfg.training.num_epochs,
@@ -66,7 +45,7 @@ def run(cfg: DictConfig) -> None:
         cfg_path = os.path.join(dir, "cfg.yaml")
 
         torch.save(dvinp.state_dict(), model_path)
-        torch.save(optimizer.state_dict(), optim_path)
+        torch.save(trainer.optimizer.state_dict(), optim_path)
         with open(cfg_path, "w") as f:
             OmegaConf.save(cfg, f)
 

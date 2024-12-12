@@ -19,9 +19,10 @@ from src.utils.grid import (
     eval_hist_on_grid,
     eval_kde_on_grid,
 )
+from src.train.train import AbstractTrainer
 
 
-class AlternatingBMLTrainer:
+class AlternatingBMLTrainer(AbstractTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -32,6 +33,8 @@ class AlternatingBMLTrainer:
         wandb_logging: bool,
         num_subtasks: int = 32,
     ) -> None:
+        super().__init__(optimizer, wandb_logging, val_loader)
+
         self.device = device
         self.dvinp = dvinp
         self.train_decoder_loader, self.train_cdvi_loader = train_loader
