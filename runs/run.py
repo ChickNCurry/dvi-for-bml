@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, Tuple, cast
 
 import hydra
 import torch
@@ -17,9 +17,7 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cdvi, optimizer, train_loader, val_loader = load_dvinp(
-        cfg=cfg, alternating_ratio=cfg.training.alternating_ratio, device=device
-    )
+    dvinp, optimizer, val_loader, train_loader = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
         wandb.init(
@@ -27,31 +25,26 @@ def run(cfg: DictConfig) -> None:
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
 
-    if cfg.training.alternating_ratio is None:
-        # assert type(train_loader) == DataLoader[Any]
-
-        trainer = BetterBMLTrainer(
+    trainer: BetterBMLTrainer | AlternatingBMLTrainer = (
+        BetterBMLTrainer(
             device=device,
-            dvinp=cdvi,
-            train_loader=train_loader,
+            dvinp=dvinp,
+            train_loader=cast(DataLoader[Any], train_loader),
             val_loader=val_loader,
             optimizer=optimizer,
             scheduler=None,
             wandb_logging=cfg.wandb.logging,
         )
-
-    else:
-        # assert type(train_loader) == tuple[DataLoader[Any], DataLoader[Any]]
-
-        trainer = AlternatingBMLTrainer(
+        if cfg.training.alternating_ratio is None
+        else AlternatingBMLTrainer(
             device=device,
-            dvinp=cdvi,
-            train_decoder_loader=train_loader[0],
-            train_cdvi_loader=train_loader[1],
+            dvinp=dvinp,
+            train_loader=cast(Tuple[DataLoader[Any], DataLoader[Any]], train_loader),
             val_loader=val_loader,
             optimizer=optimizer,
             wandb_logging=cfg.wandb.logging,
         )
+    )
 
     trainer.train(
         num_epochs=cfg.training.num_epochs,
@@ -72,7 +65,7 @@ def run(cfg: DictConfig) -> None:
         optim_path = os.path.join(dir, "optim.pth")
         cfg_path = os.path.join(dir, "cfg.yaml")
 
-        torch.save(cdvi.state_dict(), model_path)
+        torch.save(dvinp.state_dict(), model_path)
         torch.save(optimizer.state_dict(), optim_path)
         with open(cfg_path, "w") as f:
             OmegaConf.save(cfg, f)

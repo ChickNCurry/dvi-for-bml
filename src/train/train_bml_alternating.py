@@ -16,6 +16,7 @@ from src.utils.grid import (
     compute_jsd,
     create_grid,
     eval_dist_on_grid,
+    eval_hist_on_grid,
     eval_kde_on_grid,
 )
 
@@ -25,17 +26,15 @@ class AlternatingBMLTrainer:
         self,
         device: torch.device,
         dvinp: DVINP,
-        train_decoder_loader: DataLoader[Any],
-        train_cdvi_loader: DataLoader[Any],
+        train_loader: Tuple[DataLoader[Any], DataLoader[Any]],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         wandb_logging: bool,
         num_subtasks: int = 32,
     ) -> None:
         self.device = device
-        self.cdvi = dvinp
-        self.train_decoder_loader = train_decoder_loader
-        self.train_cdvi_loader = train_cdvi_loader
+        self.dvinp = dvinp
+        self.train_decoder_loader, self.train_cdvi_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
         self.wandb_logging = wandb_logging
@@ -57,7 +56,7 @@ class AlternatingBMLTrainer:
 
             if validate:
 
-                self.cdvi.eval()
+                self.dvinp.eval()
                 with torch.inference_mode(False):
 
                     loop = tqdm(self.val_loader, total=len(self.val_loader))
@@ -82,7 +81,7 @@ class AlternatingBMLTrainer:
                                 }
                             )
 
-            self.cdvi.train()
+            self.dvinp.train()
             with torch.inference_mode(False):
 
                 loop = tqdm(
@@ -106,7 +105,7 @@ class AlternatingBMLTrainer:
 
                     if max_clip_norm is not None:
                         torch.nn.utils.clip_grad_norm_(
-                            self.cdvi.parameters(), max_clip_norm
+                            self.dvinp.parameters(), max_clip_norm
                         )
 
                     self.optimizer.step()
@@ -141,7 +140,7 @@ class AlternatingBMLTrainer:
     def setup_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Tensor, Dict[str, float]]:
-        assert self.cdvi.decoder is not None
+        assert self.dvinp.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -191,12 +190,12 @@ class AlternatingBMLTrainer:
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        r_aggr, r_non_aggr = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, context_size, h_dim)
 
         target = DecoderTimesPrior(
-            decoder=self.cdvi.decoder,
+            decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
             x_context=x_context,
@@ -205,7 +204,7 @@ class AlternatingBMLTrainer:
             mask=mask,
         )
 
-        elbo, log_like, z_samples = self.cdvi.cdvi.run_chain(
+        elbo, log_like, z_samples = self.dvinp.cdvi.run_chain(
             target=target,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
@@ -220,7 +219,7 @@ class AlternatingBMLTrainer:
     def train_step_decoder(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        self.cdvi.freeze(only_decoder=False)
+        self.dvinp.freeze(only_decoder=False)
 
         _, log_like, metrics = self.setup_step(batch, alpha)
 
@@ -231,7 +230,7 @@ class AlternatingBMLTrainer:
     def train_step_cdvi(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        self.cdvi.freeze(only_decoder=True)
+        self.dvinp.freeze(only_decoder=True)
 
         elbo, _, metrics = self.setup_step(batch, alpha)
 
@@ -242,9 +241,10 @@ class AlternatingBMLTrainer:
     def val_step(
         self,
         batch: Tensor,
+        sample_size: int = 100,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
-        assert self.cdvi.decoder is not None
+        assert self.dvinp.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -252,8 +252,8 @@ class AlternatingBMLTrainer:
         # (batch_size, context_size, x_dim)
         # (batch_size, context_size, y_dim)
 
-        x_data = x_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
-        y_data = y_data.unsqueeze(1).expand(-1, x_data.shape[0], -1, -1)
+        x_data = x_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
@@ -283,11 +283,12 @@ class AlternatingBMLTrainer:
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
-        r_aggr, r_non_aggr = self.cdvi.encoder(context, mask)
+        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
         # (batch_size, sample_size, h_dim)
+        # (batch_size, sample_size, context_size, h_dim)
 
         target = DecoderTimesPrior(
-            decoder=self.cdvi.decoder,
+            decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
             x_context=x_context,
@@ -296,11 +297,8 @@ class AlternatingBMLTrainer:
             mask=mask,
         )
 
-        _, _, z_samples = self.cdvi.cdvi.run_chain(
-            target=target,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
-            mask=mask,
+        _, _, z_samples = self.dvinp.cdvi.run_chain(
+            target=target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
         )  # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()
@@ -309,16 +307,17 @@ class AlternatingBMLTrainer:
         jsds = []
         bds = []
 
-        grid = create_grid(ranges, int(np.sqrt(x_data.shape[0] * x_data.shape[1])))
+        num_cells = int(np.sqrt(sample_size))
+        grid = create_grid(ranges, num_cells)
+        target_vals = eval_dist_on_grid(grid, target, device=self.device)
 
         for i in range(tp_samples.shape[0]):
-            target_vals = eval_dist_on_grid(
-                grid, target, x_data.shape[0], x_data.shape[1], device=self.device
-            )
-            tp_vals = eval_kde_on_grid(grid, tp_samples[i])
 
-            jsd = compute_jsd(target_vals, tp_vals)
-            bd = compute_bd(target_vals, tp_vals)
+            # tp_vals = eval_kde_on_grid(grid, tp_samples[i])
+            tp_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+
+            jsd = compute_jsd(target_vals[i], tp_vals)
+            bd = compute_bd(target_vals[i], tp_vals)
 
             jsds.append(jsd)
             bds.append(bd)
