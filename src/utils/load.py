@@ -1,5 +1,7 @@
-from typing import Any, Tuple, cast
+import random
+from typing import Tuple
 
+import numpy as np
 import torch
 from hydra.utils import instantiate
 from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
@@ -23,6 +25,13 @@ def load_dvinp(
     device: torch.device,
 ) -> Tuple[DVINP, AbstractTrainer]:
 
+    torch.manual_seed(cfg.training.seed)
+    random.seed(cfg.training.seed)
+    np.random.seed(cfg.training.seed)
+
+    g = torch.Generator()
+    g.manual_seed(cfg.training.seed)
+
     benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark=benchmark)
 
@@ -33,7 +42,12 @@ def load_dvinp(
             [len(dataset) - cfg.training.num_val_tasks, cfg.training.num_val_tasks],
         )
 
-        train_loader = DataLoader(train_set, cfg.training.batch_size, True)
+        train_loader = DataLoader(
+            dataset=train_set,
+            batch_size=cfg.training.batch_size,
+            shuffle=True,
+            generator=g,
+        )
 
     else:
 
@@ -47,14 +61,25 @@ def load_dvinp(
         )
 
         train_decoder_loader = DataLoader(
-            train_decoder_set, cfg.training.batch_size, True
+            dataset=train_decoder_set,
+            batch_size=cfg.training.batch_size,
+            shuffle=True,
+            generator=g,
         )
 
-        train_cdvi_loader = DataLoader(train_cdvi_set, cfg.training.batch_size, True)
+        train_cdvi_loader = DataLoader(
+            dataset=train_cdvi_set,
+            batch_size=cfg.training.batch_size,
+            shuffle=True,
+            generator=g,
+        )
 
-        train_loader = (train_decoder_loader, train_cdvi_loader)
-
-    val_loader = DataLoader(val_set, cfg.training.num_val_tasks, False)
+    val_loader = DataLoader(
+        dataset=val_set,
+        batch_size=cfg.training.num_val_tasks,
+        shuffle=False,
+        generator=g,
+    )
 
     set_encoder = SetEncoder(
         c_dim=cfg.common.c_dim,
@@ -115,20 +140,25 @@ def load_dvinp(
         BetterBMLTrainer(
             device=device,
             dvinp=dvinp,
-            train_loader=cast(DataLoader[Any], train_loader),
+            dataset=dataset,
+            train_loader=train_loader,
             val_loader=val_loader,
             optimizer=optimizer,
             scheduler=None,
             wandb_logging=cfg.wandb.logging,
+            num_subtasks=cfg.training.num_subtasks,
         )
         if cfg.training.alternating_ratio is None
         else AlternatingBMLTrainer(
             device=device,
             dvinp=dvinp,
-            train_loader=cast(Tuple[DataLoader[Any], DataLoader[Any]], train_loader),
+            dataset=dataset,
+            train_decoder_loader=train_decoder_loader,
+            train_cdvi_loader=train_cdvi_loader,
             val_loader=val_loader,
             optimizer=optimizer,
             wandb_logging=cfg.wandb.logging,
+            num_subtasks=cfg.training.num_subtasks,
         )
     )
 

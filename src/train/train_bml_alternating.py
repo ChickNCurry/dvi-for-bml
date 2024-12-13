@@ -6,7 +6,7 @@ import torch
 import wandb
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from src.components.dvinp import DVINP
@@ -27,17 +27,21 @@ class AlternatingBMLTrainer(AbstractTrainer):
         self,
         device: torch.device,
         dvinp: DVINP,
-        train_loader: Tuple[DataLoader[Any], DataLoader[Any]],
+        dataset: Dataset[Any],
+        train_decoder_loader: DataLoader[Any],
+        train_cdvi_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         wandb_logging: bool,
-        num_subtasks: int = 32,
+        num_subtasks: int,
     ) -> None:
         super().__init__(optimizer, wandb_logging, val_loader)
 
         self.device = device
         self.dvinp = dvinp
-        self.train_decoder_loader, self.train_cdvi_loader = train_loader
+        self.dataset = dataset
+        self.train_decoder_loader = train_decoder_loader
+        self.train_cdvi_loader = train_cdvi_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
         self.wandb_logging = wandb_logging

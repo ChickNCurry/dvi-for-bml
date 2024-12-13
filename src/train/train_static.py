@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from src.components.dvinp import DVINP
 from src.train.train import Trainer
@@ -16,6 +16,7 @@ class StaticTargetTrainer(Trainer):
         self,
         device: torch.device,
         dvinp: DVINP,
+        dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -65,6 +66,7 @@ class BetterStaticTargetTrainer(Trainer):
         self,
         device: torch.device,
         dvinp: DVINP,
+        dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -74,6 +76,7 @@ class BetterStaticTargetTrainer(Trainer):
         super().__init__(
             device,
             dvinp,
+            dataset,
             train_loader,
             val_loader,
             optimizer,

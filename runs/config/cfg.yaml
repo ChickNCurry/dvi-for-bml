@@ -45,12 +45,14 @@ set_encoder:
     use_context_size_emb: false
 training:
     batch_size: 128
+    num_subtasks: 32
+    num_val_tasks: 32
     learning_rate: 0.0003
     num_epochs: 3000
     alternating_ratio: null
-    num_val_tasks: 32
     max_clip_norm: 0.5
     alpha: 1.0
+    seed: 0
 wandb:
     logging: true
     project: dvi-np-cluster

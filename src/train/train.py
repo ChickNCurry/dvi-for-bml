@@ -7,7 +7,7 @@ import wandb
 from torch import Tensor
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from src.components.dvinp import DVINP
@@ -15,11 +15,11 @@ from src.components.dvinp import DVINP
 
 class AbstractTrainer(ABC):
     def __init__(
-        self, optimizer: Optimizer, wandb_logging: bool, val_loader: DataLoader[Any]
+        self, optimizer: Optimizer, wandb_logging: bool, dataset: Dataset[Any]
     ) -> None:
         self.optimizer = optimizer
         self.wandb_logging = wandb_logging
-        self.val_loader = val_loader
+        self.dataset = dataset
 
     @abstractmethod
     def train(
@@ -37,17 +37,19 @@ class Trainer(AbstractTrainer):
         self,
         device: torch.device,
         dvinp: DVINP,
+        dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
-        num_subtasks: int = 32,
+        num_subtasks: int,
     ) -> None:
-        super().__init__(optimizer, wandb_logging, val_loader)
+        super().__init__(optimizer, wandb_logging, dataset)
 
         self.device = device
         self.dvinp = dvinp
+        self.dataset = dataset
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer

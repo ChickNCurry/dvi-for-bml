@@ -49,7 +49,7 @@ def visualize_dvinp_both(
     # (num_samples, context_size, y_dim)
 
     fig = plt.figure(
-        figsize=(12, 3 * max_context_size * 2),
+        figsize=(15, 3 * max_context_size),
         constrained_layout=True,
     )
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
@@ -59,7 +59,7 @@ def visualize_dvinp_both(
 
     for row, subfig in enumerate(subfigs):
         subfig.suptitle(f"context size: {row + 1}")
-        ax = subfig.subplots(nrows=2, ncols=2, width_ratios=[3, 1])
+        ax = subfig.subplots(nrows=1, ncols=4, width_ratios=[2, 1, 1, 2])
 
         context_size = row + 1
 
@@ -108,7 +108,7 @@ def visualize_dvinp_both(
         # (num_samples, target_size, y_dim)
 
         for k in range(num_samples):
-            ax[0][0].plot(
+            ax[0].plot(
                 x_data_sorted[k].squeeze(-1),
                 y_mu_sorted[k].squeeze(-1),
                 alpha=0.2,
@@ -116,8 +116,8 @@ def visualize_dvinp_both(
                 zorder=0,
             )
 
-        ax[0][0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
-        ax[0][0].scatter(
+        ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[0].scatter(
             x_context.cpu().detach().numpy(),
             y_context.cpu().detach().numpy(),
             marker="X",
@@ -126,7 +126,7 @@ def visualize_dvinp_both(
             zorder=2,
         )
 
-        ax[0][0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
+        ax[0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
 
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
@@ -156,7 +156,7 @@ def visualize_dvinp_both(
         )
 
         for k in range(num_samples):
-            ax[1][0].plot(
+            ax[3].plot(
                 x_data_sorted[k].squeeze(-1),
                 y_mu_test_sorted[k].squeeze(-1),
                 alpha=0.2,
@@ -164,8 +164,8 @@ def visualize_dvinp_both(
                 zorder=0,
             )
 
-        ax[1][0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
-        ax[1][0].scatter(
+        ax[3].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[3].scatter(
             x_context.cpu().detach().numpy(),
             y_context.cpu().detach().numpy(),
             marker="X",
@@ -174,18 +174,17 @@ def visualize_dvinp_both(
             zorder=2,
         )
 
-        ax[1][0].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
+        ax[3].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
 
-        ax[0][1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[0][1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
+        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
 
-        ax[1][1].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[1][1].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
+        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[2].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
 
         for a in ax:
-            for b in a:
-                b.set_xticks([])
-                b.set_yticks([])
+            a.set_xticks([])
+            a.set_yticks([])
 
     plt.show()
 

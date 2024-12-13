@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from src.components.dvinp import DVINP
 from src.components.nn.decoder import DecoderTimesPrior
@@ -25,6 +25,7 @@ class NoisyBMLTrainer(Trainer):
         self,
         device: torch.device,
         dvinp: DVINP,
+        dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
@@ -34,6 +35,7 @@ class NoisyBMLTrainer(Trainer):
         super().__init__(
             device,
             dvinp,
+            dataset,
             train_loader,
             val_loader,
             optimizer,
@@ -97,16 +99,18 @@ class BetterBMLTrainer(Trainer):
         self,
         device: torch.device,
         dvinp: DVINP,
+        dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
-        num_subtasks: int = 32,
+        num_subtasks: int,
     ) -> None:
         super().__init__(
             device,
             dvinp,
+            dataset,
             train_loader,
             val_loader,
             optimizer,
