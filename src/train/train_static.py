@@ -22,15 +22,20 @@ class StaticTargetTrainer(Trainer):
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
+        num_subtasks: int,
+        sample_size: int,
     ) -> None:
         super().__init__(
             device,
             dvinp,
+            dataset,
             train_loader,
             val_loader,
             optimizer,
             scheduler,
             wandb_logging,
+            num_subtasks,
+            sample_size,
         )
 
     def train_step(
@@ -72,6 +77,8 @@ class BetterStaticTargetTrainer(Trainer):
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
+        num_subtasks: int,
+        sample_size: int,
     ) -> None:
         super().__init__(
             device,
@@ -82,6 +89,8 @@ class BetterStaticTargetTrainer(Trainer):
             optimizer,
             scheduler,
             wandb_logging,
+            num_subtasks,
+            sample_size,
         )
 
     def train_step(

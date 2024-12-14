@@ -1,5 +1,16 @@
+from typing import Callable
 import torch
 from torch import Tensor, nn
+
+
+class Lambda(nn.Module):
+    def __init__(self, func: Callable[[Tensor], Tensor]) -> None:
+        super(Lambda, self).__init__()
+        self.func = func
+
+    def forward(self, x: Tensor) -> Tensor:
+        print(x.shape)
+        return self.func(x)
 
 
 class Control(nn.Module):
@@ -17,6 +28,7 @@ class Control(nn.Module):
 
         self.is_cross_attentive = is_cross_attentive
         self.num_heads = num_heads
+        self.non_linearity = non_linearity
 
         self.proj_t = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
@@ -28,13 +40,18 @@ class Control(nn.Module):
         self.mlp = nn.Sequential(
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for layer in (
+                    nn.BatchNorm1d(h_dim),
+                    getattr(nn, non_linearity)(),
+                    nn.Linear(h_dim, h_dim),
+                )
                 for _ in range(num_layers - 2)
             ],
+            nn.BatchNorm1d(h_dim),
             getattr(nn, non_linearity)()
         )
 
-        self.proj_control = nn.Linear(h_dim, z_dim)
+        self.proj_out = nn.Linear(h_dim, z_dim)
 
     def forward(
         self,
@@ -82,7 +99,15 @@ class Control(nn.Module):
             h = h + r_aggr
             # (batch_size, num_subtasks, h_dim)
 
-        control_t: Tensor = self.proj_control(self.mlp(h))
+        h = h.view(batch_size * num_subtasks, -1)
+        z = z.view(batch_size * num_subtasks, -1)
+        # (batch_size * num_subtasks, h_dim)
+
+        control_t: Tensor = getattr(nn, self.non_linearity)()(
+            self.proj_out(self.mlp(h)) + z
+        )  # (batch_size * num_subtasks, z_dim)
+
+        control_t = control_t.view(batch_size, num_subtasks, -1)
         # (batch_size, num_subtasks, z_dim)
 
         return control_t

@@ -44,6 +44,7 @@ class Trainer(AbstractTrainer):
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
         num_subtasks: int,
+        sample_size: int,
     ) -> None:
         super().__init__(optimizer, wandb_logging, dataset)
 
@@ -56,6 +57,7 @@ class Trainer(AbstractTrainer):
         self.scheduler = scheduler
         self.wandb_logging = wandb_logging
         self.num_subtasks = num_subtasks
+        self.sample_size = sample_size
 
     def train(
         self,

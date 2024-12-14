@@ -26,12 +26,14 @@ def eval_kde_on_grid(
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim), (num_samples, z_dim)
 
+    eps = 1e-10
+
     grid_flat = grid.reshape(-1, grid.shape[-1])
     # (dim1 * dim2 * ..., z_dim)
 
     kde = gaussian_kde(samples.T)
     vals: NDArray[np.float32] = kde(grid_flat.T)
-    vals = vals / np.sum(vals) if np.sum(vals) != 0 else vals
+    vals = vals / (np.sum(vals) + eps)
     # (dim1 * dim2 * ...)
 
     vals = vals.reshape(grid.shape[:-1])
@@ -45,6 +47,8 @@ def eval_hist_on_grid(
 ) -> NDArray[np.float32]:
     # (num_samples, z_dim)
 
+    eps = 1e-10
+
     step_sizes = [(max - min) / num_cells for min, max in ranges]
     outer_edges = [
         (min - step_size, max + step_size)
@@ -52,7 +56,7 @@ def eval_hist_on_grid(
     ]
 
     vals, _ = np.histogramdd(samples, bins=num_cells, range=outer_edges, density=True)
-    vals = vals / np.sum(vals) if np.sum(vals) != 0 else vals
+    vals = vals / (np.sum(vals) + eps)
     # (dim1, dim2, ...)
 
     vals = vals.T  # TODO: why transpose needed?
@@ -67,12 +71,14 @@ def eval_dist_on_grid(
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
+    eps = 1e-10
+
     grid_flat = grid.reshape(-1, grid.shape[-1])
     grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
     # (1, dim1 * dim2 * ..., z_dim)
 
     vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
-    vals = vals / np.sum(vals, axis=-1, keepdims=True)
+    vals = vals / (np.sum(vals, axis=-1, keepdims=True) + eps)
     # (batch_size, dim1 * dim2 * ...)
 
     vals = vals.reshape(vals.shape[0], *grid.shape[:-1])
@@ -118,10 +124,12 @@ def sample_from_vals(
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ...)
 
+    eps = 1e-10
+
     flat_vals = vals.reshape(-1)
     # (dim1 * dim2 * ...)
 
-    flat_vals = flat_vals / np.sum(flat_vals) if np.sum(flat_vals) != 0 else flat_vals
+    # flat_vals = flat_vals / (np.sum(flat_vals) + eps)
 
     flat_indices = np.random.choice(flat_vals.shape[0], size=num_samples, p=flat_vals)
     # (num_samples)

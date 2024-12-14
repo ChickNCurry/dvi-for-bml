@@ -33,7 +33,9 @@ def load_dvinp(
     g.manual_seed(cfg.training.seed)
 
     benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
-    dataset = MetaLearningDataset(benchmark=benchmark)
+    dataset = MetaLearningDataset(
+        benchmark=benchmark, max_context_size=cfg.training.max_context_size
+    )
 
     if cfg.training.alternating_ratio is None:
 
@@ -101,7 +103,7 @@ def load_dvinp(
         h_dim=cfg.common.h_dim,
         z_dim=cfg.common.z_dim,
         num_steps=cfg.cdvi.num_steps,
-        num_layers=cfg.common.num_layers,
+        num_layers=3,  # cfg.common.num_layers,
         non_linearity=cfg.common.non_linearity,
         is_cross_attentive=cfg.control.is_cross_attentive,
         num_heads=cfg.control.num_heads,
@@ -147,6 +149,7 @@ def load_dvinp(
             scheduler=None,
             wandb_logging=cfg.wandb.logging,
             num_subtasks=cfg.training.num_subtasks,
+            sample_size=cfg.training.sample_size,
         )
         if cfg.training.alternating_ratio is None
         else AlternatingBMLTrainer(

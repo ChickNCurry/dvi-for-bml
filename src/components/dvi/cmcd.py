@@ -74,8 +74,8 @@ class CMCD(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = torch.nan_to_num(z_mu, nan=0.0)
-        z_sigma = torch.nan_to_num(z_sigma, nan=0.0)
+        z_mu = torch.nan_to_num(z_mu)
+        z_sigma = torch.nan_to_num(z_sigma)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
@@ -112,8 +112,8 @@ class CMCD(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = torch.nan_to_num(z_mu, nan=0.0)
-        z_sigma = torch.nan_to_num(z_sigma, nan=0.0)
+        z_mu = torch.nan_to_num(z_mu)
+        z_sigma = torch.nan_to_num(z_sigma)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 

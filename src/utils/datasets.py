@@ -60,9 +60,12 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
     def __init__(
         self,
         benchmark: MetaLearningBenchmark,
+        max_context_size: int,
     ) -> None:
         self.benchmark = benchmark
-        self.max_context_size = self.benchmark.n_datapoints_per_task
+        self.max_context_size = max_context_size
+
+        assert self.max_context_size <= self.benchmark.n_datapoints_per_task
 
     def __len__(self) -> int:
         return self.benchmark.n_task  # type: ignore

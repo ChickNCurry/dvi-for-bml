@@ -31,6 +31,8 @@ class NoisyBMLTrainer(Trainer):
         optimizer: Optimizer,
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
+        num_subtasks: int,
+        sample_size: int,
     ) -> None:
         super().__init__(
             device,
@@ -41,6 +43,8 @@ class NoisyBMLTrainer(Trainer):
             optimizer,
             scheduler,
             wandb_logging,
+            num_subtasks,
+            sample_size,
         )
 
     def train_step(
@@ -106,6 +110,7 @@ class BetterBMLTrainer(Trainer):
         scheduler: ReduceLROnPlateau | None,
         wandb_logging: bool,
         num_subtasks: int,
+        sample_size: int,
     ) -> None:
         super().__init__(
             device,
@@ -117,6 +122,7 @@ class BetterBMLTrainer(Trainer):
             scheduler,
             wandb_logging,
             num_subtasks,
+            sample_size,
         )
 
     def train_step(
@@ -203,7 +209,6 @@ class BetterBMLTrainer(Trainer):
     def val_step(
         self,
         batch: Tensor,
-        sample_size: int = 100,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
         assert self.dvinp.decoder is not None
@@ -214,8 +219,8 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, context_size, x_dim)
         # (batch_size, context_size, y_dim)
 
-        x_data = x_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
-        y_data = y_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
+        x_data = x_data.unsqueeze(1).expand(-1, self.sample_size, -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, self.sample_size, -1, -1)
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
@@ -269,7 +274,7 @@ class BetterBMLTrainer(Trainer):
         jsds = []
         bds = []
 
-        num_cells = int(np.sqrt(sample_size))
+        num_cells = int(np.sqrt(self.sample_size))
         grid = create_grid(ranges, num_cells)
         target_vals = eval_dist_on_grid(grid, target, device=self.device)
 
