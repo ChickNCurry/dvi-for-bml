@@ -17,6 +17,7 @@ from src.utils.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
     eval_kde_on_grid,
+    eval_score_on_grid,
     sample_from_vals,
 )
 
@@ -107,27 +108,6 @@ def visualize_dvinp_both(
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
 
-        for k in range(num_samples):
-            ax[0].plot(
-                x_data_sorted[k].squeeze(-1),
-                y_mu_sorted[k].squeeze(-1),
-                alpha=0.2,
-                c="tab:blue",
-                zorder=0,
-            )
-
-        ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
-        ax[0].scatter(
-            x_context.cpu().detach().numpy(),
-            y_context.cpu().detach().numpy(),
-            marker="X",
-            c="red",
-            s=100,
-            zorder=2,
-        )
-
-        ax[0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
-
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
 
@@ -139,6 +119,8 @@ def visualize_dvinp_both(
         )
 
         target_vals = eval_dist_on_grid(grid, target, device=device).squeeze(0)
+        score_vals = eval_score_on_grid(grid, target, device=device).squeeze(0)
+
         target_samples = sample_from_vals(grid, target_vals, num_samples)
         target_samples = torch.from_numpy(target_samples).unsqueeze(0).to(device)
 
@@ -155,15 +137,39 @@ def visualize_dvinp_both(
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         )
 
+        ax[0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
+        ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax[0].scatter(
+            x_context.cpu().detach().numpy(),
+            y_context.cpu().detach().numpy(),
+            marker="X",
+            c="red",
+            s=100,
+            zorder=2,
+        )
         for k in range(num_samples):
-            ax[3].plot(
+            ax[0].plot(
                 x_data_sorted[k].squeeze(-1),
-                y_mu_test_sorted[k].squeeze(-1),
+                y_mu_sorted[k].squeeze(-1),
                 alpha=0.2,
-                c="tab:orange",
+                c="tab:blue",
                 zorder=0,
             )
 
+        ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
+        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
+
+        ax[2].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
+        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[2].quiver(
+            grid[:, :, 0],
+            grid[:, :, 1],
+            score_vals[:, :, 0],
+            score_vals[:, :, 1],
+            scale_units="xy",
+        )
+
+        ax[3].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
         ax[3].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[3].scatter(
             x_context.cpu().detach().numpy(),
@@ -173,14 +179,14 @@ def visualize_dvinp_both(
             s=100,
             zorder=2,
         )
-
-        ax[3].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
-
-        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
-
-        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
-        ax[2].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
+        for k in range(num_samples):
+            ax[3].plot(
+                x_data_sorted[k].squeeze(-1),
+                y_mu_test_sorted[k].squeeze(-1),
+                alpha=0.2,
+                c="tab:orange",
+                zorder=0,
+            )
 
         for a in ax:
             a.set_xticks([])

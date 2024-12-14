@@ -81,6 +81,38 @@ def eval_dist_on_grid(
     return vals
 
 
+def eval_score_on_grid(
+    grid: NDArray[np.float32],
+    dist: Distribution,
+    device: torch.device,
+) -> NDArray[np.float32]:
+    # (dim1, dim2, ..., z_dim)
+
+    grid_flat = grid.reshape(-1, grid.shape[-1])
+    grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
+    # (1, dim1 * dim2 * ..., z_dim)
+
+    grid_tensor = grid_tensor.requires_grad_(True)
+
+    log_prob = dist.log_prob(grid_tensor)
+
+    grad = (
+        torch.autograd.grad(
+            outputs=log_prob,
+            inputs=grid_tensor,
+            grad_outputs=torch.ones_like(log_prob),
+        )[0]
+        .detach()
+        .cpu()
+        .numpy()
+    )  # (batch_size, dim1 * dim2 * ..., z_dim)
+
+    grad = grad.reshape(grid.shape)
+    # (batch_size, dim1, dim2, ..., z_dim)
+
+    return grad
+
+
 def sample_from_vals(
     grid: NDArray[np.float32], vals: NDArray[np.float32], num_samples: int
 ) -> NDArray[np.float32]:
