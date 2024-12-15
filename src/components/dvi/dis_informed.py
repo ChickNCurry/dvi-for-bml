@@ -1,44 +1,43 @@
 from typing import Tuple
 
-import numpy as np
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
-from src.components.nn.control import Control
-from src.components.nn.schedule import CosineSchedule, AnnealingSchedule
+from src.components.nn.control_informed import InformedControl
+from src.components.nn.schedule import CosineSchedule
 
 
-class CMCD(CDVI):
+class InformedDIS(CDVI):
     def __init__(
         self,
         z_dim: int,
         num_steps: int,
-        control: Control | None,
+        control: InformedControl,
         device: torch.device,
-        min_sigma: float = 0.2,
-        min_annealing: float = 0.01,
+        min: float = 0.1,
     ) -> None:
-        super(CMCD, self).__init__(
+        super(InformedDIS, self).__init__(
             z_dim=z_dim,
             num_steps=num_steps,
         )
 
         self.control = control
 
-        self.sigma_schedule = CosineSchedule(z_dim, num_steps, device, min_sigma)
-        self.annealing_schedule = AnnealingSchedule(
-            z_dim, num_steps, device, min_annealing
-        )
+        self.beta_schedule = CosineSchedule(z_dim, num_steps, device, min)
         # (num_steps, z_dim)
+
+        self.sigma = nn.ParameterList(
+            [nn.Parameter(torch.ones((self.z_dim), device=device))]
+        )  # (num_steps, z_dim)
 
     def get_prior(
         self, size: Tuple[int, int, int], device: torch.device
     ) -> Distribution:
         return Normal(  # type: ignore
             torch.zeros(size, device=device),
-            torch.ones(size, device=device),
+            torch.ones(size, device=device) * self.sigma[0],
         )
 
     def forward_kernel(
@@ -54,23 +53,21 @@ class CMCD(CDVI):
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
-        sigma_t = self.sigma_schedule.get(t)
-        # (1)
+        beta_t = self.beta_schedule.get(t)
+        # (z_dim)
 
-        control_t = (
-            self.control(t, z_prev, r_aggr, r_non_aggr, mask)
-            if self.control is not None
-            else 0
-        )
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma[0]
         # (batch_size, num_subtasks, z_dim)
 
-        grad_log = self.get_grad_log_geo_avg(t, z_prev, prior, target)
+        grad_log = self.get_grad_log_geo_avg(t, z_prev, prior, target).detach()
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (sigma_t.pow(2) * grad_log + control_t) * self.delta_t
+        control_t = self.control(t, z_prev, r_aggr, r_non_aggr, mask, grad_log, z_sigma)
         # (batch_size, num_subtasks, z_dim)
 
-        z_sigma = sigma_t * np.sqrt(self.delta_t)
+        z_mu = z_prev + (beta_t * z_prev + control_t) * self.delta_t
+        # (batch_size, num_subtasks, z_dim)
+
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
@@ -92,23 +89,13 @@ class CMCD(CDVI):
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
-        sigma_t = self.sigma_schedule.get(t)
-        # (1)
+        beta_t = self.beta_schedule.get(t)
+        # (z_dim)
 
-        control_t = (
-            self.control(t, z_next, r_aggr, r_non_aggr, mask)
-            if self.control is not None
-            else 0
-        )
+        z_mu = z_next - (beta_t * z_next) * self.delta_t
         # (batch_size, num_subtasks, z_dim)
 
-        grad_log = self.get_grad_log_geo_avg(t, z_next, prior, target)
-        # (batch_size, num_subtasks, z_dim)
-
-        z_mu = z_next + (sigma_t.pow(2) * grad_log - control_t) * self.delta_t
-        # (batch_size, num_subtasks, z_dim)
-
-        z_sigma = sigma_t * np.sqrt(self.delta_t)
+        z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma[0]
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
@@ -127,18 +114,14 @@ class CMCD(CDVI):
 
         z = z.requires_grad_(True)
 
-        beta_t = self.annealing_schedule.get(t)
-
-        log_geo_avg: Tensor = (1 - beta_t) * prior.log_prob(
-            z
-        ) + beta_t * target.log_prob(z)
+        log_geo_avg: Tensor = (t / self.num_steps) * prior.log_prob(z) + (
+            1 - (t / self.num_steps)
+        ) * target.log_prob(z)
 
         grad = torch.autograd.grad(
             outputs=log_geo_avg,
             inputs=z,
             grad_outputs=torch.ones_like(log_geo_avg),
-            create_graph=True,
-            retain_graph=True,
         )[0]
 
         grad_norm = grad.norm(p=2)  # Compute the L2 norm of the gradient

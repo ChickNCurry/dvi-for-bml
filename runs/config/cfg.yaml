@@ -28,6 +28,7 @@ common:
     num_layers: 6
     non_linearity: SiLU
 control:
+    _target_: src.components.nn.control.Control
     is_cross_attentive: false
     num_heads: null
 decoder:
@@ -50,9 +51,9 @@ training:
     sample_size: 100
     max_context_size: 16
     learning_rate: 0.0003
-    num_epochs: 3000
+    num_epochs: 500
     alternating_ratio: null
-    max_clip_norm: 0.5
+    max_clip_norm: null
     alpha: 1.0
     seed: 0
 wandb:

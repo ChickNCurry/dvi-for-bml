@@ -1,10 +1,8 @@
-from typing import Callable
-
 import torch
 from torch import Tensor, nn
 
 
-class Control(nn.Module):
+class InformedControl(nn.Module):
     def __init__(
         self,
         h_dim: int,
@@ -15,7 +13,7 @@ class Control(nn.Module):
         is_cross_attentive: bool,
         num_heads: int | None,
     ) -> None:
-        super(Control, self).__init__()
+        super(InformedControl, self).__init__()
 
         self.is_cross_attentive = is_cross_attentive
         self.num_heads = num_heads
@@ -32,17 +30,16 @@ class Control(nn.Module):
             *[
                 layer
                 for layer in (
-                    # nn.BatchNorm1d(h_dim),
                     getattr(nn, non_linearity)(),
                     nn.Linear(h_dim, h_dim),
                 )
                 for _ in range(num_layers - 2)
             ],
-            # nn.BatchNorm1d(h_dim),
             getattr(nn, non_linearity)()
         )
 
-        self.proj_out = nn.Linear(h_dim, z_dim)
+        self.proj_offset = nn.Linear(h_dim, z_dim)
+        self.proj_scale = nn.Linear(h_dim, z_dim)
 
     def forward(
         self,
@@ -51,6 +48,8 @@ class Control(nn.Module):
         r_aggr: Tensor | None,
         r_non_aggr: Tensor | None,
         mask: Tensor | None,
+        grad_log_geo_avg: Tensor,
+        z_sigma: Tensor,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, h_dim)
@@ -90,17 +89,14 @@ class Control(nn.Module):
             h = h + r_aggr
             # (batch_size, num_subtasks, h_dim)
 
-        # h = h.view(batch_size * num_subtasks, -1)
-        # z = z.view(batch_size * num_subtasks, -1)
-        # (batch_size * num_subtasks, h_dim)
+        h = self.mlp(h)
+        # (batch_size, num_subtasks, h_dim)
 
-        # control_t: Tensor = getattr(nn, self.non_linearity)()(
-        #     self.proj_out(self.mlp(h)) + z
-        # )  # (batch_size * num_subtasks, z_dim)
-
-        # control_t = control_t.view(batch_size, num_subtasks, -1)
+        offset: Tensor = self.proj_offset(h)
+        scale: Tensor = self.proj_scale(h)
         # (batch_size, num_subtasks, z_dim)
 
-        control_t: Tensor = self.proj_out(self.mlp(h))
+        control = offset + scale * z_sigma * grad_log_geo_avg
+        # (batch_size, num_subtasks, z_dim)
 
-        return control_t
+        return control

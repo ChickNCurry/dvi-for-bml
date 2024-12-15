@@ -9,6 +9,7 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
+from src.components.nn.control_informed import InformedControl
 from src.components.dvi.cdvi import CDVI
 from src.components.dvinp import DVINP
 from src.components.nn.control import Control
@@ -99,14 +100,13 @@ def load_dvinp(
         max_context_size=dataset.max_context_size,
     )
 
-    control = Control(
+    control: Control | InformedControl = instantiate(
+        cfg.control,
         h_dim=cfg.common.h_dim,
         z_dim=cfg.common.z_dim,
         num_steps=cfg.cdvi.num_steps,
         num_layers=3,  # cfg.common.num_layers,
         non_linearity=cfg.common.non_linearity,
-        is_cross_attentive=cfg.control.is_cross_attentive,
-        num_heads=cfg.control.num_heads,
     )
 
     cdvi: CDVI = instantiate(
