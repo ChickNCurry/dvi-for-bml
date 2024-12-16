@@ -36,17 +36,17 @@ def run(cfg: DictConfig) -> None:
         dir = os.path.join("models", wandb.run.name)
         os.mkdir(dir)
 
-        model_path = os.path.join(dir, "cdvi.pth")
+        dvinp_path = os.path.join(dir, "dvinp.pth")
         optim_path = os.path.join(dir, "optim.pth")
         cfg_path = os.path.join(dir, "cfg.yaml")
 
-        torch.save(dvinp.state_dict(), model_path)
+        torch.save(dvinp.state_dict(), dvinp_path)
         torch.save(trainer.optimizer.state_dict(), optim_path)
         with open(cfg_path, "w") as f:
             OmegaConf.save(cfg, f)
 
         if cfg.wandb.logging and wandb.run is not None:
-            wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_cdvi.pth")
+            wandb.run.log_model(path=dvinp_path, name=f"{wandb.run.name}_dvinp.pth")
             wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
             wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
 
