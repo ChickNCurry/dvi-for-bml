@@ -1,3 +1,4 @@
+import os
 import random
 from typing import Tuple
 
@@ -23,7 +24,10 @@ from src.utils.datasets import MetaLearningDataset
 
 def load_dvinp(
     cfg: DictConfig,
+    dir: str,
     device: torch.device,
+    decoder_only: bool = False,
+    train_decoder: bool = True,
 ) -> Tuple[DVINP, AbstractTrainer]:
 
     torch.manual_seed(cfg.training.seed)
@@ -34,9 +38,7 @@ def load_dvinp(
     g.manual_seed(cfg.training.seed)
 
     benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
-    dataset = MetaLearningDataset(
-        benchmark=benchmark, max_context_size=cfg.training.max_context_size
-    )
+    dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size)
 
     if cfg.training.alternating_ratio is None:
 
@@ -136,7 +138,14 @@ def load_dvinp(
         contextual_target=None,
     ).to(device)
 
-    optimizer = AdamW(dvinp.parameters(), lr=cfg.training.learning_rate)
+    optimizer = AdamW(
+        (
+            dvinp.parameters()
+            if train_decoder
+            else list(dvinp.encoder.parameters()) + list(dvinp.cdvi.parameters())
+        ),
+        lr=cfg.training.learning_rate,
+    )
 
     trainer: AbstractTrainer = (
         BetterBMLTrainer(
@@ -164,5 +173,35 @@ def load_dvinp(
             num_subtasks=cfg.training.num_subtasks,
         )
     )
+
+    dvinp_path = f"{dir}/dvinp.pth"
+    optim_path = f"{dir}/optim.pth"
+
+    if os.path.exists(dvinp_path):
+
+        dvinp_state_dict = torch.load(
+            dvinp_path, map_location=torch.device("cpu"), weights_only=True
+        )
+
+        if decoder_only:
+            dvinp_state_dict = {
+                k: v for k, v in dvinp_state_dict.items() if "decoder" in k
+            }
+
+        dvinp.load_state_dict(dvinp_state_dict)
+        print(f"loaded dvinp from {dvinp_path}")
+
+    if os.path.exists(optim_path):
+        optim_state_dict = torch.load(
+            optim_path, map_location=torch.device("cpu"), weights_only=True
+        )
+
+        if decoder_only:
+            optim_state_dict = {
+                k: v for k, v in optim_state_dict.items() if "decoder" in k
+            }
+
+        trainer.optimizer.load_state_dict(optim_state_dict)
+        print(f"loaded optim from {optim_path}")
 
     return dvinp, trainer
