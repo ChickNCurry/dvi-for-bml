@@ -10,10 +10,10 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.components.nn.control_informed import InformedControl
 from src.components.dvi.cdvi import CDVI
 from src.components.dvinp import DVINP
 from src.components.nn.control import Control
+from src.components.nn.control_informed import InformedControl
 from src.components.nn.decoder import Decoder
 from src.components.nn.encoder import Aggr, SetEncoder
 from src.train.train import AbstractTrainer
@@ -180,28 +180,32 @@ def load_dvinp(
     if os.path.exists(dvinp_path):
 
         dvinp_state_dict = torch.load(
-            dvinp_path, map_location=torch.device("cpu"), weights_only=True
+            dvinp_path, map_location=torch.device("cpu"), weights_only=False
         )
 
         if decoder_only:
-            dvinp_state_dict = {
-                k: v for k, v in dvinp_state_dict.items() if "decoder" in k
-            }
 
-        dvinp.load_state_dict(dvinp_state_dict)
-        print(f"loaded dvinp from {dvinp_path}")
+            dvinp.decoder.load_state_dict(
+                {
+                    k.split("decoder.")[-1]: v
+                    for k, v in dvinp_state_dict.items()
+                    if "decoder" in k
+                }
+            )
+            print(f"loaded decoder from {dvinp_path}")
+
+        else:
+            dvinp.load_state_dict(dvinp_state_dict)
+            print(f"loaded dvinp from {dvinp_path}")
 
     if os.path.exists(optim_path):
+
         optim_state_dict = torch.load(
-            optim_path, map_location=torch.device("cpu"), weights_only=True
+            optim_path, map_location=torch.device("cpu"), weights_only=False
         )
 
-        if decoder_only:
-            optim_state_dict = {
-                k: v for k, v in optim_state_dict.items() if "decoder" in k
-            }
-
-        trainer.optimizer.load_state_dict(optim_state_dict)
-        print(f"loaded optim from {optim_path}")
+        if not decoder_only:
+            trainer.optimizer.load_state_dict(optim_state_dict)
+            print(f"loaded optim from {optim_path}")
 
     return dvinp, trainer

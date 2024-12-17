@@ -41,6 +41,14 @@ class InformedControl(nn.Module):
         self.proj_offset = nn.Linear(h_dim, z_dim)
         self.proj_scale = nn.Linear(h_dim, z_dim)
 
+        # Initialize proj_offset to produce 0
+        nn.init.zeros_(self.proj_offset.weight)
+        nn.init.zeros_(self.proj_offset.bias)
+
+        # Initialize proj_scale to produce 1
+        nn.init.zeros_(self.proj_scale.weight)
+        nn.init.ones_(self.proj_scale.bias)
+
     def forward(
         self,
         t: int,

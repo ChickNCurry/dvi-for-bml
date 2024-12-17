@@ -7,7 +7,7 @@ from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
 from src.components.nn.control import Control
-from src.components.nn.schedule import CosineSchedule, AnnealingSchedule
+from src.components.nn.schedule import AnnealingSchedule, CosineSchedule
 
 
 class CMCD(CDVI):
@@ -32,6 +32,8 @@ class CMCD(CDVI):
             z_dim, num_steps, device, min_annealing
         )
         # (num_steps, z_dim)
+
+        self.dt_scale = 1
 
     def get_prior(
         self, size: Tuple[int, int, int], device: torch.device
@@ -67,15 +69,18 @@ class CMCD(CDVI):
         grad_log = self.get_grad_log_geo_avg(t, z_prev, prior, target)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (sigma_t.pow(2) * grad_log + control_t) * self.delta_t
+        z_mu = (
+            z_prev
+            + (sigma_t.pow(2) * grad_log + control_t) * self.delta_t * self.dt_scale
+        )
         # (batch_size, num_subtasks, z_dim)
 
         z_sigma = sigma_t * np.sqrt(self.delta_t)
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        # z_mu = torch.nan_to_num(z_mu)
-        # z_sigma = torch.nan_to_num(z_sigma)
+        z_mu = torch.nan_to_num(z_mu)
+        z_sigma = torch.nan_to_num(z_sigma)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
@@ -112,8 +117,8 @@ class CMCD(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        # z_mu = torch.nan_to_num(z_mu)
-        # z_sigma = torch.nan_to_num(z_sigma)
+        z_mu = torch.nan_to_num(z_mu)
+        z_sigma = torch.nan_to_num(z_sigma)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
@@ -141,8 +146,10 @@ class CMCD(CDVI):
             retain_graph=True,
         )[0]
 
-        grad_norm = grad.norm(p=2)  # Compute the L2 norm of the gradient
-        if grad_norm > 1:
-            grad = grad * (1 / grad_norm)
+        grad = grad.detach()
+
+        # grad_norm = grad.norm(p=2)
+        # if grad_norm > 1:
+        #     grad = grad * (1 / grad_norm)
 
         return grad

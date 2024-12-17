@@ -163,6 +163,13 @@ def visualize_dvinp_both(
         ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
 
         if show_score:
+            ax[1].quiver(
+                grid[:, :, 0],
+                grid[:, :, 1],
+                score_vals[:, :, 0],
+                score_vals[:, :, 1],
+                scale_units="xy",
+            )
             ax[2].quiver(
                 grid[:, :, 0],
                 grid[:, :, 1],

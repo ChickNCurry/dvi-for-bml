@@ -41,7 +41,7 @@ training:
     alternating_ratio: null
     max_clip_norm: 0.5
     alpha: 1.0
-    seed: 0
+    seed: 4
 wandb:
     logging: true
     project: dvi-np-cluster

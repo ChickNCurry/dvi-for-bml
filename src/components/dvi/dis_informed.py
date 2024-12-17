@@ -28,9 +28,11 @@ class InformedDIS(CDVI):
         self.beta_schedule = CosineSchedule(z_dim, num_steps, device, min)
         # (num_steps, z_dim)
 
-        self.sigma = nn.ParameterList(
-            [nn.Parameter(torch.ones((self.z_dim), device=device))]
-        )  # (num_steps, z_dim)
+        # self.sigma = nn.ParameterList(
+        #     [nn.Parameter(torch.ones((self.z_dim), device=device))]
+        # )  # (num_steps, z_dim)
+
+        self.sigma = [torch.ones((self.z_dim), device=device)]
 
     def get_prior(
         self, size: Tuple[int, int, int], device: torch.device
