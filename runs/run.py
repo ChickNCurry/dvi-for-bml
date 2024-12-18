@@ -13,7 +13,7 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dvinp, trainer = load_dvinp(cfg=cfg, device=device)
+    dvinp, trainer, _ = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
         wandb.init(

@@ -24,11 +24,11 @@ from src.utils.datasets import MetaLearningDataset
 
 def load_dvinp(
     cfg: DictConfig,
-    dir: str,
     device: torch.device,
+    dir: str | None = None,
     decoder_only: bool = False,
     train_decoder: bool = True,
-) -> Tuple[DVINP, AbstractTrainer]:
+) -> Tuple[DVINP, AbstractTrainer, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -185,38 +185,40 @@ def load_dvinp(
         )
     )
 
-    dvinp_path = f"{dir}/dvinp.pth"
-    optim_path = f"{dir}/optim.pth"
+    if dir is not None:
 
-    if os.path.exists(dvinp_path):
+        dvinp_path = f"{dir}/dvinp.pth"
+        optim_path = f"{dir}/optim.pth"
 
-        dvinp_state_dict = torch.load(
-            dvinp_path, map_location=torch.device("cpu"), weights_only=False
-        )
+        if os.path.exists(dvinp_path):
 
-        if decoder_only:
-
-            dvinp.decoder.load_state_dict(
-                {
-                    k.split("decoder.")[-1]: v
-                    for k, v in dvinp_state_dict.items()
-                    if "decoder" in k
-                }
+            dvinp_state_dict = torch.load(
+                dvinp_path, map_location=torch.device("cpu"), weights_only=False
             )
-            print(f"loaded decoder from {dvinp_path}")
 
-        else:
-            dvinp.load_state_dict(dvinp_state_dict)
-            print(f"loaded dvinp from {dvinp_path}")
+            if decoder_only:
 
-    if os.path.exists(optim_path):
+                dvinp.decoder.load_state_dict(
+                    {
+                        k.split("decoder.")[-1]: v
+                        for k, v in dvinp_state_dict.items()
+                        if "decoder" in k
+                    }
+                )
+                print(f"loaded decoder from {dvinp_path}")
 
-        optim_state_dict = torch.load(
-            optim_path, map_location=torch.device("cpu"), weights_only=False
-        )
+            else:
+                dvinp.load_state_dict(dvinp_state_dict)
+                print(f"loaded dvinp from {dvinp_path}")
 
-        if not decoder_only:
-            trainer.optimizer.load_state_dict(optim_state_dict)
-            print(f"loaded optim from {optim_path}")
+        if os.path.exists(optim_path):
+
+            optim_state_dict = torch.load(
+                optim_path, map_location=torch.device("cpu"), weights_only=False
+            )
+
+            if not decoder_only:
+                trainer.optimizer.load_state_dict(optim_state_dict)
+                print(f"loaded optim from {optim_path}")
 
     return dvinp, trainer, test_loader

@@ -28,21 +28,21 @@ common:
     num_layers: 6
     non_linearity: SiLU
 control:
-    _target_: src.components.nn.control.Control
+    _target_: src.components.nn.control_informed.InformedControl
     is_cross_attentive: false
-    num_heads: null
+    num_heads: 1
 decoder:
     has_lat_path: true
     has_det_path: false
     is_cross_attentive: false
-    num_heads: null
+    num_heads: 1
 cdvi:
-    _target_: src.components.dvi.dis.DIS
+    _target_: src.components.dvi.dis_informed.InformedDIS
     num_steps: 16
 set_encoder:
     aggregation: max
     is_attentive: false
-    num_heads: null
+    num_heads: 1
     use_context_size_emb: false
 training:
     batch_size: 128
@@ -54,7 +54,7 @@ training:
     num_epochs: 500
     alternating_ratio: null
     max_clip_norm: null
-    alpha: 1.0
+    alpha: null
     seed: 0
 wandb:
     logging: true
