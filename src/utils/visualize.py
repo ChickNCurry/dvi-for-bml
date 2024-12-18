@@ -137,7 +137,7 @@ def visualize_dvinp_both(
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         )
 
-        ax[0].set_title("$\mu_y$ of $p_{\\theta}(y|x,z_T)$")
+        ax[0].set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
         ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[0].scatter(
             x_context.cpu().detach().numpy(),
@@ -159,7 +159,7 @@ def visualize_dvinp_both(
         ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
         ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
 
-        ax[2].set_title("$p_\\theta(y_k|x_k,z_T)p_\\theta(z_T)$")
+        ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
         ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
 
         if show_score:
@@ -178,7 +178,7 @@ def visualize_dvinp_both(
                 scale_units="xy",
             )
 
-        ax[3].set_title("$\mu_y$ of $p_\\theta(y|x,z_T)$")
+        ax[3].set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
         ax[3].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[3].scatter(
             x_context.cpu().detach().numpy(),

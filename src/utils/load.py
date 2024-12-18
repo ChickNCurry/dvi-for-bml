@@ -82,7 +82,14 @@ def load_dvinp(
     val_loader = DataLoader(
         dataset=val_set,
         batch_size=cfg.training.num_val_tasks,
-        shuffle=False,
+        shuffle=True,
+        generator=g,
+    )
+
+    test_loader = DataLoader(
+        dataset=val_set,
+        batch_size=1,
+        shuffle=True,
         generator=g,
     )
 
@@ -97,7 +104,11 @@ def load_dvinp(
         or cfg.decoder.is_cross_attentive,
         is_aggregative=not cfg.control.is_cross_attentive
         or not cfg.decoder.is_cross_attentive,
-        aggregation=Aggr(cfg.set_encoder.aggregation),
+        aggregation=(
+            Aggr(cfg.set_encoder.aggregation)
+            if cfg.set_encoder.aggregation is not None
+            else None
+        ),
         use_context_size_emb=cfg.set_encoder.use_context_size_emb,
         max_context_size=dataset.max_context_size,
     )
@@ -208,4 +219,4 @@ def load_dvinp(
             trainer.optimizer.load_state_dict(optim_state_dict)
             print(f"loaded optim from {optim_path}")
 
-    return dvinp, trainer
+    return dvinp, trainer, test_loader

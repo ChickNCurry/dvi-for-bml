@@ -79,9 +79,6 @@ class CMCD(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = torch.nan_to_num(z_mu)
-        z_sigma = torch.nan_to_num(z_sigma)
-
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def backward_kernel(
@@ -117,9 +114,6 @@ class CMCD(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = torch.nan_to_num(z_mu)
-        z_sigma = torch.nan_to_num(z_sigma)
-
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def get_grad_log_geo_avg(
@@ -146,10 +140,11 @@ class CMCD(CDVI):
             retain_graph=True,
         )[0]
 
+        grad = torch.nan_to_num(grad)
         grad = grad.detach()
 
-        # grad_norm = grad.norm(p=2)
-        # if grad_norm > 1:
-        #     grad = grad * (1 / grad_norm)
+        grad_norm = grad.norm(p=2)
+        if grad_norm > 2:
+            grad = grad * (2 / grad_norm)
 
         return grad

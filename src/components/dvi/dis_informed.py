@@ -6,7 +6,7 @@ from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
 from src.components.nn.control_informed import InformedControl
-from src.components.nn.schedule import CosineSchedule
+from src.components.nn.schedule import AnnealingSchedule, CosineSchedule
 
 
 class InformedDIS(CDVI):
@@ -16,7 +16,8 @@ class InformedDIS(CDVI):
         num_steps: int,
         control: InformedControl,
         device: torch.device,
-        min: float = 0.1,
+        min: float = 0.01,
+        min_annealing: float = 0.01,
     ) -> None:
         super(InformedDIS, self).__init__(
             z_dim=z_dim,
@@ -26,13 +27,16 @@ class InformedDIS(CDVI):
         self.control = control
 
         self.beta_schedule = CosineSchedule(z_dim, num_steps, device, min)
+        self.annealing_schedule = AnnealingSchedule(
+            z_dim, num_steps, device, min_annealing
+        )
         # (num_steps, z_dim)
 
-        # self.sigma = nn.ParameterList(
-        #     [nn.Parameter(torch.ones((self.z_dim), device=device))]
-        # )  # (num_steps, z_dim)
+        self.sigma = nn.ParameterList(
+            [nn.Parameter(torch.ones((self.z_dim), device=device))]
+        )  # (num_steps, z_dim)
 
-        self.sigma = [torch.ones((self.z_dim), device=device)]
+        # self.sigma = [torch.ones((self.z_dim), device=device)]
 
     def get_prior(
         self, size: Tuple[int, int, int], device: torch.device
@@ -61,7 +65,7 @@ class InformedDIS(CDVI):
         z_sigma = torch.sqrt(2 * beta_t * self.delta_t) * self.sigma[0]
         # (batch_size, num_subtasks, z_dim)
 
-        grad_log = self.get_grad_log_geo_avg(t, z_prev, prior, target).detach()
+        grad_log = self.get_grad_log_geo_avg(t, z_prev, prior, target)
         # (batch_size, num_subtasks, z_dim)
 
         control_t = self.control(t, z_prev, r_aggr, r_non_aggr, mask, grad_log, z_sigma)
@@ -72,9 +76,6 @@ class InformedDIS(CDVI):
 
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
-
-        # z_mu = torch.nan_to_num(z_mu)
-        # z_sigma = torch.nan_to_num(z_sigma)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
@@ -101,9 +102,6 @@ class InformedDIS(CDVI):
         z_sigma = z_sigma.expand(z_mu.shape[0], z_mu.shape[1], -1)
         # (batch_size, num_subtasks, z_dim)
 
-        # z_mu = torch.nan_to_num(z_mu)
-        # z_sigma = torch.nan_to_num(z_sigma)
-
         return Normal(z_mu, z_sigma)  # type: ignore
 
     def get_grad_log_geo_avg(
@@ -116,9 +114,11 @@ class InformedDIS(CDVI):
 
         z = z.requires_grad_(True)
 
-        log_geo_avg: Tensor = (t / self.num_steps) * prior.log_prob(z) + (
-            1 - (t / self.num_steps)
-        ) * target.log_prob(z)
+        beta_t = self.annealing_schedule.get(t)
+
+        log_geo_avg: Tensor = (1 - beta_t) * prior.log_prob(
+            z
+        ) + beta_t * target.log_prob(z)
 
         grad = torch.autograd.grad(
             outputs=log_geo_avg,
@@ -126,8 +126,14 @@ class InformedDIS(CDVI):
             grad_outputs=torch.ones_like(log_geo_avg),
         )[0]
 
-        grad_norm = grad.norm(p=2)  # Compute the L2 norm of the gradient
-        if grad_norm > 1:
-            grad = grad * (1 / grad_norm)
+        grad = grad.detach()
+        grad = torch.nan_to_num(grad)
+
+        # if grad.isnan().any().bool():
+        #     print("grad is nan")
+
+        grad_norm = grad.norm(p=2)
+        if grad_norm > 2:
+            grad = grad * (2 / grad_norm)
 
         return grad

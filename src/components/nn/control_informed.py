@@ -74,11 +74,16 @@ class InformedControl(nn.Module):
             assert r_non_aggr is not None and self.num_heads is not None
 
             h = h.unsqueeze(2)
+            h = h.view(batch_size * num_subtasks, 1, -1)
             # (batch_size, num_subtasks, 1, h_dim)
+
+            r_non_aggr = r_non_aggr.view(
+                batch_size * num_subtasks, r_non_aggr.shape[2], -1
+            )
 
             mask = (
                 mask.unsqueeze(2)
-                .view(batch_size * num_subtasks, -1, -1)
+                .view(batch_size * num_subtasks, -1, r_non_aggr.shape[2])
                 .repeat(self.num_heads, 1, 1)
                 if mask is not None
                 else None
@@ -89,6 +94,7 @@ class InformedControl(nn.Module):
             )  # (batch_size, num_subtasks, 1, h_dim)
 
             h = h.squeeze(2)
+            h = h.view(batch_size, num_subtasks, -1)
             # (batch_size, num_subtasks, h_dim)
 
         else:
