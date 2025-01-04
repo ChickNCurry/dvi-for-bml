@@ -6,7 +6,7 @@ from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
 from src.components.nn.control_informed import InformedControl
-from src.components.nn.schedule import AnnealingSchedule, CosineSchedule
+from src.components.nn.schedule import ConstantAnnealingSchedule, CosineSchedule
 
 
 class InformedDIS(CDVI):
@@ -27,7 +27,7 @@ class InformedDIS(CDVI):
         self.control = control
 
         self.beta_schedule = CosineSchedule(z_dim, num_steps, device, min)
-        self.annealing_schedule = AnnealingSchedule(
+        self.annealing_schedule = ConstantAnnealingSchedule(
             z_dim, num_steps, device, min_annealing
         )
         # (num_steps, z_dim)

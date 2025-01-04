@@ -87,7 +87,7 @@ class NoisyBMLTrainer(Trainer):
         )
 
         elbo, _, _ = self.dvinp.cdvi.run_chain(
-            target=target,
+            target,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
             mask=None,
@@ -193,7 +193,7 @@ class BetterBMLTrainer(Trainer):
         )
 
         elbo, _, z_samples = self.dvinp.cdvi.run_chain(
-            target=target,
+            target,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
             mask=mask,
@@ -265,7 +265,7 @@ class BetterBMLTrainer(Trainer):
         )
 
         _, _, z_samples = self.dvinp.cdvi.run_chain(
-            target=target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
+            target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
         )  # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()
