@@ -143,8 +143,8 @@ class CMCD(CDVI):
         grad = torch.nan_to_num(grad)
         grad = grad.detach()
 
-        grad_norm = grad.norm(p=2)
-        if grad_norm > 2:
-            grad = grad * (2 / grad_norm)
+        # grad_norm = grad.norm(p=2)
+        # if grad_norm > 2:
+        #     grad = grad * (2 / grad_norm)
 
         return grad

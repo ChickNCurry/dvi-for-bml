@@ -32,11 +32,11 @@ class InformedDIS(CDVI):
         )
         # (num_steps, z_dim)
 
-        self.sigma = nn.ParameterList(
-            [nn.Parameter(torch.ones((self.z_dim), device=device))]
-        )  # (num_steps, z_dim)
+        # self.sigma = nn.ParameterList(
+        #     [nn.Parameter(torch.ones((self.z_dim), device=device))]
+        # )  # (num_steps, z_dim)
 
-        # self.sigma = [torch.ones((self.z_dim), device=device)]
+        self.sigma = [torch.ones((self.z_dim), device=device)]
 
     def get_prior(
         self, size: Tuple[int, int, int], device: torch.device
