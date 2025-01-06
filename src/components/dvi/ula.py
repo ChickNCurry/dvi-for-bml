@@ -3,28 +3,30 @@ from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from src.components.dvi.cdvi import CDVI
-from src.components.nn.control_informed import InformedControl
-from src.components.nn.schedule import Schedule
+from src.components.nn.control import Control
+from src.components.nn.schedule import (
+    AnnealingSchedule,
+    NoiseSchedule,
+    StepSizeSchedule,
+)
 
 
-class InformedDIS(CDVI):
+class ULA(CDVI):
     def __init__(
         self,
         z_dim: int,
         num_steps: int,
-        control: InformedControl,
-        step_size_schedule: Schedule,
-        noise_schedule: Schedule,
-        annealing_schedule: Schedule,
+        step_size_schedule: StepSizeSchedule,
+        noise_schedule: NoiseSchedule,
+        annealing_schedule: AnnealingSchedule,
         device: torch.device,
     ) -> None:
-        super(InformedDIS, self).__init__(
+        super(ULA, self).__init__(
             z_dim=z_dim,
             num_steps=num_steps,
             device=device,
         )
 
-        self.control = control
         self.step_size_schedule = step_size_schedule
         self.noise_schedule = noise_schedule
         self.annealing_schedule = annealing_schedule
@@ -35,8 +37,8 @@ class InformedDIS(CDVI):
         r_aggr: Tensor | None,
         r_non_aggr: Tensor | None,
         mask: Tensor | None,
-    ):
-        super(InformedDIS, self).contextualize(target, r_aggr, r_non_aggr, mask)
+    ) -> None:
+        super(ULA, self).contextualize(target, r_aggr, r_non_aggr, mask)
 
         self.step_size_schedule.update(r_aggr)
         self.noise_schedule.update(r_aggr)
@@ -53,12 +55,9 @@ class InformedDIS(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         grad_log = self.get_grad_log_geo_avg(n, z_prev)
-        control_n = self.control(
-            n, z_prev, self.r_aggr, self.r_non_aggr, self.mask, grad_log, var_n
-        )
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (var_n * z_prev + control_n) * delta_t_n
+        z_mu = z_prev + (var_n * grad_log) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -74,10 +73,11 @@ class InformedDIS(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
+        grad_log = self.get_grad_log_geo_avg(n, z_next)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next - (var_n * z_next) * delta_t_n
-        z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
+        z_mu = z_next + (var_n * grad_log) * delta_t_n
+        z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
@@ -104,12 +104,6 @@ class InformedDIS(CDVI):
             retain_graph=True,
         )[0]
 
-        grad = grad.detach()
-
         grad = torch.nan_to_num(grad)
-
-        grad_norm = grad.norm(p=2)
-        if grad_norm > 1:
-            grad = grad * (1 / grad_norm)
 
         return grad

@@ -19,7 +19,7 @@ class InformedControl(nn.Module):
         self.num_heads = num_heads
         self.non_linearity = non_linearity
 
-        self.proj_t = nn.Embedding(num_steps + 1, h_dim)
+        self.proj_n = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
 
         if self.is_cross_attentive:
@@ -51,13 +51,13 @@ class InformedControl(nn.Module):
 
     def forward(
         self,
-        t: int,
+        n: int,
         z: Tensor,
         r_aggr: Tensor | None,
         r_non_aggr: Tensor | None,
         mask: Tensor | None,
-        grad_log_geo_avg: Tensor,
-        z_sigma: Tensor,
+        grad_log: Tensor,
+        var_n: Tensor,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, h_dim)
@@ -67,7 +67,7 @@ class InformedControl(nn.Module):
         batch_size = z.shape[0]
         num_subtasks = z.shape[1]
 
-        h: Tensor = self.proj_t(torch.tensor([t], device=z.device)) + self.proj_z(z)
+        h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
         # (batch_size, num_subtasks, h_dim)
 
         if self.is_cross_attentive:
@@ -110,7 +110,7 @@ class InformedControl(nn.Module):
         scale: Tensor = self.proj_scale(h)
         # (batch_size, num_subtasks, z_dim)
 
-        control = offset + scale * z_sigma * grad_log_geo_avg
+        control_n = offset + scale * var_n * grad_log
         # (batch_size, num_subtasks, z_dim)
 
-        return control
+        return control_n

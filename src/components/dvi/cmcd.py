@@ -56,7 +56,7 @@ class CMCD(CDVI):
         grad_log = self.get_grad_log_geo_avg(n, z_prev)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (var_n * grad_log + torch.sqrt(var_n) * control_n) * delta_t_n
+        z_mu = z_prev + (var_n * grad_log + control_n) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -76,7 +76,7 @@ class CMCD(CDVI):
         grad_log = self.get_grad_log_geo_avg(n, z_next)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next + (var_n * grad_log - torch.sqrt(var_n) * control_n) * delta_t_n
+        z_mu = z_next + (var_n * grad_log - control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -105,10 +105,9 @@ class CMCD(CDVI):
         )[0]
 
         grad = torch.nan_to_num(grad)
-        grad = grad.detach()
 
-        # grad_norm = grad.norm(p=2)
-        # if grad_norm > 2:
-        #     grad = grad * (2 / grad_norm)
+        grad_norm = grad.norm(p=2)
+        if grad_norm > 1:
+            grad = grad * (1 / grad_norm)
 
         return grad

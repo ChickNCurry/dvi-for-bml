@@ -12,10 +12,15 @@ from torch.utils.data import DataLoader, random_split
 
 from src.components.dvi.cdvi import CDVI
 from src.components.dvinp import DVINP
-from src.components.nn.control import Control
+from src.components.nn.control import BCAControl, Control
 from src.components.nn.control_informed import InformedControl
 from src.components.nn.decoder import Decoder
-from src.components.nn.encoder import Aggr, SetEncoder
+from src.components.nn.encoder import Aggr, BCAEncoder, SetEncoder
+from src.components.nn.schedule import (
+    ContextualAnnealingSchedule,
+    ContextualNoiseSchedule,
+    StepSizeSchedule,
+)
 from src.train.train import AbstractTrainer
 from src.train.train_bml import BetterBMLTrainer
 from src.train.train_bml_alternating import AlternatingBMLTrainer
@@ -113,19 +118,56 @@ def load_dvinp(
         max_context_size=dataset.max_context_size,
     )
 
+    # set_encoder = BCAEncoder(
+    #     c_dim=cfg.common.c_dim,
+    #     h_dim=cfg.common.h_dim,
+    #     num_layers=cfg.common.num_layers,
+    #     non_linearity=cfg.common.non_linearity,
+    #     is_attentive=cfg.set_encoder.is_attentive,
+    #     num_heads=cfg.set_encoder.num_heads,
+    # )
+
     control: Control | InformedControl = instantiate(
         cfg.control,
         h_dim=cfg.common.h_dim,
         z_dim=cfg.common.z_dim,
         num_steps=cfg.cdvi.num_steps,
-        num_layers=3,  # cfg.common.num_layers,
+        num_layers=cfg.common.num_layers,
         non_linearity=cfg.common.non_linearity,
+    )
+
+    # control = BCAControl(
+    #     h_dim=cfg.common.h_dim,
+    #     z_dim=cfg.common.z_dim,
+    #     num_steps=cfg.cdvi.num_steps,
+    #     num_layers=cfg.common.num_layers,
+    #     non_linearity=cfg.common.non_linearity,
+    # )
+
+    step_size_schedule = StepSizeSchedule(num_steps=cfg.cdvi.num_steps, device=device)
+
+    noise_schedule = ContextualNoiseSchedule(
+        z_dim=cfg.common.z_dim,
+        h_dim=cfg.common.h_dim,
+        non_linearity=cfg.common.non_linearity,
+        num_steps=cfg.cdvi.num_steps,
+        device=device,
+    )
+
+    annealing_schedule = ContextualAnnealingSchedule(
+        h_dim=cfg.common.h_dim,
+        non_linearity=cfg.common.non_linearity,
+        num_steps=cfg.cdvi.num_steps,
+        device=device,
     )
 
     cdvi: CDVI = instantiate(
         cfg.cdvi,
         z_dim=cfg.common.z_dim,
         control=control,
+        step_size_schedule=step_size_schedule,
+        noise_schedule=noise_schedule,
+        annealing_schedule=annealing_schedule,
         device=device,
     )
 

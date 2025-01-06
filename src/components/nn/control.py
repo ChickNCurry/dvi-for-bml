@@ -4,6 +4,64 @@ import torch
 from torch import Tensor, nn
 
 
+class BCAControl(nn.Module):
+    def __init__(
+        self,
+        h_dim: int,
+        z_dim: int,
+        num_steps: int,
+        num_layers: int,
+        non_linearity: str,
+    ) -> None:
+        super(BCAControl, self).__init__()
+
+        self.non_linearity = non_linearity
+
+        self.proj_n = nn.Embedding(num_steps + 1, h_dim)
+        self.proj_z = nn.Linear(z_dim, h_dim)
+        self.proj_z_mu = nn.Linear(h_dim, h_dim)
+        self.proj_z_var = nn.Linear(h_dim, h_dim)
+
+        self.mlp = nn.Sequential(
+            *[
+                layer
+                for layer in (
+                    getattr(nn, non_linearity)(),
+                    nn.Linear(h_dim, h_dim),
+                )
+                for _ in range(num_layers - 2)
+            ],
+            getattr(nn, non_linearity)()
+        )
+
+        self.proj_out = nn.Linear(h_dim, z_dim)
+
+    def forward(
+        self,
+        n: int,
+        z: Tensor,
+        z_mu: Tensor,
+        z_var: Tensor,
+        mask: Tensor | None,
+    ) -> Tensor:
+        # (batch_size, num_subtasks, z_dim),
+        # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, context_size)
+
+        h: Tensor = (
+            self.proj_n(torch.tensor([n], device=z.device))
+            + self.proj_z(z)
+            + self.proj_z_mu(z_mu)
+            + self.proj_z_var(z_var)
+        )
+        # (batch_size, num_subtasks, h_dim)
+
+        control_n: Tensor = self.proj_out(self.mlp(h))
+
+        return control_n
+
+
 class Control(nn.Module):
     def __init__(
         self,
@@ -21,7 +79,7 @@ class Control(nn.Module):
         self.num_heads = num_heads
         self.non_linearity = non_linearity
 
-        self.proj_t = nn.Embedding(num_steps + 1, h_dim)
+        self.proj_n = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
 
         if self.is_cross_attentive:
@@ -46,7 +104,7 @@ class Control(nn.Module):
 
     def forward(
         self,
-        t: int,
+        n: int,
         z: Tensor,
         r_aggr: Tensor | None,
         r_non_aggr: Tensor | None,
@@ -60,7 +118,7 @@ class Control(nn.Module):
         batch_size = z.shape[0]
         num_subtasks = z.shape[1]
 
-        h: Tensor = self.proj_t(torch.tensor([t], device=z.device)) + self.proj_z(z)
+        h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
         # (batch_size, num_subtasks, h_dim)
 
         if self.is_cross_attentive:
@@ -101,6 +159,6 @@ class Control(nn.Module):
         # control_t = control_t.view(batch_size, num_subtasks, -1)
         # (batch_size, num_subtasks, z_dim)
 
-        control_t: Tensor = self.proj_out(self.mlp(h))
+        control_n: Tensor = self.proj_out(self.mlp(h))
 
-        return control_t
+        return control_n
