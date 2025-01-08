@@ -7,8 +7,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.dvinp import DVINP
-from src.components.nn.decoder import DecoderTimesPrior
+from src.components.decoder.decoder import DecoderTimesPrior
+from src.components.dvi_np import DVINP
 from src.train.train import Trainer
 from src.utils.grid import (
     compute_bd,
@@ -16,7 +16,6 @@ from src.utils.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
-    eval_kde_on_grid,
 )
 
 

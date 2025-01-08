@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.dvinp import DVINP
+from src.components.dvi_np import DVINP
 from src.train.train import Trainer
 
 

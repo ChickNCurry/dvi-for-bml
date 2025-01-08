@@ -3,15 +3,15 @@ from typing import Callable
 from torch import Tensor, nn
 from torch.distributions import Distribution
 
-from src.components.dvi.cdvi import CDVI
-from src.components.nn.decoder import Decoder
-from src.components.nn.encoder import Encoder
+from src.components.cdvi.cdvi import CDVI
+from src.components.decoder.decoder import Decoder
+from src.components.encoder.base_encoder import BaseEncoder
 
 
 class DVINP(nn.Module):
     def __init__(
         self,
-        encoder: Encoder,
+        encoder: BaseEncoder,
         cdvi: CDVI,
         decoder: Decoder | None,
         contextual_target: Callable[[Tensor, Tensor | None], Distribution] | None,

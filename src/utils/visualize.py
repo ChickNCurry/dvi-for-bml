@@ -10,8 +10,8 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.components.nn.decoder import DecoderTimesPrior
-from src.components.dvinp import DVINP
+from components.dvi_np import DVINP
+from src.components.decoder.decoder import DecoderTimesPrior
 from src.utils.grid import (
     create_grid,
     eval_dist_on_grid,

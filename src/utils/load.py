@@ -10,17 +10,12 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.components.dvi.cdvi import CDVI
-from src.components.dvinp import DVINP
-from src.components.nn.control import BCAControl, Control
-from src.components.nn.control_informed import InformedControl
-from src.components.nn.decoder import Decoder
-from src.components.nn.encoder import Aggr, BCAEncoder, SetEncoder
-from src.components.nn.schedule import (
-    ContextualAnnealingSchedule,
-    ContextualNoiseSchedule,
-    StepSizeSchedule,
-)
+from src.components.dvi_np import DVINP
+from src.components.cdvi.cdvi import CDVI
+from src.components.control.aggr_control import AggrControl
+from src.components.control.informed_control import InformedControl
+from src.components.decoder.decoder import Decoder
+from src.components.encoder.aggr_encoder import Aggr, SetEncoder
 from src.train.train import AbstractTrainer
 from src.train.train_bml import BetterBMLTrainer
 from src.train.train_bml_alternating import AlternatingBMLTrainer
@@ -127,7 +122,7 @@ def load_dvinp(
     #     num_heads=cfg.set_encoder.num_heads,
     # )
 
-    control: Control | InformedControl = instantiate(
+    control: AggrControl | InformedControl = instantiate(
         cfg.control,
         h_dim=cfg.common.h_dim,
         z_dim=cfg.common.z_dim,
@@ -250,7 +245,7 @@ def load_dvinp(
                 print(f"loaded decoder from {dvinp_path}")
 
             else:
-                dvinp.load_state_dict(dvinp_state_dict)
+                dvinp.load_state_dict(dvinp_state_dict, strict=False)
                 print(f"loaded dvinp from {dvinp_path}")
 
         if os.path.exists(optim_path):
