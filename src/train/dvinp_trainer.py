@@ -8,7 +8,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.components.dvi_np import DVINP
+from src.components.dvinp import DVINP
 from src.train.base_trainer import BaseTrainer
 from src.eval.grid import (
     compute_bd,

@@ -10,7 +10,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.components.dvi_np import DVINP
+from src.components.dvinp import DVINP
 
 
 class AbstractTrainer(ABC):

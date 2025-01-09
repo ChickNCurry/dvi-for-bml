@@ -10,9 +10,9 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from components.dvi_np import DVINP
-from src.components.decoder.decoder import DecoderTimesPrior
-from eval.grid import (
+from src.components.dvinp import DVINP
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.eval.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
@@ -31,6 +31,8 @@ def visualize_dvinp_both(
     ranges: List[Tuple[float, float]],
     show_score: bool = True,
 ) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
+
+    assert dvinp.decoder is not None
 
     x_data, y_data = next(iter(dataloader))
 
@@ -70,38 +72,23 @@ def visualize_dvinp_both(
         context = torch.cat([x_context, y_context], dim=-1)
         # (1, num_samples, context_size, x_dim + y_dim)
 
-        r_aggr, r_non_aggr = dvinp.encoder(context, None)
+        r = dvinp.encoder(context, None)
 
         target = DecoderTimesPrior(
             decoder=dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
-            x_context=x_context,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
             mask=None,
         )
 
-        _, _, z_samples = dvinp.cdvi.run_chain(
-            target=target,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
-            mask=None,
-        )
+        _, _, z_samples = dvinp.cdvi.run_chain(target, r, None)
 
         tp_samples = z_samples[-1].cpu().detach().numpy()
 
         targets.append(target)
         samples.append(tp_samples)
 
-        y_dist: Distribution = dvinp.decoder(
-            z_samples[-1],
-            x_data,
-            x_context,
-            r_aggr,
-            r_non_aggr,
-            None,
-        )
+        y_dist: Distribution = dvinp.decoder(z_samples[-1], x_data, None)
 
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
@@ -121,17 +108,10 @@ def visualize_dvinp_both(
         if show_score:
             score_vals = eval_score_on_grid(grid, target, device=device)
 
-        target_samples = sample_from_vals(grid, target_vals, num_samples)
-        target_samples = torch.from_numpy(target_samples).unsqueeze(0).to(device)
+        target_samples_np = sample_from_vals(grid, target_vals, num_samples)
+        target_samples = torch.from_numpy(target_samples_np).unsqueeze(0).to(device)
 
-        y_dist_test: Distribution = dvinp.decoder(
-            target_samples,
-            x_data,
-            x_context,
-            r_aggr,
-            r_non_aggr,
-            None,
-        )
+        y_dist_test: Distribution = dvinp.decoder(target_samples, x_data, None)
 
         y_mu_test_sorted = (
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
