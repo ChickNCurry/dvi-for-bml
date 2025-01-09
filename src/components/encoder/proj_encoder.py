@@ -12,8 +12,8 @@ class ProjEncoder(BaseEncoder):
     def forward(self, context: Tensor, mask: Tensor | None) -> Tensor:
         # (batch_size, num_subtasks, context_size, c_dim)
 
-        assert mask is None
         assert context.shape[2] == 1
+        assert mask is None
 
         context = context.squeeze(2)
         # (batch_size, num_subtasks, c_dim)

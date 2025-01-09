@@ -32,7 +32,7 @@ class AbstractTrainer(ABC):
         raise NotImplementedError
 
 
-class Trainer(AbstractTrainer):
+class BaseTrainer(AbstractTrainer):
     def __init__(
         self,
         device: torch.device,

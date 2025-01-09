@@ -3,14 +3,14 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import torch
 from torch import Tensor
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.decoder.decoder import DecoderTimesPrior
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.components.dvi_np import DVINP
-from src.train.train import Trainer
-from src.utils.grid import (
+from src.train.base_trainer import BaseTrainer
+from src.eval.grid import (
     compute_bd,
     compute_jsd,
     create_grid,
@@ -18,8 +18,10 @@ from src.utils.grid import (
     eval_hist_on_grid,
 )
 
+from src.eval.metrics import compute_lmpl, compute_mse
 
-class NoisyBMLTrainer(Trainer):
+
+class NoisyDVINPTrainer(BaseTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -28,7 +30,7 @@ class NoisyBMLTrainer(Trainer):
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
+        scheduler: LRScheduler | None,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -71,33 +73,24 @@ class NoisyBMLTrainer(Trainer):
         context = torch.cat([x_context, y_context], dim=-1)
         # (batch_size, 1, context_size, x_dim + y_dim)
 
-        r_aggr, r_non_aggr = self.dvinp.encoder(context)
+        r = self.dvinp.encoder(context)
         # (batch_size, 1, h_dim)
-        # (batch_size, 1, context_size, h_dim)
 
         target = DecoderTimesPrior(
             decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
-            x_context=x_context,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
             mask=None,
         )
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(
-            target,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
-            mask=None,
-        )
+        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, None)
 
         loss = -elbo
 
         return loss, {}
 
 
-class BetterBMLTrainer(Trainer):
+class BetterDVINPTrainer(BaseTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -106,7 +99,7 @@ class BetterBMLTrainer(Trainer):
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
+        scheduler: LRScheduler | None,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -177,31 +170,23 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
+        r = self.dvinp.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
-        # (batch_size, num_subtasks, context_size, h_dim)
 
         target = DecoderTimesPrior(
             decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
-            x_context=x_context,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        elbo, _, z_samples = self.dvinp.cdvi.run_chain(
-            target,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
-            mask=mask,
-        )  # (num_steps, batch_size, num_subtasks, z_dim)
+        elbo, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
+        # (num_steps, batch_size, num_subtasks, z_dim)
 
         loss = -elbo
 
-        lmpl: Tensor = target.lmpl(z_samples[-1], x_data, y_data)
-        mse: Tensor = target.mse(z_samples[-1], x_data, y_data)
+        lmpl = compute_lmpl(z_samples[-1], x_data, y_data)
+        mse = compute_mse(z_samples[-1], x_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
@@ -249,7 +234,7 @@ class BetterBMLTrainer(Trainer):
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
-        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
+        r = self.dvinp.encoder(context, mask)
         # (batch_size, sample_size, h_dim)
         # (batch_size, sample_size, context_size, h_dim)
 
@@ -257,15 +242,11 @@ class BetterBMLTrainer(Trainer):
             decoder=self.dvinp.decoder,
             x_target=x_context,
             y_target=y_context,
-            x_context=x_context,
-            r_aggr=r_aggr,
-            r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        _, _, z_samples = self.dvinp.cdvi.run_chain(
-            target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
-        )  # (num_steps, batch_size, sample_size, z_dim)
+        _, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
+        # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()
         # (batch_size, sample_size, z_dim)
@@ -275,15 +256,15 @@ class BetterBMLTrainer(Trainer):
 
         num_cells = int(np.sqrt(self.sample_size))
         grid = create_grid(ranges, num_cells)
-        target_vals = eval_dist_on_grid(grid, target, device=self.device)
+
+        target_prob_vals = eval_dist_on_grid(grid, target, device=self.device)
 
         for i in range(tp_samples.shape[0]):
 
-            # tp_vals = eval_kde_on_grid(grid, tp_samples[i])
-            tp_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+            tp_prob_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
 
-            jsd = compute_jsd(target_vals[i], tp_vals)
-            bd = compute_bd(target_vals[i], tp_vals)
+            jsd = compute_jsd(target_prob_vals[i], tp_prob_vals)
+            bd = compute_bd(target_prob_vals[i], tp_prob_vals)
 
             jsds.append(jsd)
             bds.append(bd)

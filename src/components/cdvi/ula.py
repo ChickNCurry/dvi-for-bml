@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 from torch import Tensor
 from torch.distributions import Distribution, Normal
@@ -32,60 +33,46 @@ class ULA(CDVI):
     def contextualize(
         self,
         target: Distribution,
-        r_aggr: Tensor | None,
-        r_non_aggr: Tensor | None,
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> None:
-        super(ULA, self).contextualize(target, r_aggr, r_non_aggr, mask)
+        super(ULA, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r_aggr)
-        self.noise_schedule.update(r_aggr)
-        self.annealing_schedule.update(r_aggr)
+        self.step_size_schedule.update(r)
+        self.noise_schedule.update(r)
+        self.annealing_schedule.update(r)
 
-    def forward_kernel(
-        self,
-        n: int,
-        z_prev: Tensor,
-    ) -> Distribution:
+    def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        grad_log = self.get_grad_log_geo_avg(n, z_prev)
+        score = self.compute_score(n, z_prev)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (var_n * grad_log) * delta_t_n
+        z_mu = z_prev + (var_n * score) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def backward_kernel(
-        self,
-        n: int,
-        z_next: Tensor,
-    ) -> Distribution:
+    def backward_kernel(self, n: int, z_next: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        grad_log = self.get_grad_log_geo_avg(n, z_next)
+        score = self.compute_score(n, z_next)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next + (var_n * grad_log) * delta_t_n
+        z_mu = z_next + (var_n * score) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def get_grad_log_geo_avg(
-        self,
-        n: int,
-        z: Tensor,
-    ) -> Tensor:
-
+    def compute_score(self, n: int, z: Tensor) -> Tensor:
         z = z.requires_grad_(True)
 
         beta_n = self.annealing_schedule.get(n)
@@ -94,7 +81,7 @@ class ULA(CDVI):
             z
         ) + beta_n * self.target.log_prob(z)
 
-        grad = torch.autograd.grad(
+        score = torch.autograd.grad(
             outputs=log_geo_avg,
             inputs=z,
             grad_outputs=torch.ones_like(log_geo_avg),
@@ -102,6 +89,6 @@ class ULA(CDVI):
             retain_graph=True,
         )[0]
 
-        grad = torch.nan_to_num(grad)
+        score = torch.nan_to_num(score)
 
-        return grad
+        return score

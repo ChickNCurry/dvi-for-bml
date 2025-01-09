@@ -15,14 +15,14 @@ from src.components.cdvi.cdvi import CDVI
 from src.components.control.aggr_control import AggrControl
 from src.components.control.informed_control import InformedControl
 from src.components.decoder.decoder import Decoder
-from src.components.encoder.aggr_encoder import Aggr, SetEncoder
-from src.train.train import AbstractTrainer
-from src.train.train_bml import BetterBMLTrainer
-from src.train.train_bml_alternating import AlternatingBMLTrainer
+from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
+from train.base_trainer import AbstractTrainer
+from train.dvinp_trainer import BetterDVINPTrainer
+from train.alt_dvinp_trainer import AlternatingDVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 
 
-def load_dvinp(
+def load_dvinp_alt(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
@@ -93,7 +93,7 @@ def load_dvinp(
         generator=g,
     )
 
-    set_encoder = SetEncoder(
+    set_encoder = AggrEncoder(
         c_dim=cfg.common.c_dim,
         h_dim=cfg.common.h_dim,
         num_layers=cfg.common.num_layers,
@@ -196,7 +196,7 @@ def load_dvinp(
     )
 
     trainer: AbstractTrainer = (
-        BetterBMLTrainer(
+        BetterDVINPTrainer(
             device=device,
             dvinp=dvinp,
             dataset=dataset,
@@ -209,7 +209,7 @@ def load_dvinp(
             sample_size=cfg.training.sample_size,
         )
         if cfg.training.alternating_ratio is None
-        else AlternatingBMLTrainer(
+        else AlternatingDVINPTrainer(
             device=device,
             dvinp=dvinp,
             dataset=dataset,

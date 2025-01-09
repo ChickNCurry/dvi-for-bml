@@ -9,10 +9,10 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.components.decoder.decoder import DecoderTimesPrior
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.components.dvi_np import DVINP
-from src.train.train import AbstractTrainer
-from src.utils.grid import (
+from src.train.base_trainer import AbstractTrainer
+from src.eval.grid import (
     compute_bd,
     compute_jsd,
     create_grid,
@@ -21,7 +21,7 @@ from src.utils.grid import (
 )
 
 
-class AlternatingBMLTrainer(AbstractTrainer):
+class AlternatingDVINPTrainer(AbstractTrainer):
     def __init__(
         self,
         device: torch.device,

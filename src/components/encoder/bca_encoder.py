@@ -79,4 +79,6 @@ class BCAEncoder(BaseEncoder):
             )
             # (batch_size, num_subtasks, h_dim)
 
-        return z_mu, z_var
+        r = (z_mu, z_var)
+
+        return r

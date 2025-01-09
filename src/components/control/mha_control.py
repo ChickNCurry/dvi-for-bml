@@ -11,12 +11,14 @@ class Control(nn.Module):
         num_steps: int,
         num_layers: int,
         non_linearity: str,
+        uses_score: bool,
         num_heads: int,
     ) -> None:
         super(Control, self).__init__()
 
-        self.num_heads = num_heads
         self.non_linearity = non_linearity
+        self.uses_score = uses_score
+        self.num_heads = num_heads
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
@@ -35,19 +37,33 @@ class Control(nn.Module):
             getattr(nn, non_linearity)()
         )
 
-        self.proj_out = nn.Linear(h_dim, z_dim)
+        if self.uses_score:
+            self.proj_offset = nn.Linear(h_dim, z_dim)
+
+            nn.init.zeros_(self.proj_offset.weight)
+            nn.init.zeros_(self.proj_offset.bias)
+
+            self.proj_scale = nn.Linear(h_dim, z_dim)
+
+            nn.init.zeros_(self.proj_scale.weight)
+            nn.init.ones_(self.proj_scale.bias)
+        else:
+            self.proj_out = nn.Linear(h_dim, z_dim)
 
     def forward(
         self,
         n: int,
         z: Tensor,
-        rest: Tuple[Tensor, Tensor | None],
+        r: Tensor,
+        mask: Tensor,
+        score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, context_size, h_dim)
         # (batch_size, num_subtasks, context_size)
 
-        r, mask = rest
+        if self.uses_score:
+            assert score is not None
 
         batch_size = z.shape[0]
         num_subtasks = z.shape[1]
@@ -73,7 +89,18 @@ class Control(nn.Module):
         h = h.squeeze(2)
         # (batch_size, num_subtasks, h_dim)
 
-        control_n: Tensor = self.proj_out(self.mlp(h))
+        h = self.mlp(h)
         # (batch_size, num_subtasks, h_dim)
+
+        if self.uses_score:
+            offset: Tensor = self.proj_offset(h)
+            scale: Tensor = self.proj_scale(h)
+            # (batch_size, num_subtasks, z_dim)
+
+            control_n = offset + scale * score
+            # (batch_size, num_subtasks, z_dim)
+        else:
+            control_n = self.proj_out(h)
+            # (batch_size, num_subtasks, z_dim)
 
         return control_n

@@ -3,7 +3,7 @@ from torch import Tensor, nn
 from src.components.encoder.base_encoder import BaseEncoder
 
 
-class NonAggrSetEncoder(BaseEncoder):
+class MHAEncoder(BaseEncoder):
     def __init__(
         self,
         c_dim: int,
@@ -12,7 +12,7 @@ class NonAggrSetEncoder(BaseEncoder):
         non_linearity: str,
         num_heads: int | None,
     ) -> None:
-        super(NonAggrSetEncoder, self).__init__()
+        super(MHAEncoder, self).__init__()
 
         self.num_heads = num_heads
 

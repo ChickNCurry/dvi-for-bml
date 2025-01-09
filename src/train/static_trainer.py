@@ -3,15 +3,15 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import torch
 from torch import Tensor
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
 from src.components.dvi_np import DVINP
-from src.train.train import Trainer
+from src.train.base_trainer import BaseTrainer
 
 
-class StaticTargetTrainer(Trainer):
+class StaticTargetTrainer(BaseTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -20,7 +20,7 @@ class StaticTargetTrainer(Trainer):
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
+        scheduler: LRScheduler | None,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -46,17 +46,16 @@ class StaticTargetTrainer(Trainer):
         batch = batch.to(self.device).unsqueeze(1)
         # (batch_size, 1, context_size, c_dim)
 
-        random_context_size: int = np.random.randint(1, batch.shape[1] + 1)
-        context = batch[:, :, 0:random_context_size, :]
+        rand_context_size: int = np.random.randint(1, batch.shape[1] + 1)
+        context = batch[:, :, 0:rand_context_size, :]
         # (batch_size, 1, context_size, c_dim)
 
         target = self.dvinp.contextual_target(context, None)
 
-        r_aggr, r_non_aggr = self.dvinp.encoder(context, None)
+        r = self.dvinp.encoder(context, None)
         # (batch_size, 1, h_dim)
-        # (batch_size, 1, context_size, h_dim)
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r_aggr, r_non_aggr, None)
+        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, None)
 
         loss = -elbo
 
@@ -66,7 +65,7 @@ class StaticTargetTrainer(Trainer):
         raise NotImplementedError
 
 
-class BetterStaticTargetTrainer(Trainer):
+class BetterStaticTargetTrainer(BaseTrainer):
     def __init__(
         self,
         device: torch.device,
@@ -75,7 +74,7 @@ class BetterStaticTargetTrainer(Trainer):
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
+        scheduler: LRScheduler | None,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -124,11 +123,10 @@ class BetterStaticTargetTrainer(Trainer):
         target = self.dvinp.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
+        r = self.dvinp.encoder(context, mask)
         # (batch_size, num_subtasks, c_dim)
-        # (batch_size, num_subtasks, context_size, c_dim)
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r_aggr, r_non_aggr, mask)
+        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, mask)
 
         loss = -elbo
 

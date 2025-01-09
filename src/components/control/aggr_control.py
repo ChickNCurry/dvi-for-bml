@@ -13,10 +13,12 @@ class AggrControl(BaseControl):
         num_steps: int,
         num_layers: int,
         non_linearity: str,
+        uses_score: bool,
     ) -> None:
         super(AggrControl, self).__init__()
 
         self.non_linearity = non_linearity
+        self.uses_score = uses_score
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
@@ -35,13 +37,32 @@ class AggrControl(BaseControl):
             getattr(nn, non_linearity)()
         )
 
-        self.proj_out = nn.Linear(h_dim, z_dim)
+        if self.uses_score:
+            self.proj_offset = nn.Linear(h_dim, z_dim)
 
-    def forward(self, n: int, z: Tensor, rest: Tuple[Tensor]) -> Tensor:
+            nn.init.zeros_(self.proj_offset.weight)
+            nn.init.zeros_(self.proj_offset.bias)
+
+            self.proj_scale = nn.Linear(h_dim, z_dim)
+
+            nn.init.zeros_(self.proj_scale.weight)
+            nn.init.ones_(self.proj_scale.bias)
+        else:
+            self.proj_out = nn.Linear(h_dim, z_dim)
+
+    def forward(
+        self,
+        n: int,
+        z: Tensor,
+        r: Tensor,
+        mask: None,
+        score: Tensor | None,
+    ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, h_dim)
 
-        r = rest[0]
+        if self.uses_score:
+            assert score is not None
 
         h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
         # (batch_size, num_subtasks, h_dim)
@@ -61,7 +82,17 @@ class AggrControl(BaseControl):
         # (batch_size, num_subtasks, z_dim)
 
         h = self.mlp(h)
+        # (batch_size, num_subtasks, h_dim)
 
-        control_n: Tensor = self.proj_out(h)
+        if self.uses_score:
+            offset: Tensor = self.proj_offset(h)
+            scale: Tensor = self.proj_scale(h)
+            # (batch_size, num_subtasks, z_dim)
+
+            control_n = offset + scale * score
+            # (batch_size, num_subtasks, z_dim)
+        else:
+            control_n = self.proj_out(h)
+            # (batch_size, num_subtasks, z_dim)
 
         return control_n

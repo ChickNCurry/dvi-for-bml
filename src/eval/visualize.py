@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from components.dvi_np import DVINP
 from src.components.decoder.decoder import DecoderTimesPrior
-from src.utils.grid import (
+from eval.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,

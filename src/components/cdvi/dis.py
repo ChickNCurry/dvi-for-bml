@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 from torch import Tensor
 from torch.distributions import Distribution, Normal
@@ -15,6 +16,7 @@ class DIS(CDVI):
         control: AggrControl,
         step_size_schedule: BaseSchedule,
         noise_schedule: BaseSchedule,
+        uses_score: bool,
         device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
@@ -26,30 +28,27 @@ class DIS(CDVI):
         self.control = control
         self.step_size_schedule = step_size_schedule
         self.noise_schedule = noise_schedule
+        self.uses_score = uses_score
 
     def contextualize(
         self,
         target: Distribution,
-        r_aggr: Tensor | None,
-        r_non_aggr: Tensor | None,
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ):
-        super(DIS, self).contextualize(target, r_aggr, r_non_aggr, mask)
+        super(DIS, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r_aggr)
-        self.noise_schedule.update(r_aggr)
+        self.step_size_schedule.update(r)
+        self.noise_schedule.update(r)
 
-    def forward_kernel(
-        self,
-        n: int,
-        z_prev: Tensor,
-    ) -> Distribution:
+    def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        control_n = self.control(n, z_prev, self.r_aggr, self.r_non_aggr, self.mask)
+        score_n = var_n * self.compute_score(n, z_prev) if self.uses_score else None
+        control_n = self.control(n, z_prev, self.r, self.mask, var_n * score_n)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_prev + (var_n * z_prev + control_n) * delta_t_n
@@ -58,11 +57,7 @@ class DIS(CDVI):
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def backward_kernel(
-        self,
-        n: int,
-        z_next: Tensor,
-    ) -> Distribution:
+    def backward_kernel(self, n: int, z_next: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
@@ -75,3 +70,29 @@ class DIS(CDVI):
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
+
+    def compute_score(self, n: int, z: Tensor) -> Tensor:
+        z = z.requires_grad_(True)
+
+        beta_n = self.annealing_schedule.get(n)
+
+        log_geo_avg = (1 - beta_n) * self.prior.log_prob(
+            z
+        ) + beta_n * self.target.log_prob(z)
+
+        score_n = torch.autograd.grad(
+            outputs=log_geo_avg,
+            inputs=z,
+            grad_outputs=torch.ones_like(log_geo_avg),
+            create_graph=True,
+            retain_graph=True,
+        )[0]
+
+        score_n = score_n.detach()
+        score_n = torch.nan_to_num(score_n)
+
+        grad_norm = score_n.norm(p=2)
+        if grad_norm > 1:
+            score_n = score_n * (1 / grad_norm)
+
+        return score_n

@@ -24,25 +24,17 @@ class CDVI(nn.Module, ABC):
     def contextualize(
         self,
         target: Distribution,
-        r_aggr: Tensor | None,
-        r_non_aggr: Tensor | None,
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> None:
 
         self.target = target
-        self.r_aggr = r_aggr
-        self.r_non_aggr = r_non_aggr
+        self.r = r
         self.mask = mask
 
-        if r_aggr is not None:
-            device = r_aggr.device
-            batch_size = r_aggr.shape[0]
-            num_subtasks = r_aggr.shape[1]
-
-        elif r_non_aggr is not None:
-            device = r_non_aggr.device
-            batch_size = r_non_aggr.shape[0]
-            num_subtasks = r_non_aggr.shape[1]
+        device = r[0].device if isinstance(r, tuple) else r.device
+        batch_size = r[0].shape[0] if isinstance(r, tuple) else r.shape[0]
+        num_subtasks = r[0].shape[1] if isinstance(r, tuple) else r.shape[1]
 
         self.device = device
         self.size = (batch_size, num_subtasks, self.z_dim)
@@ -71,12 +63,11 @@ class CDVI(nn.Module, ABC):
     def run_chain(
         self,
         target: Distribution,
-        r_aggr: Tensor | None,
-        r_non_aggr: Tensor | None,
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> Tuple[Tensor, Tensor, List[Tensor]]:
 
-        self.contextualize(target, r_aggr, r_non_aggr, mask)
+        self.contextualize(target, r, mask)
 
         z = [self.prior.sample()]
 

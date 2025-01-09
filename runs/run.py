@@ -5,7 +5,7 @@ import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-from src.utils.load import load_dvinp
+from src.utils.load_dvinp import load_dvinp
 
 
 @hydra.main(version_base=None, config_name="cfg", config_path="config")

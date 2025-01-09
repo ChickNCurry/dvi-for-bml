@@ -11,7 +11,7 @@ class Aggr(Enum):
     MAX = "max"
 
 
-class SetEncoder(BaseEncoder):
+class AggrEncoder(BaseEncoder):
     def __init__(
         self,
         c_dim: int,
@@ -22,7 +22,7 @@ class SetEncoder(BaseEncoder):
         aggregation: Aggr | None,
         max_context_size: int | None,
     ) -> None:
-        super(SetEncoder, self).__init__()
+        super(AggrEncoder, self).__init__()
 
         self.num_heads = num_heads
         self.aggregation = aggregation
@@ -83,7 +83,7 @@ class SetEncoder(BaseEncoder):
                     r = (h * mask.unsqueeze(-1)).max(dim=2)[0]
             # (batch_size, num_subtasks, h_dim)
 
-        if self.use_context_size_emb:
+        if self.max_context_size is not None:
             if mask is None:
                 e = self.context_size_embed(
                     torch.tensor([context.shape[2]], device=h.device)
