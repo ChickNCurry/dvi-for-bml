@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from src.components.nn.schedule.base_schedule import BaseSchedule
+from src.components.schedule.base_schedule import BaseSchedule
 
 
 class NoiseSchedule(BaseSchedule):

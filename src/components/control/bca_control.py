@@ -11,12 +11,12 @@ class BCAControl(nn.Module):
         num_steps: int,
         num_layers: int,
         non_linearity: str,
-        uses_score: bool,
+        use_score: bool,
     ) -> None:
         super(BCAControl, self).__init__()
 
         self.non_linearity = non_linearity
-        self.uses_score = uses_score
+        self.use_score = use_score
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
@@ -35,7 +35,7 @@ class BCAControl(nn.Module):
             getattr(nn, non_linearity)()
         )
 
-        if self.uses_score:
+        if self.use_score:
             self.proj_offset = nn.Linear(h_dim, z_dim)
 
             nn.init.zeros_(self.proj_offset.weight)
@@ -61,7 +61,7 @@ class BCAControl(nn.Module):
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, context_size)
 
-        if self.uses_score:
+        if self.use_score:
             assert score is not None
 
         z_mu, z_var = r
@@ -77,7 +77,7 @@ class BCAControl(nn.Module):
         h = self.mlp(h)
         # (batch_size, num_subtasks, h_dim)
 
-        if self.uses_score:
+        if self.use_score:
             offset: Tensor = self.proj_offset(h)
             scale: Tensor = self.proj_scale(h)
             # (batch_size, num_subtasks, z_dim)
