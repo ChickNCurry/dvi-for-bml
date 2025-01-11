@@ -185,8 +185,8 @@ class BetterDVINPTrainer(BaseTrainer):
 
         loss = -elbo
 
-        lmpl = compute_lmpl(z_samples[-1], x_data, y_data)
-        mse = compute_mse(z_samples[-1], x_data, y_data)
+        lmpl = compute_lmpl(self.dvinp.decoder, z_samples[-1], x_data, y_data)
+        mse = compute_mse(self.dvinp.decoder, z_samples[-1], x_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 

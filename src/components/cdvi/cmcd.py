@@ -1,10 +1,11 @@
 from typing import Tuple
+
 import torch
 from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from src.components.cdvi.cdvi import CDVI
-from src.components.control.aggr_control import AggrControl
+from src.components.control.base_control import BaseControl
 from src.components.schedule.base_schedule import BaseSchedule
 
 
@@ -13,7 +14,7 @@ class CMCD(CDVI):
         self,
         z_dim: int,
         num_steps: int,
-        control: AggrControl,
+        control: BaseControl,
         step_size_schedule: BaseSchedule,
         noise_schedule: BaseSchedule,
         annealing_schedule: BaseSchedule,
@@ -38,9 +39,9 @@ class CMCD(CDVI):
     ) -> None:
         super(CMCD, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r)
-        self.noise_schedule.update(r)
-        self.annealing_schedule.update(r)
+        self.step_size_schedule.update(r, mask)
+        self.noise_schedule.update(r, mask)
+        self.annealing_schedule.update(r, mask)
 
     def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -48,8 +49,8 @@ class CMCD(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        control_n = self.control(n, z_prev, self.r, self.mask)
         score = self.compute_score(n, z_prev)
+        control_n = self.control(n, z_prev, self.r, self.mask, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_prev + (var_n * score + control_n) * delta_t_n
@@ -64,8 +65,8 @@ class CMCD(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        control_n = self.control(n, z_next, self.r, self.mask)
         score = self.compute_score(n, z_next)
+        control_n = self.control(n, z_next, self.r, self.mask, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_next + (var_n * score - control_n) * delta_t_n

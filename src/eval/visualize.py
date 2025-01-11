@@ -16,7 +16,6 @@ from src.eval.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
-    eval_kde_on_grid,
     eval_score_on_grid,
     sample_from_vals,
 )
@@ -88,7 +87,7 @@ def visualize_dvinp_both(
         targets.append(target)
         samples.append(tp_samples)
 
-        y_dist: Distribution = dvinp.decoder(z_samples[-1], x_data, None)
+        y_dist: Distribution = dvinp.decoder(z_samples[-1], x_data)
 
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
@@ -111,7 +110,7 @@ def visualize_dvinp_both(
         target_samples_np = sample_from_vals(grid, target_vals, num_samples)
         target_samples = torch.from_numpy(target_samples_np).unsqueeze(0).to(device)
 
-        y_dist_test: Distribution = dvinp.decoder(target_samples, x_data, None)
+        y_dist_test: Distribution = dvinp.decoder(target_samples, x_data)
 
         y_mu_test_sorted = (
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()

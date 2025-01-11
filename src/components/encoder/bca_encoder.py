@@ -51,15 +51,26 @@ class BCAEncoder(BaseEncoder):
             h = h.view(batch_size * num_subtasks, context_size, -1)
             # (batch_size * num_subtasks, context_size, h_dim)
 
-            h, _ = self.self_attn(h, h, h, need_weights=False)
-            # (batch_size * num_subtasks, context_size, h_dim)
+            key_padding_mask = (
+                (mask.view(batch_size * num_subtasks, -1).bool().logical_not())
+                if mask is not None
+                else None
+            )  # (batch_size * num_subtasks, context_size)
+
+            h, _ = self.self_attn(
+                query=h,
+                key=h,
+                value=h,
+                key_padding_mask=key_padding_mask,
+                need_weights=False,
+            )  # (batch_size * num_subtasks, context_size, h_dim)
 
             h = h.view(batch_size, num_subtasks, context_size, -1)
             # (batch_size, num_subtasks, context_size, h_dim)
 
         h = self.mlp(h)
         r = self.proj_r(h)
-        r_var = self.proj_r_var(h)
+        r_var = nn.functional.softplus(self.proj_r_var(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
         z_var_0 = torch.ones((batch_size, num_subtasks, self.h_dim), device=h.device)

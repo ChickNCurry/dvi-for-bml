@@ -71,15 +71,21 @@ def eval_dist_on_grid(
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
-    eps = 1e-10
-
     grid_flat = grid.reshape(-1, grid.shape[-1])
     grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
     # (1, dim1 * dim2 * ..., z_dim)
 
-    vals = dist.log_prob(grid_tensor).sum(-1).exp().detach().cpu().numpy()
-    vals = vals / (np.sum(vals, axis=-1, keepdims=True) + eps)
+    vals = dist.log_prob(grid_tensor).exp().sum(-1).detach().cpu().numpy()
+
+    # print(np.sum(vals, axis=-1))
+    # vals = vals.astype(np.float128, casting="unsafe")
+
+    vals = vals / (np.sum(vals, axis=-1, keepdims=True))
     # (batch_size, dim1 * dim2 * ...)
+
+    # print(np.sum(vals, axis=-1))
+
+    # vals = vals.astype(np.float128, casting="unsafe")
 
     vals = vals.reshape(vals.shape[0], *grid.shape[:-1])
     # (batch_size, dim1, dim2, ...)
@@ -130,6 +136,8 @@ def sample_from_vals(
     # (dim1 * dim2 * ...)
 
     # flat_vals = flat_vals / (np.sum(flat_vals) + eps)
+
+    # print(np.sum(flat_vals))
 
     flat_indices = np.random.choice(flat_vals.shape[0], size=num_samples, p=flat_vals)
     # (num_samples)

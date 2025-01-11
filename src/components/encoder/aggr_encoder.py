@@ -59,8 +59,19 @@ class AggrEncoder(BaseEncoder):
             h = h.view(batch_size * num_subtasks, context_size, -1)
             # (batch_size * num_subtasks, context_size, h_dim)
 
-            h, _ = self.self_attn(h, h, h, need_weights=False)
-            # (batch_size * num_subtasks, context_size, h_dim)
+            key_padding_mask = (
+                (mask.view(batch_size * num_subtasks, -1).bool().logical_not())
+                if mask is not None
+                else None
+            )  # (batch_size * num_subtasks, context_size)
+
+            h, _ = self.self_attn(
+                query=h,
+                key=h,
+                value=h,
+                key_padding_mask=key_padding_mask,
+                need_weights=False,
+            )  # (batch_size * num_subtasks, context_size, h_dim)
 
             h = h.view(batch_size, num_subtasks, context_size, -1)
             # (batch_size, num_subtasks, context_size, h_dim)

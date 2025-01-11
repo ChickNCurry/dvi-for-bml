@@ -68,7 +68,7 @@ class ContextualCosineStepSizeSchedule(BaseSchedule, nn.Module):
             for n in range(0, num_steps)
         ]
 
-    def update(self, r: Tensor) -> None:
+    def update(self, r: Tensor, mask: Tensor | None) -> None:
         self.amplitude = self.amplitude_mlp(r)
 
     def get(self, n: int) -> Tensor:

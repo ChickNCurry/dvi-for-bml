@@ -1,10 +1,11 @@
 from typing import Tuple
+
 import torch
 from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from src.components.cdvi.cdvi import CDVI
-from src.components.control.aggr_control import AggrControl
+from src.components.control.base_control import BaseControl
 from src.components.schedule.base_schedule import BaseSchedule
 
 
@@ -13,10 +14,11 @@ class DIS(CDVI):
         self,
         z_dim: int,
         num_steps: int,
-        control: AggrControl,
+        control: BaseControl,
         step_size_schedule: BaseSchedule,
         noise_schedule: BaseSchedule,
-        uses_score: bool,
+        annealing_schedule: BaseSchedule,
+        use_score: bool,
         device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
@@ -28,7 +30,8 @@ class DIS(CDVI):
         self.control = control
         self.step_size_schedule = step_size_schedule
         self.noise_schedule = noise_schedule
-        self.uses_score = uses_score
+        self.annealing_schedule = annealing_schedule
+        self.use_score = use_score
 
     def contextualize(
         self,
@@ -38,8 +41,9 @@ class DIS(CDVI):
     ):
         super(DIS, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r)
-        self.noise_schedule.update(r)
+        self.step_size_schedule.update(r, mask)
+        self.noise_schedule.update(r, mask)
+        self.annealing_schedule.update(r, mask)
 
     def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -47,8 +51,12 @@ class DIS(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score_n = var_n * self.compute_score(n, z_prev) if self.uses_score else None
-        control_n = self.control(n, z_prev, self.r, self.mask, var_n * score_n)
+        score_n = (
+            torch.sqrt(var_n) * self.compute_score(n, z_prev)
+            if self.use_score
+            else None
+        )
+        control_n = self.control(n, z_prev, self.r, self.mask, score_n)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z_prev + (var_n * z_prev + control_n) * delta_t_n

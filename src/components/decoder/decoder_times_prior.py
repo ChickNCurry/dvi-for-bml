@@ -27,8 +27,8 @@ class DecoderTimesPrior(Distribution):
 
         batch_size = x_target.shape[0]
         num_subtasks = x_target.shape[1]
-        z_dim = decoder.z_dim
         device = x_target.device
+        z_dim = decoder.z_dim
 
         self.prior = Normal(  # type: ignore
             torch.zeros((batch_size, num_subtasks, z_dim), device=device),

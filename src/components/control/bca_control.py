@@ -53,7 +53,7 @@ class BCAControl(nn.Module):
         n: int,
         z: Tensor,
         r: Tuple[Tensor, Tensor],
-        mask: None,
+        mask: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),

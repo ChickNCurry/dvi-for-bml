@@ -14,6 +14,8 @@ class Decoder(nn.Module):
     ) -> None:
         super(Decoder, self).__init__()
 
+        self.z_dim = z_dim
+
         self.proj_x = nn.Linear(x_dim, h_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
 

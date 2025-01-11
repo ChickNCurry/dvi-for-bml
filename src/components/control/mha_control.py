@@ -1,9 +1,8 @@
-from typing import Tuple
 import torch
 from torch import Tensor, nn
 
 
-class Control(nn.Module):
+class MHAControl(nn.Module):
     def __init__(
         self,
         h_dim: int,
@@ -14,7 +13,7 @@ class Control(nn.Module):
         use_score: bool,
         num_heads: int,
     ) -> None:
-        super(Control, self).__init__()
+        super(MHAControl, self).__init__()
 
         self.non_linearity = non_linearity
         self.use_score = use_score
@@ -55,7 +54,7 @@ class Control(nn.Module):
         n: int,
         z: Tensor,
         r: Tensor,
-        mask: Tensor,
+        mask: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
@@ -65,28 +64,31 @@ class Control(nn.Module):
         if self.use_score:
             assert score is not None
 
-        batch_size = z.shape[0]
-        num_subtasks = z.shape[1]
+        batch_size = r.shape[0]
+        num_subtasks = r.shape[1]
+        context_size = r.shape[2]
+
+        r = r.view(batch_size * num_subtasks, context_size, -1)
+        # (batch_size * num_subtasks, context_size, h_dim)
 
         h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
         # (batch_size, num_subtasks, h_dim)
 
-        h = h.unsqueeze(2)
-        # (batch_size, num_subtasks, 1, h_dim)
+        h = h.view(batch_size * num_subtasks, -1).unsqueeze(1)
+        # (batch_size * num_subtasks, 1, h_dim)
 
-        mask = (
-            mask.unsqueeze(2)
-            .view(batch_size * num_subtasks, -1, -1)
-            .repeat(self.num_heads, 1, 1)
+        key_padding_mask = (
+            mask.view(batch_size * num_subtasks, context_size).bool().logical_not()
             if mask is not None
             else None
-        )  # (num_heads * num_subtasks * batch_size, 1, context_size)
+        )
+        # (batch_size * num_subtasks, context_size)
 
         h, _ = self.cross_attn(
-            query=h, key=r, value=r, attn_mask=mask
-        )  # (batch_size, num_subtasks, 1, h_dim)
+            query=h, key=r, value=r, key_padding_mask=key_padding_mask
+        )  # (batch_size * num_subtasks, 1, h_dim)
 
-        h = h.squeeze(2)
+        h = h.squeeze(1).view(batch_size, num_subtasks, -1)
         # (batch_size, num_subtasks, h_dim)
 
         h = self.mlp(h)

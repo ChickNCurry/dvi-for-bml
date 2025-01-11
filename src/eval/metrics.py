@@ -1,6 +1,6 @@
 import numpy as np
-from torch import Tensor
 import torch
+from torch import Tensor
 
 from src.components.decoder.decoder import Decoder
 

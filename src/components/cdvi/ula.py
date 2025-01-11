@@ -4,7 +4,6 @@ from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from src.components.cdvi.cdvi import CDVI
-from src.components.control.aggr_control import AggrControl
 from src.components.schedule.annealing_schedule import AnnealingSchedule
 from src.components.schedule.noise_schedule import NoiseSchedule
 from src.components.schedule.step_size_schedule import StepSizeSchedule
@@ -38,9 +37,9 @@ class ULA(CDVI):
     ) -> None:
         super(ULA, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r)
-        self.noise_schedule.update(r)
-        self.annealing_schedule.update(r)
+        self.step_size_schedule.update(r, mask)
+        self.noise_schedule.update(r, mask)
+        self.annealing_schedule.update(r, mask)
 
     def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)

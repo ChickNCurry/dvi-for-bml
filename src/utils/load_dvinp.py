@@ -1,5 +1,6 @@
 import os
 import random
+from enum import Enum
 from typing import Tuple
 
 import numpy as np
@@ -10,14 +11,38 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.components.dvinp import DVINP
 from src.components.cdvi.cdvi import CDVI
+from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
+from src.components.control.bca_control import BCAControl
+from src.components.control.mha_control import MHAControl
 from src.components.decoder.decoder import Decoder
+from src.components.dvinp import DVINP
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
+from src.components.encoder.bca_encoder import BCAEncoder
+from src.components.encoder.mha_encoder import MHAEncoder
+from src.components.schedule.annealing_schedule import (
+    AggrAnnealingSchedule,
+    AnnealingSchedule,
+    BCAAnnealingSchedule,
+    MHAAnnealingSchedule,
+)
+from src.components.schedule.noise_schedule import (
+    AggrNoiseSchedule,
+    BCANoiseSchedule,
+    MHANoiseSchedule,
+    NoiseSchedule,
+)
+from src.components.schedule.step_size_schedule import StepSizeSchedule
 from src.train.base_trainer import AbstractTrainer
 from src.train.dvinp_trainer import BetterDVINPTrainer
 from src.utils.datasets import MetaLearningDataset
+
+
+class ContextualizationVariant(Enum):
+    AGGR = "aggr"
+    BCA = "bca"
+    MHA = "mha"
 
 
 def load_dvinp(
@@ -63,76 +88,142 @@ def load_dvinp(
         generator=g,
     )
 
-    set_encoder = AggrEncoder(
-        c_dim=cfg.common.c_dim,
-        h_dim=cfg.common.h_dim,
-        num_layers=cfg.common.num_layers,
-        non_linearity=cfg.common.non_linearity,
-        is_attentive=cfg.set_encoder.is_attentive,
-        num_heads=cfg.set_encoder.num_heads,
-        is_non_aggregative=cfg.control.is_cross_attentive
-        or cfg.decoder.is_cross_attentive,
-        is_aggregative=not cfg.control.is_cross_attentive
-        or not cfg.decoder.is_cross_attentive,
-        aggregation=(
-            Aggr(cfg.set_encoder.aggregation)
-            if cfg.set_encoder.aggregation is not None
-            else None
-        ),
-        use_context_size_emb=cfg.set_encoder.use_context_size_emb,
-        max_context_size=dataset.max_context_size,
-    )
+    variant = ContextualizationVariant(cfg.common.variant)
 
-    # set_encoder = BCAEncoder(
-    #     c_dim=cfg.common.c_dim,
-    #     h_dim=cfg.common.h_dim,
-    #     num_layers=cfg.common.num_layers,
-    #     non_linearity=cfg.common.non_linearity,
-    #     is_attentive=cfg.set_encoder.is_attentive,
-    #     num_heads=cfg.set_encoder.num_heads,
-    # )
+    match variant:
+        case ContextualizationVariant.AGGR:
 
-    control: AggrControl | InformedControl = instantiate(
-        cfg.control,
-        h_dim=cfg.common.h_dim,
-        z_dim=cfg.common.z_dim,
-        num_steps=cfg.cdvi.num_steps,
-        num_layers=cfg.common.num_layers,
-        non_linearity=cfg.common.non_linearity,
-    )
+            encoder = AggrEncoder(
+                c_dim=cfg.common.c_dim,
+                h_dim=cfg.common.h_dim,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                num_heads=cfg.common.self_attn_num_heads,
+                aggregation=Aggr(cfg.common.aggregation),
+                max_context_size=cfg.common.max_context_size,
+            )
 
-    # control = BCAControl(
-    #     h_dim=cfg.common.h_dim,
-    #     z_dim=cfg.common.z_dim,
-    #     num_steps=cfg.cdvi.num_steps,
-    #     num_layers=cfg.common.num_layers,
-    #     non_linearity=cfg.common.non_linearity,
-    # )
+            control = AggrControl(
+                h_dim=cfg.common.h_dim,
+                z_dim=cfg.common.z_dim,
+                num_steps=cfg.common.num_steps,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                use_score=cfg.common.use_score,
+            )
 
-    step_size_schedule = StepSizeSchedule(num_steps=cfg.cdvi.num_steps, device=device)
+            noise_schedule = AggrNoiseSchedule(
+                z_dim=cfg.common.z_dim,
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+            )
 
-    noise_schedule = ContextualNoiseSchedule(
-        z_dim=cfg.common.z_dim,
-        h_dim=cfg.common.h_dim,
-        non_linearity=cfg.common.non_linearity,
-        num_steps=cfg.cdvi.num_steps,
+            annealing_schedule = AggrAnnealingSchedule(
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+            )
+
+        case ContextualizationVariant.BCA:
+
+            encoder = BCAEncoder(
+                c_dim=cfg.common.c_dim,
+                h_dim=cfg.common.h_dim,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                num_heads=cfg.common.self_attn_num_heads,
+            )
+
+            control = BCAControl(
+                h_dim=cfg.common.h_dim,
+                z_dim=cfg.common.z_dim,
+                num_steps=cfg.common.num_steps,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                use_score=cfg.common.use_score,
+            )
+
+            noise_schedule = BCANoiseSchedule(
+                z_dim=cfg.common.z_dim,
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+            )
+
+            annealing_schedule = BCAAnnealingSchedule(
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+            )
+
+        case ContextualizationVariant.MHA:
+
+            encoder = MHAEncoder(
+                c_dim=cfg.common.c_dim,
+                h_dim=cfg.common.h_dim,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                num_heads=cfg.common.self_attn_num_heads,
+            )
+
+            control = MHAControl(
+                h_dim=cfg.common.h_dim,
+                z_dim=cfg.common.z_dim,
+                num_steps=cfg.common.num_steps,
+                num_layers=cfg.common.num_layers,
+                non_linearity=cfg.common.non_linearity,
+                use_score=cfg.common.use_score,
+                num_heads=cfg.common.cross_attn_num_heads,
+            )
+
+            noise_schedule = MHANoiseSchedule(
+                z_dim=cfg.common.z_dim,
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+                num_heads=cfg.common.cross_attn_num_heads,
+            )
+
+            annealing_schedule = MHAAnnealingSchedule(
+                h_dim=cfg.common.h_dim,
+                non_linearity=cfg.common.non_linearity,
+                num_steps=cfg.common.num_steps,
+                device=device,
+                num_heads=cfg.common.cross_attn_num_heads,
+            )
+
+    step_size_schedule = StepSizeSchedule(
+        num_steps=cfg.common.num_steps,
         device=device,
     )
 
-    annealing_schedule = ContextualAnnealingSchedule(
-        h_dim=cfg.common.h_dim,
-        non_linearity=cfg.common.non_linearity,
-        num_steps=cfg.cdvi.num_steps,
-        device=device,
-    )
+    if not cfg.common.contextual_schedules:
 
-    cdvi: CDVI = instantiate(
-        cfg.cdvi,
+        noise_schedule = NoiseSchedule(
+            z_dim=cfg.common.z_dim,
+            num_steps=cfg.common.num_steps,
+            device=device,
+        )
+
+        annealing_schedule = AnnealingSchedule(
+            num_steps=cfg.common.num_steps,
+            device=device,
+        )
+
+    cdvi = DIS(
         z_dim=cfg.common.z_dim,
+        num_steps=cfg.common.num_steps,
         control=control,
         step_size_schedule=step_size_schedule,
         noise_schedule=noise_schedule,
         annealing_schedule=annealing_schedule,
+        use_score=cfg.common.use_score,
         device=device,
     )
 
@@ -146,7 +237,7 @@ def load_dvinp(
     )
 
     dvinp = DVINP(
-        encoder=set_encoder,
+        encoder=encoder,
         cdvi=cdvi,
         decoder=decoder,
         contextual_target=None,

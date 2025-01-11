@@ -1,4 +1,3 @@
-from typing import Tuple
 import torch
 from torch import Tensor, nn
 
@@ -55,7 +54,7 @@ class AggrControl(BaseControl):
         n: int,
         z: Tensor,
         r: Tensor,
-        mask: None,
+        mask: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
