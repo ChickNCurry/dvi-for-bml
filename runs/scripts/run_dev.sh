@@ -4,9 +4,9 @@ which python
 
 python ../run.py --multirun \
 hydra=gpu_dev \
-wandb.project=test \
-set_encoder.aggregation=max \
-set_encoder.is_attentive=True \
-training.max_clip_norm=null \
-control.is_cross_attentive=True \
-training.alpha=1.0 \
+wandb.project=cluster-test \
+common.variant=aggr,bca,mha \
+common.non_linearity=GELU,SiLU \
+common.self_attn_num_heads=null,1,2 \
+training.max_clip_norm=null,0.2 \
+training.alpha=null,1.0 \

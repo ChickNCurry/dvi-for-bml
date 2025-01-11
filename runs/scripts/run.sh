@@ -4,9 +4,9 @@ which python
 
 python ../run.py --multirun \
 hydra=gpu \
-wandb.project=dvi-np-cluster-informed-cross-attn \
-set_encoder.aggregation=max,mean \
-set_encoder.is_attentive=False,True \
-control.is_cross_attentive=False,True \
+wandb.project=cluster \
+common.variant=aggr,bca,mha \
+common.non_linearity=GELU,SiLU \
+common.self_attn_num_heads=null,1,2 \
 training.max_clip_norm=null,0.2 \
 training.alpha=null,1.0 \

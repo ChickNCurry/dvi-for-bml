@@ -49,4 +49,4 @@ training:
     seed: 0
 wandb:
     logging: true
-    project: dvinp-cluster
+    project: cluster-test

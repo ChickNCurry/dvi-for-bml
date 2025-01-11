@@ -18,6 +18,7 @@ def run(cfg: DictConfig) -> None:
     if cfg.wandb.logging:
         wandb.init(
             project=cfg.wandb.project,
+            group=cfg.common.variant,
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
 
