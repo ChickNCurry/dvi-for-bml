@@ -26,24 +26,15 @@ common:
     z_dim: 2
     h_dim: 64
     num_layers: 6
-    non_linearity: SiLU
-control:
-    _target_: src.components.nn.control_informed.InformedControl
-    is_cross_attentive: false
-    num_heads: 1
-decoder:
-    has_lat_path: true
-    has_det_path: false
-    is_cross_attentive: false
-    num_heads: 1
-cdvi:
-    _target_: src.components.dvi.dis_informed.InformedDIS
+    non_linearity: GELU
+    self_attn_num_heads: 1
+    cross_attn_num_heads: 1
+    max_context_size: null
+    variant: mha
+    use_score: true
+    aggregation: mean
     num_steps: 16
-set_encoder:
-    aggregation: max
-    is_attentive: false
-    num_heads: 1
-    use_context_size_emb: false
+    contextual_schedules: true
 training:
     batch_size: 128
     num_subtasks: 32
@@ -58,5 +49,4 @@ training:
     seed: 0
 wandb:
     logging: true
-    project: dvi-np-cluster
-
+    project: dvinp-cluster
