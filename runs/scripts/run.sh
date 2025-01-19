@@ -4,7 +4,8 @@ which python
 
 python ../run.py --multirun \
 hydra=gpu \
-wandb.project=cluster \
+wandb.project=cluster-sine \
+benchmark._target_=metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1D \
 common.variant=aggr,bca,mha \
 common.non_linearity=GELU,SiLU \
 common.self_attn_num_heads=null,1,2 \
