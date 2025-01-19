@@ -30,7 +30,7 @@ common:
     self_attn_num_heads: 1
     cross_attn_num_heads: 1
     max_context_size: null
-    variant: mha
+    variant: aggr
     use_score: true
     aggregation: mean
     num_steps: 16
@@ -42,7 +42,7 @@ training:
     sample_size: 100
     max_context_size: 16
     learning_rate: 0.0003
-    num_epochs: 500
+    num_epochs: 1000
     alternating_ratio: null
     max_clip_norm: null
     alpha: null
