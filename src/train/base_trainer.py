@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple
 import torch
 import wandb
 from torch import Tensor
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -41,7 +41,7 @@ class BaseTrainer(AbstractTrainer):
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
-        scheduler: ReduceLROnPlateau | None,
+        scheduler: LRScheduler | None,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -117,9 +117,6 @@ class BaseTrainer(AbstractTrainer):
 
                     self.optimizer.step()
 
-                    if self.scheduler is not None:
-                        self.scheduler.step(loss)
-
                     loop.set_postfix(
                         ordered_dict=OrderedDict(
                             [
@@ -141,6 +138,10 @@ class BaseTrainer(AbstractTrainer):
                                 ),
                             }
                         )
+
+            if self.scheduler is not None:
+                self.scheduler.step(epoch)
+                print(self.scheduler.get_last_lr())
 
     @abstractmethod
     def train_step(

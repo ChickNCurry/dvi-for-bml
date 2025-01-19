@@ -48,7 +48,7 @@ class CDVI(nn.Module, ABC):
     def forward_kernel(
         self,
         n: int,
-        z_prev: Tensor,
+        z: Tensor,
     ) -> Distribution:
         pass
 
@@ -56,7 +56,7 @@ class CDVI(nn.Module, ABC):
     def backward_kernel(
         self,
         n: int,
-        z_next: Tensor,
+        z: Tensor,
     ) -> Distribution:
         pass
 
@@ -74,14 +74,13 @@ class CDVI(nn.Module, ABC):
         elbo: Tensor = torch.zeros(self.size, device=self.device)
         # (batch_size, num_subtasks, z_dim)
 
-        for i in range(0, self.num_steps):
-            n = i + 1
+        for n in range(0, self.num_steps):
 
-            fwd_kernel = self.forward_kernel(n, z[n - 1])
+            fwd_kernel = self.forward_kernel(n, z[n])
             z.append(fwd_kernel.rsample())
-            bwd_kernel = self.backward_kernel(n - 1, z[n])
+            bwd_kernel = self.backward_kernel(n + 1, z[n + 1])
 
-            elbo += bwd_kernel.log_prob(z[n - 1]) - fwd_kernel.log_prob(z[n])
+            elbo += bwd_kernel.log_prob(z[n]) - fwd_kernel.log_prob(z[n + 1])
             # (batch_size, num_subtasks, z_dim or 1)
 
         elbo += self.target.log_prob(z[-1]) - self.prior.log_prob(z[0])

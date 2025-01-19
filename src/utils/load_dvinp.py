@@ -10,8 +10,8 @@ from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
+from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 
-from src.components.cdvi.cdvi import CDVI
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
 from src.components.control.bca_control import BCAControl
@@ -251,6 +251,13 @@ def load_dvinp(
 
     optimizer = AdamW(params=params, lr=cfg.training.learning_rate)
 
+    scheduler = CosineAnnealingWarmRestarts(
+        optimizer=optimizer,
+        T_0=5,
+        T_mult=2,
+        eta_min=cfg.training.learning_rate * 0.01,
+    )
+
     trainer = BetterDVINPTrainer(
         device=device,
         dvinp=dvinp,
@@ -258,7 +265,7 @@ def load_dvinp(
         train_loader=train_loader,
         val_loader=val_loader,
         optimizer=optimizer,
-        scheduler=None,
+        scheduler=None,  # scheduler,
         wandb_logging=cfg.wandb.logging,
         num_subtasks=cfg.training.num_subtasks,
         sample_size=cfg.training.sample_size,

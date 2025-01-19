@@ -45,27 +45,25 @@ class DIS(CDVI):
         self.noise_schedule.update(r, mask)
         self.annealing_schedule.update(r, mask)
 
-    def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
+    def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = (
-            torch.sqrt(var_n) * self.compute_score(n, z_prev)
-            if self.use_score
-            else None
+            torch.sqrt(var_n) * self.compute_score(n, z) if self.use_score else None
         )
-        control_n = self.control(n, z_prev, self.r, self.mask, score_n)
+        control_n = self.control(n, z, self.r, self.mask, score_n)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (var_n * z_prev + control_n) * delta_t_n
+        z_mu = z + (var_n * z + control_n) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def backward_kernel(self, n: int, z_next: Tensor) -> Distribution:
+    def backward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
@@ -73,7 +71,7 @@ class DIS(CDVI):
         var_n = self.noise_schedule.get(n)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next - (var_n * z_next) * delta_t_n
+        z_mu = z - (var_n * z) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 

@@ -41,31 +41,31 @@ class ULA(CDVI):
         self.noise_schedule.update(r, mask)
         self.annealing_schedule.update(r, mask)
 
-    def forward_kernel(self, n: int, z_prev: Tensor) -> Distribution:
+    def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score = self.compute_score(n, z_prev)
+        score = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_prev + (var_n * score) * delta_t_n
-        z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
+        z_mu = z + (var_n * score) * delta_t_n
+        z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
         return Normal(z_mu, z_sigma)  # type: ignore
 
-    def backward_kernel(self, n: int, z_next: Tensor) -> Distribution:
+    def backward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score = self.compute_score(n, z_next)
+        score = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z_next + (var_n * score) * delta_t_n
+        z_mu = z - (var_n * score) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
