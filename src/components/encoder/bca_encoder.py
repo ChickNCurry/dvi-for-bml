@@ -34,7 +34,7 @@ class BCAEncoder(BaseEncoder):
         )
 
         self.proj_r = nn.Linear(h_dim, h_dim)
-        self.proj_r_var = nn.Linear(h_dim, h_dim)
+        self.proj_r_logvar = nn.Linear(h_dim, h_dim)
 
     def forward(self, context: Tensor, mask: Tensor | None) -> Tuple[Tensor, Tensor]:
         # (batch_size, num_subtasks, context_size, c_dim)
@@ -70,7 +70,8 @@ class BCAEncoder(BaseEncoder):
 
         h = self.mlp(h)
         r = self.proj_r(h)
-        r_var = nn.functional.softplus(self.proj_r_var(h))
+        # r_var = nn.functional.softplus(self.proj_r_var(h))
+        r_var = torch.exp(self.proj_r_logvar(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
         z_var_0 = torch.ones((batch_size, num_subtasks, self.h_dim), device=h.device)

@@ -26,20 +26,19 @@ def eval_kde_on_grid(
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim), (num_samples, z_dim)
 
-    eps = 1e-10
-
     grid_flat = grid.reshape(-1, grid.shape[-1])
     # (dim1 * dim2 * ..., z_dim)
 
     kde = gaussian_kde(samples.T)
-    vals: NDArray[np.float32] = kde(grid_flat.T)
-    vals = vals / (np.sum(vals) + eps)
+    probs: NDArray[np.float32] = kde(grid_flat.T)
+    log_probs = np.log(np.clip(probs, a_min=1e-300, a_max=None))
+    log_probs = log_probs - logsumexp(log_probs)
     # (dim1 * dim2 * ...)
 
-    vals = vals.reshape(grid.shape[:-1])
+    log_probs = log_probs.reshape(grid.shape[:-1])
     # (dim1, dim2, ...)
 
-    return vals
+    return log_probs
 
 
 def eval_hist_on_grid(
@@ -47,21 +46,20 @@ def eval_hist_on_grid(
 ) -> NDArray[np.float32]:
     # (num_samples, z_dim)
 
-    eps = 1e-10
-
     step_sizes = [(max - min) / num_cells for min, max in ranges]
     outer_edges = [
         (min - step_size, max + step_size)
         for (min, max), step_size in zip(ranges, step_sizes)
     ]
 
-    vals, _ = np.histogramdd(samples, bins=num_cells, range=outer_edges, density=True)
-    vals = vals / (np.sum(vals) + eps)
+    probs, _ = np.histogramdd(samples, bins=num_cells, range=outer_edges, density=True)
+    log_probs: NDArray[np.float32] = np.log(np.clip(probs, a_min=1e-300, a_max=None))
+    log_probs = log_probs - logsumexp(log_probs)
     # (dim1, dim2, ...)
 
-    vals = vals.T  # TODO: why transpose needed?
+    log_probs = log_probs.T  # TODO: why transpose needed?
 
-    return vals
+    return log_probs
 
 
 def eval_dist_on_grid(
@@ -75,22 +73,14 @@ def eval_dist_on_grid(
     grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
     # (1, dim1 * dim2 * ..., z_dim)
 
-    vals = dist.log_prob(grid_tensor).exp().sum(-1).detach().cpu().numpy()
-
-    # print(np.sum(vals, axis=-1))
-    # vals = vals.astype(np.float128, casting="unsafe")
-
-    vals = vals / (np.sum(vals, axis=-1, keepdims=True))
+    log_probs = dist.log_prob(grid_tensor).sum(-1).detach().cpu().numpy()
+    log_probs = log_probs - logsumexp(log_probs)
     # (batch_size, dim1 * dim2 * ...)
 
-    # print(np.sum(vals, axis=-1))
-
-    # vals = vals.astype(np.float128, casting="unsafe")
-
-    vals = vals.reshape(vals.shape[0], *grid.shape[:-1])
+    log_probs = log_probs.reshape(log_probs.shape[0], *grid.shape[:-1])
     # (batch_size, dim1, dim2, ...)
 
-    return vals
+    return log_probs
 
 
 def eval_score_on_grid(
@@ -125,24 +115,21 @@ def eval_score_on_grid(
     return grad
 
 
-def sample_from_vals(
-    grid: NDArray[np.float32], vals: NDArray[np.float32], num_samples: int
+def sample_from_log_probs(
+    grid: NDArray[np.float32], log_probs: NDArray[np.float32], num_samples: int
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ...)
 
-    eps = 1e-10
-
-    flat_vals = vals.reshape(-1)
+    flat_log_probs = log_probs.reshape(-1)
+    flat_probs = np.exp(flat_log_probs)
     # (dim1 * dim2 * ...)
 
-    # flat_vals = flat_vals / (np.sum(flat_vals) + eps)
-
-    # print(np.sum(flat_vals))
-
-    flat_indices = np.random.choice(flat_vals.shape[0], size=num_samples, p=flat_vals)
+    flat_indices = np.random.choice(
+        flat_log_probs.shape[0], size=num_samples, p=flat_probs
+    )
     # (num_samples)
 
-    grid_indices = np.unravel_index(flat_indices, vals.shape)
+    grid_indices = np.unravel_index(flat_indices, log_probs.shape)
     samples = grid[grid_indices]
     # (num_samples, z_dim)
 
@@ -150,35 +137,34 @@ def sample_from_vals(
 
 
 def compute_jsd(
-    p_vals: NDArray[np.float32],
-    q_vals: NDArray[np.float32],
+    p_log_probs: NDArray[np.float32],
+    q_log_probs: NDArray[np.float32],
 ) -> Any:
     # (dim1, dim2, ...)
-    # (dim1, dim2, ...)
 
-    eps = 1e-10
+    p_probs, q_probs = np.exp(p_log_probs), np.exp(q_log_probs)
+    m_probs = 0.5 * (p_probs + q_probs)
 
-    m_vals = 0.5 * (p_vals + q_vals) + eps
+    m_log_probs = np.log(m_probs)
 
-    jsd = 0.5 * np.sum(
-        p_vals * np.log((p_vals / m_vals) + eps)
-        + q_vals * np.log((q_vals / m_vals) + eps)
-    )
+    kl_p_m = p_probs * (p_log_probs - m_log_probs)
+    kl_q_m = q_probs * (q_log_probs - m_log_probs)
+
+    jsd = 0.5 * np.sum(kl_p_m + kl_q_m)
 
     return jsd
 
 
 def compute_bd(
-    p_vals: NDArray[np.float32],
-    q_vals: NDArray[np.float32],
+    p_log_probs: NDArray[np.float32],
+    q_log_probs: NDArray[np.float32],
 ) -> Any:
     # (dim1, dim2, ...)
-    # (dim1, dim2, ...)
 
-    eps = 1e-10
+    p_probs, q_probs = np.exp(p_log_probs), np.exp(q_log_probs)
 
-    bc = np.sum(np.sqrt(p_vals * q_vals))
-    bd = -np.log(bc + eps)
+    bc = np.sum(np.sqrt(p_probs * q_probs))
+    bd = -np.log(bc)
 
     return bd
 

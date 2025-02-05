@@ -26,7 +26,7 @@ class NoiseSchedule(BaseSchedule):
             .unsqueeze(1)
             .expand(self.num_entries, z_dim),
             requires_grad=requires_grad,
-        )
+        )  # (num_entries, z_dim)
 
     def get(self, n: int) -> Tensor:
         var_n = torch.nn.functional.softplus(self.noise_schedule[n, :])

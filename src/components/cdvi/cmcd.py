@@ -53,7 +53,7 @@ class CMCD(CDVI):
         control_n = self.control(n, z, self.r, self.mask, None)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z + (var_n * score + control_n) * delta_t_n
+        z_mu = z + (var_n * score + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -69,7 +69,7 @@ class CMCD(CDVI):
         control_n = self.control(n, z, self.r, self.mask, None)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z - (var_n * score + control_n) * delta_t_n
+        z_mu = z - (var_n * score + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -94,8 +94,8 @@ class CMCD(CDVI):
 
         score_n = torch.nan_to_num(score_n)
 
-        grad_norm = score_n.norm(p=2)
-        if grad_norm > 1:
-            score_n = score_n * (1 / grad_norm)
+        # grad_norm = score_n.norm(p=2)
+        # if grad_norm > 1:
+        #     score_n = score_n * (1 / grad_norm)
 
         return score_n

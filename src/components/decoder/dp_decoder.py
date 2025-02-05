@@ -1,3 +1,4 @@
+import torch
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
@@ -44,7 +45,7 @@ class DualPathDecoder(nn.Module):
         )
 
         self.proj_y_mu = nn.Linear(h_dim, y_dim)
-        self.proj_y_w = nn.Linear(h_dim, y_dim)
+        self.proj_y_logvar = nn.Linear(h_dim, y_dim)
 
     def forward(
         self,
@@ -125,7 +126,8 @@ class DualPathDecoder(nn.Module):
         # (batch_size, num_subtasks, target_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        y_sigma = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
+        # y_sigma = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
+        y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
         # (batch_size, num_subtasks, target_size, y_dim)
 
         # y_mu = torch.nan_to_num(y_mu)

@@ -1,4 +1,5 @@
 from torch import Tensor, nn
+import torch
 from torch.distributions import Distribution, Normal
 
 
@@ -29,7 +30,7 @@ class Decoder(nn.Module):
         )
 
         self.proj_y_mu = nn.Linear(h_dim, y_dim)
-        self.proj_y_w = nn.Linear(h_dim, y_dim)
+        self.proj_y_logvar = nn.Linear(h_dim, y_dim)
 
     def forward(
         self,
@@ -43,15 +44,12 @@ class Decoder(nn.Module):
         z = z.unsqueeze(2).expand(-1, -1, x_target.shape[2], -1)
         # (batch_size, num_subtasks, target_size, z_dim)
 
-        z = self.proj_z(z)
-        x = self.proj_x(x_target)
-        # (batch_size, num_subtasks, target_size, h_dim)
-
-        h = self.mlp(x + z)
+        h = self.mlp(self.proj_x(x_target) + self.proj_z(z))
         # (batch_size, num_subtasks, target_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        y_sigma = 0.1 + 0.9 * nn.functional.softplus(self.proj_y_w(h))
+        # y_sigma = 0.1 + 0.9 * nn.functional.softplus(self.proj_y_w(h))
+        y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
         # (batch_size, num_subtasks, target_size, y_dim)
 
         return Normal(y_mu, y_sigma)  # type: ignore

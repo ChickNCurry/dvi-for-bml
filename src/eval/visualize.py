@@ -17,7 +17,7 @@ from src.eval.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
     eval_score_on_grid,
-    sample_from_vals,
+    sample_from_log_probs,
 )
 
 
@@ -96,18 +96,18 @@ def visualize_dvinp_both(
         grid = create_grid(ranges, num_cells)
 
         # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
-        dvi_vals = eval_hist_on_grid(
+        dvi_log_probs = eval_hist_on_grid(
             z_samples[-1].reshape(-1, z_samples[-1].shape[-1]).cpu().detach().numpy(),
             ranges,
             num_cells,
         )
 
-        target_vals = eval_dist_on_grid(grid, target, device=device).squeeze(0)
+        target_log_probs = eval_dist_on_grid(grid, target, device=device).squeeze(0)
 
         if show_score:
             score_vals = eval_score_on_grid(grid, target, device=device)
 
-        target_samples_np = sample_from_vals(grid, target_vals, num_samples)
+        target_samples_np = sample_from_log_probs(grid, target_log_probs, num_samples)
         target_samples = torch.from_numpy(target_samples_np).unsqueeze(0).to(device)
 
         y_dist_test: Distribution = dvinp.decoder(target_samples, x_data)
@@ -136,10 +136,10 @@ def visualize_dvinp_both(
             )
 
         ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
-        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], dvi_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm)  # type: ignore
 
         ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
-        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], target_vals, cmap=cm.coolwarm)  # type: ignore
+        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm)  # type: ignore
 
         if show_score:
             ax[1].quiver(

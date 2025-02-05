@@ -9,8 +9,8 @@ from hydra.utils import instantiate
 from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
-from torch.utils.data import DataLoader, random_split
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
+from torch.utils.data import DataLoader, random_split
 
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
@@ -40,7 +40,8 @@ from src.utils.datasets import MetaLearningDataset
 
 
 class ContextualizationVariant(Enum):
-    AGGR = "aggr"
+    MEAN = "mean"
+    MAX = "max"
     BCA = "bca"
     MHA = "mha"
 
@@ -88,152 +89,152 @@ def load_dvinp(
         generator=g,
     )
 
-    variant = ContextualizationVariant(cfg.common.variant)
+    variant = ContextualizationVariant(cfg.model.variant)
 
     match variant:
-        case ContextualizationVariant.AGGR:
+        case ContextualizationVariant.MEAN | ContextualizationVariant.MAX:
 
             encoder = AggrEncoder(
-                c_dim=cfg.common.c_dim,
-                h_dim=cfg.common.h_dim,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                num_heads=cfg.common.self_attn_num_heads,
-                aggregation=Aggr(cfg.common.aggregation),
-                max_context_size=cfg.common.max_context_size,
+                c_dim=cfg.model.c_dim,
+                h_dim=cfg.model.h_dim,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                num_heads=cfg.model.self_attn_num_heads,
+                aggregation=Aggr(ContextualizationVariant(variant).value),
+                max_context_size=cfg.model.max_context_size,
             )
 
             control = AggrControl(
-                h_dim=cfg.common.h_dim,
-                z_dim=cfg.common.z_dim,
-                num_steps=cfg.common.num_steps,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                use_score=cfg.common.use_score,
+                h_dim=cfg.model.h_dim,
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                use_score=cfg.model.use_score,
             )
 
             noise_schedule = AggrNoiseSchedule(
-                z_dim=cfg.common.z_dim,
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                z_dim=cfg.model.z_dim,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
             )
 
             annealing_schedule = AggrAnnealingSchedule(
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
             )
 
         case ContextualizationVariant.BCA:
 
             encoder = BCAEncoder(
-                c_dim=cfg.common.c_dim,
-                h_dim=cfg.common.h_dim,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                num_heads=cfg.common.self_attn_num_heads,
+                c_dim=cfg.model.c_dim,
+                h_dim=cfg.model.h_dim,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                num_heads=cfg.model.self_attn_num_heads,
             )
 
             control = BCAControl(
-                h_dim=cfg.common.h_dim,
-                z_dim=cfg.common.z_dim,
-                num_steps=cfg.common.num_steps,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                use_score=cfg.common.use_score,
+                h_dim=cfg.model.h_dim,
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                use_score=cfg.model.use_score,
             )
 
             noise_schedule = BCANoiseSchedule(
-                z_dim=cfg.common.z_dim,
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                z_dim=cfg.model.z_dim,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
             )
 
             annealing_schedule = BCAAnnealingSchedule(
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
             )
 
         case ContextualizationVariant.MHA:
 
             encoder = MHAEncoder(
-                c_dim=cfg.common.c_dim,
-                h_dim=cfg.common.h_dim,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                num_heads=cfg.common.self_attn_num_heads,
+                c_dim=cfg.model.c_dim,
+                h_dim=cfg.model.h_dim,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                num_heads=cfg.model.self_attn_num_heads,
             )
 
             control = MHAControl(
-                h_dim=cfg.common.h_dim,
-                z_dim=cfg.common.z_dim,
-                num_steps=cfg.common.num_steps,
-                num_layers=cfg.common.num_layers,
-                non_linearity=cfg.common.non_linearity,
-                use_score=cfg.common.use_score,
-                num_heads=cfg.common.cross_attn_num_heads,
+                h_dim=cfg.model.h_dim,
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                num_layers=cfg.model.num_layers,
+                non_linearity=cfg.model.non_linearity,
+                use_score=cfg.model.use_score,
+                num_heads=cfg.model.cross_attn_num_heads,
             )
 
             noise_schedule = MHANoiseSchedule(
-                z_dim=cfg.common.z_dim,
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                z_dim=cfg.model.z_dim,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
-                num_heads=cfg.common.cross_attn_num_heads,
+                num_heads=cfg.model.cross_attn_num_heads,
             )
 
             annealing_schedule = MHAAnnealingSchedule(
-                h_dim=cfg.common.h_dim,
-                non_linearity=cfg.common.non_linearity,
-                num_steps=cfg.common.num_steps,
+                h_dim=cfg.model.h_dim,
+                non_linearity=cfg.model.non_linearity,
+                num_steps=cfg.model.num_steps,
                 device=device,
-                num_heads=cfg.common.cross_attn_num_heads,
+                num_heads=cfg.model.cross_attn_num_heads,
             )
 
-    step_size_schedule = StepSizeSchedule(
-        num_steps=cfg.common.num_steps,
-        device=device,
-    )
-
-    if not cfg.common.contextual_schedules:
+    if not cfg.model.contextual_schedules:
 
         noise_schedule = NoiseSchedule(
-            z_dim=cfg.common.z_dim,
-            num_steps=cfg.common.num_steps,
+            z_dim=cfg.model.z_dim,
+            num_steps=cfg.model.num_steps,
             device=device,
         )
 
         annealing_schedule = AnnealingSchedule(
-            num_steps=cfg.common.num_steps,
+            num_steps=cfg.model.num_steps,
             device=device,
         )
 
+    step_size_schedule = StepSizeSchedule(
+        num_steps=cfg.model.num_steps,
+        device=device,
+    )
+
     cdvi = DIS(
-        z_dim=cfg.common.z_dim,
-        num_steps=cfg.common.num_steps,
+        z_dim=cfg.model.z_dim,
+        num_steps=cfg.model.num_steps,
         control=control,
         step_size_schedule=step_size_schedule,
         noise_schedule=noise_schedule,
         annealing_schedule=annealing_schedule,
-        use_score=cfg.common.use_score,
+        use_score=cfg.model.use_score,
         device=device,
     )
 
     decoder = Decoder(
-        x_dim=cfg.common.x_dim,
-        z_dim=cfg.common.z_dim,
-        h_dim=cfg.common.h_dim,
-        y_dim=cfg.common.y_dim,
-        num_layers=cfg.common.num_layers,
-        non_linearity=cfg.common.non_linearity,
+        x_dim=cfg.model.x_dim,
+        z_dim=cfg.model.z_dim,
+        h_dim=cfg.model.h_dim,
+        y_dim=cfg.model.y_dim,
+        num_layers=cfg.model.num_layers,
+        non_linearity=cfg.model.non_linearity,
     )
 
     dvinp = DVINP(
@@ -251,12 +252,12 @@ def load_dvinp(
 
     optimizer = AdamW(params=params, lr=cfg.training.learning_rate)
 
-    scheduler = CosineAnnealingWarmRestarts(
-        optimizer=optimizer,
-        T_0=5,
-        T_mult=2,
-        eta_min=cfg.training.learning_rate * 0.01,
-    )
+    # scheduler = CosineAnnealingWarmRestarts(
+    #     optimizer=optimizer,
+    #     T_0=5,
+    #     T_mult=2,
+    #     eta_min=cfg.training.learning_rate * 0.01,
+    # )
 
     trainer = BetterDVINPTrainer(
         device=device,
