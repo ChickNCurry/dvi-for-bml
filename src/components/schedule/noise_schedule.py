@@ -224,7 +224,8 @@ class CosineNoiseSchedule(BaseSchedule, nn.Module):
         z_dim: int,
         num_steps: int,
         device: torch.device,
-        init_val: float = 1.0,
+        min: float = 0.01,
+        max: float = 1,
         requires_grad: bool = True,
     ) -> None:
         super(CosineNoiseSchedule, self).__init__()
@@ -232,12 +233,12 @@ class CosineNoiseSchedule(BaseSchedule, nn.Module):
         self.num_entries = num_steps + 1
 
         self.amplitude = nn.Parameter(
-            torch.ones((z_dim), device=device) * init_val,
+            torch.ones((z_dim), device=device) * (max - min),
             requires_grad=requires_grad,
         )
 
         self.cosine_square_schedule: List[float] = [
-            np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
+            min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
         ]
 
@@ -253,7 +254,8 @@ class ContextualCosineNoiseSchedule(BaseSchedule, nn.Module):
         h_dim: int,
         non_linearity: str,
         num_steps: int,
-        init_val: float = 1.0,
+        min: float = 0.01,
+        max: float = 1,
     ) -> None:
         super(ContextualCosineNoiseSchedule, self).__init__()
 
@@ -267,10 +269,10 @@ class ContextualCosineNoiseSchedule(BaseSchedule, nn.Module):
         )
 
         nn.init.constant_(self.amplitude_mlp[2].weight, 0)
-        nn.init.constant_(self.amplitude_mlp[2].bias, init_val)
+        nn.init.constant_(self.amplitude_mlp[2].bias, max - min)
 
         self.cosine_square_schedule: List[float] = [
-            np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
+            min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
         ]
 

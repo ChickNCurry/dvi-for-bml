@@ -1,8 +1,12 @@
+from typing import Tuple
+
 import torch
 from torch import Tensor, nn
 
+from src.components.control.base_control import BaseControl
 
-class MHAControl(nn.Module):
+
+class MHAControl(BaseControl):
     def __init__(
         self,
         h_dim: int,
@@ -53,13 +57,15 @@ class MHAControl(nn.Module):
         self,
         n: int,
         z: Tensor,
-        r: Tensor,
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, context_size, h_dim)
         # (batch_size, num_subtasks, context_size)
+
+        assert type(r) == Tensor
 
         if self.use_score:
             assert score is not None

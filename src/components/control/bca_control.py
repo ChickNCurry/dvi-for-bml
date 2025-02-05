@@ -1,9 +1,12 @@
 from typing import Tuple
+
 import torch
 from torch import Tensor, nn
 
+from src.components.control.base_control import BaseControl
 
-class BCAControl(nn.Module):
+
+class BCAControl(BaseControl):
     def __init__(
         self,
         h_dim: int,
@@ -52,7 +55,7 @@ class BCAControl(nn.Module):
         self,
         n: int,
         z: Tensor,
-        r: Tuple[Tensor, Tensor],
+        r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
