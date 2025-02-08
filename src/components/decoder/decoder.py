@@ -39,7 +39,6 @@ class Decoder(nn.Module):
     ) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, target_size, x_dim)
-        # (batch_size, num_subtasks, context_size, x_dim)
 
         z = z.unsqueeze(2).expand(-1, -1, x_target.shape[2], -1)
         # (batch_size, num_subtasks, target_size, z_dim)
