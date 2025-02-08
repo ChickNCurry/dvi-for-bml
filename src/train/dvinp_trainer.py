@@ -257,14 +257,14 @@ class BetterDVINPTrainer(BaseTrainer):
         num_cells = int(np.sqrt(self.sample_size))
         grid = create_grid(ranges, num_cells)
 
-        target_prob_vals = eval_dist_on_grid(grid, target, device=self.device)
+        target_log_probs = eval_dist_on_grid(grid, target, device=self.device)
 
         for i in range(tp_samples.shape[0]):
 
-            tp_prob_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+            tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
 
-            jsd = compute_jsd(target_prob_vals[i], tp_prob_vals)
-            bd = compute_bd(target_prob_vals[i], tp_prob_vals)
+            jsd = compute_jsd(target_log_probs[i], tp_log_probs)
+            bd = compute_bd(target_log_probs[i], tp_log_probs)
 
             jsds.append(jsd)
             bds.append(bd)

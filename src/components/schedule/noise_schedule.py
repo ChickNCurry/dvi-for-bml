@@ -1,7 +1,3 @@
-import math
-from typing import List
-
-import numpy as np
 import torch
 from torch import Tensor, nn
 
@@ -21,15 +17,17 @@ class NoiseSchedule(BaseSchedule):
 
         self.num_entries = num_steps + 1
 
-        self.noise_schedule = nn.Parameter(
+        self.log_vars = nn.Parameter(
             torch.linspace(max, min, self.num_entries, device=device)
             .unsqueeze(1)
-            .expand(self.num_entries, z_dim),
+            .expand(self.num_entries, z_dim)
+            .pow(2)
+            .log(),
             requires_grad=requires_grad,
         )  # (num_entries, z_dim)
 
     def get(self, n: int) -> Tensor:
-        var_n = torch.nn.functional.softplus(self.noise_schedule[n, :])
+        var_n = self.log_vars[n, :].exp()
         return var_n
 
 
@@ -58,7 +56,9 @@ class AggrNoiseSchedule(BaseSchedule, nn.Module):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.noise_init = torch.linspace(max, min, self.num_entries, device=device)
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
@@ -66,18 +66,18 @@ class AggrNoiseSchedule(BaseSchedule, nn.Module):
         batch_size = r.shape[0]
         num_subtasks = r.shape[1]
 
-        noise: Tensor = self.noise_mlp(r)
+        log_vars_pred: Tensor = self.noise_mlp(r)
         # (batch_size, num_subtasks, z_dim * num_entries)
 
-        noise = noise.view(batch_size, num_subtasks, self.z_dim, self.num_entries)
-        # (batch_size, num_subtasks, z_dim, num_entries)
-
-        self.noise_schedule = nn.functional.softplus(
-            noise + self.noise_init[None, None, None, :]
+        log_vars_pred = log_vars_pred.view(
+            batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
+        # (batch_size, num_subtasks, z_dim, num_entries)
+
     def get(self, n: int) -> Tensor:
-        var_n: Tensor = self.noise_schedule[:, :, :, n]
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
         # (batch_size, num_subtasks, z_dim)
 
         return var_n
@@ -111,7 +111,9 @@ class BCANoiseSchedule(BaseSchedule, nn.Module):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.noise_init = torch.linspace(max, min, self.num_entries, device=device)
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
@@ -123,18 +125,18 @@ class BCANoiseSchedule(BaseSchedule, nn.Module):
         z_mu, z_var = self.proj_z_mu(z_mu), self.proj_z_var(z_var)
         # (batch_size, num_subtasks, h_dim)
 
-        noise: Tensor = self.noise_mlp(z_mu + z_var)
+        log_vars_pred: Tensor = self.noise_mlp(z_mu + z_var)
         # (batch_size, num_subtasks, z_dim * num_entries)
 
-        noise = noise.view(batch_size, num_subtasks, self.z_dim, self.num_entries)
-        # (batch_size, num_subtasks, z_dim, num_entries)
-
-        self.noise_schedule = nn.functional.softplus(
-            noise + self.noise_init[None, None, None, :]
+        log_vars_pred = log_vars_pred.view(
+            batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
+        # (batch_size, num_subtasks, z_dim, num_entries)
+
     def get(self, n: int) -> Tensor:
-        var_n: Tensor = self.noise_schedule[:, :, :, n]
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
         # (batch_size, num_subtasks, z_dim)
 
         return var_n
@@ -215,70 +217,4 @@ class MHANoiseSchedule(BaseSchedule, nn.Module):
         var_n: Tensor = self.noise_schedule[:, :, :, n]
         # (batch_size, num_subtasks, z_dim)
 
-        return var_n
-
-
-class CosineNoiseSchedule(BaseSchedule, nn.Module):
-    def __init__(
-        self,
-        z_dim: int,
-        num_steps: int,
-        device: torch.device,
-        min: float = 0.01,
-        max: float = 1,
-        requires_grad: bool = True,
-    ) -> None:
-        super(CosineNoiseSchedule, self).__init__()
-
-        self.num_entries = num_steps + 1
-
-        self.amplitude = nn.Parameter(
-            torch.ones((z_dim), device=device) * (max - min),
-            requires_grad=requires_grad,
-        )
-
-        self.cosine_square_schedule: List[float] = [
-            min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
-            for n in range(0, self.num_entries)
-        ]
-
-    def get(self, n: int) -> Tensor:
-        var_n = nn.functional.softplus(self.amplitude) * self.cosine_square_schedule[n]
-        return var_n
-
-
-class ContextualCosineNoiseSchedule(BaseSchedule, nn.Module):
-    def __init__(
-        self,
-        z_dim: int,
-        h_dim: int,
-        non_linearity: str,
-        num_steps: int,
-        min: float = 0.01,
-        max: float = 1,
-    ) -> None:
-        super(ContextualCosineNoiseSchedule, self).__init__()
-
-        self.num_entries = num_steps + 1
-
-        self.amplitude_mlp = nn.Sequential(
-            nn.Linear(h_dim, h_dim),
-            getattr(nn, non_linearity)(),
-            nn.Linear(h_dim, z_dim),
-            nn.Softplus(),
-        )
-
-        nn.init.constant_(self.amplitude_mlp[2].weight, 0)
-        nn.init.constant_(self.amplitude_mlp[2].bias, max - min)
-
-        self.cosine_square_schedule: List[float] = [
-            min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
-            for n in range(0, self.num_entries)
-        ]
-
-    def update(self, r: Tensor, mask: Tensor | None) -> None:
-        self.amplitude = self.amplitude_mlp(r)
-
-    def get(self, n: int) -> Tensor:
-        var_n: Tensor = self.amplitude * self.cosine_square_schedule[n]
         return var_n
