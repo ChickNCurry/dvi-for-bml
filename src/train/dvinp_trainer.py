@@ -51,7 +51,7 @@ class NoisyDVINPTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.decoder is not None
+        assert self.model.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -73,17 +73,17 @@ class NoisyDVINPTrainer(BaseTrainer):
         context = torch.cat([x_context, y_context], dim=-1)
         # (batch_size, 1, context_size, x_dim + y_dim)
 
-        r = self.dvinp.encoder(context)
+        r = self.model.encoder(context)
         # (batch_size, 1, h_dim)
 
         target = DecoderTimesPrior(
-            decoder=self.dvinp.decoder,
+            decoder=self.model.decoder,
             x_target=x_context,
             y_target=y_context,
             mask=None,
         )
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, None)
+        elbo, _, _ = self.model.cdvi.run_chain(target, r, None)
 
         loss = -elbo
 
@@ -120,7 +120,7 @@ class BetterDVINPTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.decoder is not None
+        assert self.model.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -170,23 +170,23 @@ class BetterDVINPTrainer(BaseTrainer):
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        r = self.dvinp.encoder(context, mask)
+        r = self.model.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
 
         target = DecoderTimesPrior(
-            decoder=self.dvinp.decoder,
+            decoder=self.model.decoder,
             x_target=x_context,
             y_target=y_context,
             mask=mask,
         )
 
-        elbo, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
+        elbo, _, z_samples = self.model.cdvi.run_chain(target, r, mask)
         # (num_steps, batch_size, num_subtasks, z_dim)
 
         loss = -elbo
 
-        lmpl = compute_lmpl(self.dvinp.decoder, z_samples[-1], x_data, y_data)
-        mse = compute_mse(self.dvinp.decoder, z_samples[-1], x_data, y_data)
+        lmpl = compute_lmpl(self.model.decoder, z_samples[-1], x_data, y_data)
+        mse = compute_mse(self.model.decoder, z_samples[-1], x_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
@@ -195,7 +195,7 @@ class BetterDVINPTrainer(BaseTrainer):
         batch: Tensor,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
-        assert self.dvinp.decoder is not None
+        assert self.model.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -234,18 +234,18 @@ class BetterDVINPTrainer(BaseTrainer):
         # (batch_size, sample_size, context_size, x_dim)
         # (batch_size, sample_size, context_size, y_dim)
 
-        r = self.dvinp.encoder(context, mask)
+        r = self.model.encoder(context, mask)
         # (batch_size, sample_size, h_dim)
         # (batch_size, sample_size, context_size, h_dim)
 
         target = DecoderTimesPrior(
-            decoder=self.dvinp.decoder,
+            decoder=self.model.decoder,
             x_target=x_context,
             y_target=y_context,
             mask=mask,
         )
 
-        _, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
+        _, _, z_samples = self.model.cdvi.run_chain(target, r, mask)
         # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()

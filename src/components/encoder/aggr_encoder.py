@@ -24,6 +24,7 @@ class AggrEncoder(BaseEncoder):
     ) -> None:
         super(AggrEncoder, self).__init__()
 
+        self.h_dim = h_dim
         self.num_heads = num_heads
         self.aggregation = aggregation
         self.max_context_size = max_context_size

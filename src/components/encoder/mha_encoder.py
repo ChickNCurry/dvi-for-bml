@@ -14,6 +14,7 @@ class MHAEncoder(BaseEncoder):
     ) -> None:
         super(MHAEncoder, self).__init__()
 
+        self.h_dim = h_dim
         self.num_heads = num_heads
 
         self.proj_in = nn.Linear(c_dim, h_dim)

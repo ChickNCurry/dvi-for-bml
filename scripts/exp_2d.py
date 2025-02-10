@@ -27,10 +27,14 @@ from src.components.schedule.annealing_schedule import (
     MHAAnnealingSchedule,
 )
 from src.components.schedule.base_schedule import BaseSchedule
+from src.components.schedule.cos_noise_schedule import (
+    AggrCosineNoiseSchedule,
+    BCACosineNoiseSchedule,
+    CosineNoiseSchedule,
+)
 from src.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
-    CosineNoiseSchedule,
     MHANoiseSchedule,
     NoiseSchedule,
 )
@@ -39,6 +43,7 @@ from src.eval.grid import compute_jsd, create_grid, eval_dist_on_grid, eval_hist
 from src.train.static_trainer import BetterStaticTargetTrainer
 from src.utils.datasets import ContextSetDataset
 from src.utils.distros import TaskPosteriorGMM
+from src.utils.hash import get_object_hash, get_var_name
 
 
 def run() -> None:
@@ -47,34 +52,94 @@ def run() -> None:
 
     @dataclass
     class Config:
+        use_score = False
         num_steps = 16
         c_dim = 2
         z_dim = 2
         h_dim = 32
         num_layers = 3
         non_linearity = "GELU"
-        use_score = False
         learning_rate = 3e-3
-        size = 64
-        batch_size = 64
+        size = 16
+        batch_size = 16
 
     config = Config()
 
     dataset = ContextSetDataset(
-        size=config.size, c_dim=config.c_dim, max_context_size=10, sampling_factor=4
+        size=config.size,
+        c_dim=config.c_dim,
+        max_context_size=10,
+        sampling_factor=4,
     )
-    dataloader = DataLoader(dataset=dataset, batch_size=config.batch_size, shuffle=True)
+
+    dataloader = DataLoader(
+        dataset=dataset,
+        batch_size=config.batch_size,
+        shuffle=True,
+    )
 
     contextual_target = TaskPosteriorGMM
 
-    aggr_encoder = AggrEncoder(
+    # Encoders
+
+    aggr_enc_mean = AggrEncoder(
         c_dim=config.c_dim,
         h_dim=config.h_dim,
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         num_heads=None,
         aggregation=Aggr.MEAN,
-        max_context_size=None,  # dataset.max_context_size
+        max_context_size=None,
+    )
+
+    torch.save(
+        aggr_enc_mean.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_enc_mean)}.pth",
+    )
+
+    aggr_enc_mean_cse = AggrEncoder(
+        c_dim=config.c_dim,
+        h_dim=config.h_dim,
+        num_layers=config.num_layers,
+        non_linearity=config.non_linearity,
+        num_heads=None,
+        aggregation=Aggr.MEAN,
+        max_context_size=dataset.max_context_size,
+    )
+
+    torch.save(
+        aggr_enc_mean_cse.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_enc_mean_cse)}.pth",
+    )
+
+    aggr_enc_max = AggrEncoder(
+        c_dim=config.c_dim,
+        h_dim=config.h_dim,
+        num_layers=config.num_layers,
+        non_linearity=config.non_linearity,
+        num_heads=None,
+        aggregation=Aggr.MAX,
+        max_context_size=None,
+    )
+
+    torch.save(
+        aggr_enc_max.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_enc_max)}.pth",
+    )
+
+    aggr_enc_max_cse = AggrEncoder(
+        c_dim=config.c_dim,
+        h_dim=config.h_dim,
+        num_layers=config.num_layers,
+        non_linearity=config.non_linearity,
+        num_heads=None,
+        aggregation=Aggr.MAX,
+        max_context_size=dataset.max_context_size,
+    )
+
+    torch.save(
+        aggr_enc_max_cse.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_enc_max_cse)}.pth",
     )
 
     bca_encoder = BCAEncoder(
@@ -85,13 +150,12 @@ def run() -> None:
         num_heads=None,
     )
 
-    mha_encoder = MHAEncoder(
-        c_dim=config.c_dim,
-        h_dim=config.h_dim,
-        num_layers=config.num_layers,
-        non_linearity=config.non_linearity,
-        num_heads=1,
+    torch.save(
+        bca_encoder.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(bca_encoder)}.pth",
     )
+
+    # Controls
 
     aggr_control = AggrControl(
         h_dim=config.h_dim,
@@ -100,6 +164,11 @@ def run() -> None:
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         use_score=config.use_score,
+    )
+
+    torch.save(
+        aggr_control.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_control)}.pth",
     )
 
     bca_control = BCAControl(
@@ -111,22 +180,33 @@ def run() -> None:
         use_score=config.use_score,
     )
 
-    mha_control = MHAControl(
-        h_dim=config.h_dim,
-        z_dim=config.z_dim,
-        num_steps=config.num_steps,
-        num_layers=config.num_layers,
-        non_linearity=config.non_linearity,
-        use_score=config.use_score,
-        num_heads=1,
+    torch.save(
+        bca_control.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(bca_control)}.pth",
     )
 
-    step_size_schedule = StepSizeSchedule(num_steps=config.num_steps, device=device)
+    # Noise Schedules
 
     noise_schedule = NoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,
+    )
+
+    torch.save(
+        noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(noise_schedule)}.pth",
+    )
+
+    cos_noise_schedule = CosineNoiseSchedule(
+        z_dim=config.z_dim,
+        num_steps=config.num_steps,
+        device=device,
+    )
+
+    torch.save(
+        cos_noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(cos_noise_schedule)}.pth",
     )
 
     aggr_noise_schedule = AggrNoiseSchedule(
@@ -137,6 +217,23 @@ def run() -> None:
         device=device,
     )
 
+    torch.save(
+        aggr_noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_noise_schedule)}.pth",
+    )
+
+    aggr_cos_noise_schedule = AggrCosineNoiseSchedule(
+        z_dim=config.z_dim,
+        h_dim=config.h_dim,
+        non_linearity=config.non_linearity,
+        num_steps=config.num_steps,
+    )
+
+    torch.save(
+        aggr_cos_noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_cos_noise_schedule)}.pth",
+    )
+
     bca_noise_schedule = BCANoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
@@ -145,22 +242,42 @@ def run() -> None:
         device=device,
     )
 
-    mha_noise_schedule = MHANoiseSchedule(
+    torch.save(
+        bca_noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(bca_noise_schedule)}.pth",
+    )
+
+    bca_cos_noise_schedule = BCACosineNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
         num_steps=config.num_steps,
-        device=device,
-        num_heads=1,
     )
 
-    annealing_schedule = AnnealingSchedule(num_steps=config.num_steps, device=device)
+    torch.save(
+        bca_cos_noise_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(bca_cos_noise_schedule)}.pth",
+    )
+
+    # Annealing Schedules
+
+    ann_schedule = AnnealingSchedule(num_steps=config.num_steps, device=device)
+
+    torch.save(
+        ann_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(ann_schedule)}.pth",
+    )
 
     aggr_annealing_schedule = AggrAnnealingSchedule(
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
         num_steps=config.num_steps,
         device=device,
+    )
+
+    torch.save(
+        aggr_annealing_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(aggr_annealing_schedule)}.pth",
     )
 
     bca_annealing_schedule = BCAAnnealingSchedule(
@@ -170,48 +287,54 @@ def run() -> None:
         device=device,
     )
 
-    mha_annealing_schedule = MHAAnnealingSchedule(
-        h_dim=config.h_dim,
-        non_linearity=config.non_linearity,
-        num_steps=config.num_steps,
-        device=device,
-        num_heads=1,
+    torch.save(
+        bca_annealing_schedule.state_dict(),
+        f"scripts/state_dicts/{get_object_hash(bca_annealing_schedule)}.pth",
     )
 
-    cos_noise_schedule = CosineNoiseSchedule(
-        z_dim=config.z_dim,
-        num_steps=config.num_steps,
-        device=device,
-    )
+    # Step Size Schedules
 
-    # comps = (aggr_control, noise_schedule, annealing_schedule, aggr_encoder)
-    # comps = (aggr_control, aggr_noise_schedule, aggr_annealing_schedule, aggr_encoder)
-    # comps = (bca_control, noise_schedule, annealing_schedule, bca_encoder)
-    # comps = (bca_control, cos_noise_schedule, annealing_schedule, bca_encoder)
-    # comps = (bca_control, bca_noise_schedule, bca_annealing_schedule, bca_encoder)
-    # comps = (mha_control, mha_noise_schedule, mha_annealing_schedule, mha_encoder)
+    step_size_schedule = StepSizeSchedule(num_steps=config.num_steps, device=device)
 
     variations: List[Tuple[BaseControl, BaseSchedule, BaseSchedule, BaseEncoder]] = [
-        (aggr_control, noise_schedule, annealing_schedule, aggr_encoder),
-        (bca_control, noise_schedule, annealing_schedule, bca_encoder),
-        # (mha_control, noise_schedule, annealing_schedule, mha_encoder),
-        (aggr_control, cos_noise_schedule, annealing_schedule, aggr_encoder),
-        (bca_control, cos_noise_schedule, annealing_schedule, bca_encoder),
-        # (mha_control, cos_noise_schedule, annealing_schedule, mha_encoder),
-        # (aggr_control, cos_noise_schedule, aggr_annealing_schedule, aggr_encoder),
-        # (bca_control, cos_noise_schedule, bca_annealing_schedule, bca_encoder),
-        # (mha_control, cos_noise_schedule, mha_annealing_schedule, mha_encoder),
-        (aggr_control, aggr_noise_schedule, aggr_annealing_schedule, aggr_encoder),
-        (bca_control, bca_noise_schedule, bca_annealing_schedule, bca_encoder),
-        # (mha_control, mha_noise_schedule, mha_annealing_schedule, mha_encoder),
+        (aggr_control, noise_schedule, ann_schedule, aggr_enc_mean),
+        (aggr_control, noise_schedule, ann_schedule, aggr_enc_max),
+        (aggr_control, noise_schedule, ann_schedule, aggr_enc_mean_cse),
+        (aggr_control, noise_schedule, ann_schedule, aggr_enc_max_cse),
+        (aggr_control, cos_noise_schedule, ann_schedule, aggr_enc_mean),
+        (aggr_control, cos_noise_schedule, ann_schedule, aggr_enc_max),
+        (aggr_control, cos_noise_schedule, ann_schedule, aggr_enc_mean_cse),
+        (aggr_control, cos_noise_schedule, ann_schedule, aggr_enc_max_cse),
+        (aggr_control, aggr_noise_schedule, ann_schedule, aggr_enc_mean),
+        (aggr_control, aggr_noise_schedule, ann_schedule, aggr_enc_max),
+        (aggr_control, aggr_noise_schedule, ann_schedule, aggr_enc_mean_cse),
+        (aggr_control, aggr_noise_schedule, ann_schedule, aggr_enc_max_cse),
+        (aggr_control, aggr_cos_noise_schedule, ann_schedule, aggr_enc_mean),
+        (aggr_control, aggr_cos_noise_schedule, ann_schedule, aggr_enc_max),
+        (aggr_control, aggr_cos_noise_schedule, ann_schedule, aggr_enc_mean_cse),
+        (aggr_control, aggr_cos_noise_schedule, ann_schedule, aggr_enc_max_cse),
+        (bca_control, noise_schedule, ann_schedule, bca_encoder),
+        (bca_control, cos_noise_schedule, ann_schedule, bca_encoder),
+        (bca_control, bca_noise_schedule, ann_schedule, bca_encoder),
+        (bca_control, bca_cos_noise_schedule, ann_schedule, bca_encoder),
     ]
 
     for comps in variations:
 
-        id = (
-            "-".join([f"{obj.__class__.__name__}" for obj in comps])
-            + f"-use_score:{config.use_score}"
-        )
+        for c in comps:
+            c.load_state_dict(
+                torch.load(f"scripts/state_dicts/{get_object_hash(c)}.pth")
+            )
+            print(f"{c.__class__.__name__} loaded")
+
+        id = "-".join([f"{obj.__class__.__name__}" for obj in comps])
+        id += f"-use_score:{config.use_score}"
+
+        if hasattr(comps[3], "aggregation"):
+            id += f"-{comps[3].aggregation}"
+
+        if hasattr(comps[3], "max_context_size"):
+            id += f"-{comps[3].max_context_size}"
 
         cdvi = DIS(
             z_dim=config.z_dim,
@@ -259,7 +382,7 @@ def run() -> None:
         trainer.wandb_logging = True
         if trainer.wandb_logging:
             wandb.init(
-                project="local-toytask-auto-fix-test",
+                project="local-toytask-auto",
                 name=id,
                 group=f"use_score:{config.use_score}",
                 config=asdict(config),

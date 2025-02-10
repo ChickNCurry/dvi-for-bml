@@ -3,14 +3,13 @@ from collections import OrderedDict
 from typing import Any, Dict, Tuple
 
 import torch
-import wandb
-from torch import Tensor
+from torch import Tensor, nn
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.components.dvinp import DVINP
+import wandb
 
 
 class AbstractTrainer(ABC):
@@ -36,7 +35,7 @@ class BaseTrainer(AbstractTrainer):
     def __init__(
         self,
         device: torch.device,
-        dvinp: DVINP,
+        model: nn.Module,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
@@ -49,7 +48,7 @@ class BaseTrainer(AbstractTrainer):
         super().__init__(optimizer, wandb_logging, dataset)
 
         self.device = device
-        self.dvinp = dvinp
+        self.model = model
         self.dataset = dataset
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -73,7 +72,7 @@ class BaseTrainer(AbstractTrainer):
 
             if validate:
 
-                self.dvinp.eval()
+                self.model.eval()
                 with torch.inference_mode(False):
 
                     loop = tqdm(self.val_loader, total=len(self.val_loader))
@@ -98,7 +97,7 @@ class BaseTrainer(AbstractTrainer):
                                 }
                             )
 
-            self.dvinp.train()
+            self.model.train()
             with torch.inference_mode(False):
 
                 loop = tqdm(self.train_loader, total=len(self.train_loader))
@@ -112,7 +111,7 @@ class BaseTrainer(AbstractTrainer):
 
                     if max_clip_norm is not None:
                         torch.nn.utils.clip_grad_norm_(
-                            self.dvinp.parameters(), max_clip_norm
+                            self.model.parameters(), max_clip_norm
                         )
 
                     self.optimizer.step()

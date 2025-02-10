@@ -10,6 +10,8 @@ from src.components.schedule.base_schedule import BaseSchedule
 
 class StepSizeSchedule(BaseSchedule):
     def __init__(self, num_steps: int, device: torch.device) -> None:
+        super(StepSizeSchedule, self).__init__()
+
         self.num_entries = num_steps + 1
         self.step_size = torch.tensor(1 / self.num_entries, device=device)
 
@@ -17,7 +19,7 @@ class StepSizeSchedule(BaseSchedule):
         return self.step_size
 
 
-class CosineStepSizeSchedule(BaseSchedule, nn.Module):
+class CosineStepSizeSchedule(BaseSchedule):
     def __init__(
         self,
         num_steps: int,
@@ -46,7 +48,7 @@ class CosineStepSizeSchedule(BaseSchedule, nn.Module):
         return delta_t_n
 
 
-class ContextualCosineStepSizeSchedule(BaseSchedule, nn.Module):
+class ContextualCosineStepSizeSchedule(BaseSchedule):
     def __init__(
         self,
         h_dim: int,

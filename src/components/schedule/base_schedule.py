@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 
-from torch import Tensor
+from torch import Tensor, nn
 
 
-class BaseSchedule(ABC):
+class BaseSchedule(ABC, nn.Module):
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         pass
 

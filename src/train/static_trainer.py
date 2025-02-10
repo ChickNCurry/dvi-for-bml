@@ -41,7 +41,7 @@ class StaticTargetTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.contextual_target is not None
+        assert self.model.contextual_target is not None
 
         batch = batch.to(self.device).unsqueeze(1)
         # (batch_size, 1, context_size, c_dim)
@@ -50,12 +50,12 @@ class StaticTargetTrainer(BaseTrainer):
         context = batch[:, :, 0:rand_context_size, :]
         # (batch_size, 1, context_size, c_dim)
 
-        target = self.dvinp.contextual_target(context, None)
+        target = self.model.contextual_target(context, None)
 
-        r = self.dvinp.encoder(context, None)
+        r = self.model.encoder(context, None)
         # (batch_size, 1, h_dim)
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, None)
+        elbo, _, _ = self.model.cdvi.run_chain(target, r, None)
 
         loss = -elbo
 
@@ -95,7 +95,7 @@ class BetterStaticTargetTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.contextual_target is not None
+        assert self.model.contextual_target is not None
 
         batch = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
         # (batch_size, num_subtasks, context_size, c_dim)
@@ -120,13 +120,13 @@ class BetterStaticTargetTrainer(BaseTrainer):
         context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, batch.shape[-1])
         # (batch_size, num_subtasks, context_size, c_dim)
 
-        target = self.dvinp.contextual_target(context, mask)
+        target = self.model.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        r = self.dvinp.encoder(context, mask)
+        r = self.model.encoder(context, mask)
         # (batch_size, num_subtasks, c_dim)
 
-        elbo, _, _ = self.dvinp.cdvi.run_chain(target, r, mask)
+        elbo, _, _ = self.model.cdvi.run_chain(target, r, mask)
 
         loss = -elbo
 

@@ -8,7 +8,7 @@ from torch import Tensor, nn
 from src.components.schedule.base_schedule import BaseSchedule
 
 
-class CosineNoiseSchedule(BaseSchedule, nn.Module):
+class CosineNoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -40,7 +40,7 @@ class CosineNoiseSchedule(BaseSchedule, nn.Module):
         return var_n
 
 
-class AggrCosineNoiseSchedule(BaseSchedule, nn.Module):
+class AggrCosineNoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -79,7 +79,7 @@ class AggrCosineNoiseSchedule(BaseSchedule, nn.Module):
         return var_n
 
 
-class BCACosineNoiseSchedule(BaseSchedule, nn.Module):
+class BCACosineNoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,

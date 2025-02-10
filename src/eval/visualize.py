@@ -10,6 +10,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
+from src.components.np import AGGRCNP, AGGRNP, BCACNP, BCANP
 from src.components.dvinp import DVINP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.eval.grid import (
@@ -183,6 +184,75 @@ def visualize_dvinp_both(
     plt.show()
 
     return targets, tp_samples  # type: ignore
+
+
+def visualize_np(
+    model: AGGRNP | BCANP | AGGRCNP | BCACNP,
+    device: torch.device,
+    dataloader: DataLoader[Tuple[Tensor, Tensor]],
+    num_samples: int,
+    max_context_size: int,
+) -> None:
+    x_data, y_data = next(iter(dataloader))
+
+    x_data = x_data.to(device)
+    y_data = y_data.to(device)
+    # (1, context_size, x_dim)
+    # (1, context_size, y_dim)
+
+    x_data = x_data.expand(1, num_samples, -1, -1)
+    y_data = y_data.expand(1, num_samples, -1, -1)
+    # (1, num_samples, context_size, x_dim)
+    # (1, num_samples, context_size, y_dim)
+
+    x_data_sorted, indices = x_data.sort(dim=2)
+    x_data_sorted = x_data_sorted.cpu().squeeze(0).detach().numpy()
+    y_data_sorted = y_data.gather(2, indices).squeeze(0).cpu().detach().numpy()
+    # (num_samples, context_size, x_dim)
+    # (num_samples, context_size, y_dim)
+
+    fig = plt.figure(figsize=(6, 3 * max_context_size), constrained_layout=True)
+    subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
+
+    for row, subfig in enumerate(subfigs):
+        subfig.suptitle(f"context size: {row + 1}")
+        ax = subfig.subplots(nrows=1, ncols=1, width_ratios=[1])
+
+        context_size = row + 1
+
+        x_context = x_data[:, :, :context_size, :]
+        y_context = y_data[:, :, :context_size, :]
+        # (1, num_samples, context_size, x_dim)
+        # (1, num_samples, context_size, y_dim)
+
+        context = torch.cat([x_context, y_context], dim=-1)
+        # (1, num_samples, context_size, x_dim + y_dim)
+
+        output = model(context, None, x_data)
+        y_dist = output[0]
+        y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
+        # (num_samples, target_size, y_dim)
+
+        ax.set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
+        ax.scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax.scatter(
+            x_context.cpu().detach().numpy(),
+            y_context.cpu().detach().numpy(),
+            marker="X",
+            c="red",
+            s=100,
+            zorder=2,
+        )
+        for k in range(num_samples):
+            ax.plot(
+                x_data_sorted[k].squeeze(-1),
+                y_mu_sorted[k].squeeze(-1),
+                alpha=0.2,
+                c="tab:blue",
+                zorder=0,
+            )
+
+    plt.show()
 
 
 def visualize_samples_1d(

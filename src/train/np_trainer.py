@@ -7,25 +7,15 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.components.np import DVINP
+from src.components.np import AGGRCNP, AGGRNP, BCACNP, BCANP
 from src.train.base_trainer import BaseTrainer
-from src.eval.grid import (
-    compute_bd,
-    compute_jsd,
-    create_grid,
-    eval_dist_on_grid,
-    eval_hist_on_grid,
-)
-
-from src.eval.metrics import compute_lmpl, compute_mse
 
 
 class NoisyNPTrainer(BaseTrainer):
     def __init__(
         self,
+        model: AGGRNP | BCANP | AGGRCNP | BCACNP,
         device: torch.device,
-        dvinp: DVINP,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
@@ -37,7 +27,7 @@ class NoisyNPTrainer(BaseTrainer):
     ) -> None:
         super().__init__(
             device,
-            dvinp,
+            model,
             dataset,
             train_loader,
             val_loader,
@@ -51,7 +41,7 @@ class NoisyNPTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.decoder is not None
+        assert isinstance(self.model, AGGRNP | BCANP | AGGRCNP | BCACNP)
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -73,16 +63,22 @@ class NoisyNPTrainer(BaseTrainer):
         context = torch.cat([x_context, y_context], dim=-1)
         # (batch_size, 1, context_size, x_dim + y_dim)
 
-        y_dist = 
+        output = self.model(context, None, x_context)
+        loss = self.model.loss(*output, y_target=y_context, mask=None)
 
         return loss, {}
 
+    def val_step(
+        self, batch: Tensor, ranges: List[Tuple[float, float]]
+    ) -> Dict[str, float]:
+        raise NotImplementedError
 
-class BetterDVINPTrainer(BaseTrainer):
+
+class BetterNPTrainer(BaseTrainer):
     def __init__(
         self,
+        model: AGGRNP | BCANP | AGGRCNP | BCACNP,
         device: torch.device,
-        dvinp: DVINP,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
@@ -94,7 +90,7 @@ class BetterDVINPTrainer(BaseTrainer):
     ) -> None:
         super().__init__(
             device,
-            dvinp,
+            model,
             dataset,
             train_loader,
             val_loader,
@@ -108,7 +104,7 @@ class BetterDVINPTrainer(BaseTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert self.dvinp.decoder is not None
+        assert self.model.decoder is not None
 
         x_data, y_data = batch
         x_data = x_data.to(self.device)
@@ -158,106 +154,12 @@ class BetterDVINPTrainer(BaseTrainer):
         # (batch_size, num_subtasks, context_size, x_dim)
         # (batch_size, num_subtasks, context_size, y_dim)
 
-        r = self.dvinp.encoder(context, mask)
-        # (batch_size, num_subtasks, h_dim)
+        output = self.model(context, mask, x_context)
+        loss = self.model.loss(*output, y_target=y_context, mask=mask)
 
-        target = DecoderTimesPrior(
-            decoder=self.dvinp.decoder,
-            x_target=x_context,
-            y_target=y_context,
-            mask=mask,
-        )
-
-        elbo, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
-        # (num_steps, batch_size, num_subtasks, z_dim)
-
-        loss = -elbo
-
-        lmpl = compute_lmpl(self.dvinp.decoder, z_samples[-1], x_data, y_data)
-        mse = compute_mse(self.dvinp.decoder, z_samples[-1], x_data, y_data)
-
-        return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
+        return loss, {}
 
     def val_step(
-        self,
-        batch: Tensor,
-        ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+        self, batch: Tensor, ranges: List[Tuple[float, float]]
     ) -> Dict[str, float]:
-        assert self.dvinp.decoder is not None
-
-        x_data, y_data = batch
-        x_data = x_data.to(self.device)
-        y_data = y_data.to(self.device)
-        # (batch_size, context_size, x_dim)
-        # (batch_size, context_size, y_dim)
-
-        x_data = x_data.unsqueeze(1).expand(-1, self.sample_size, -1, -1)
-        y_data = y_data.unsqueeze(1).expand(-1, self.sample_size, -1, -1)
-        # (batch_size, sample_size, context_size, x_dim)
-        # (batch_size, sample_size, context_size, y_dim)
-
-        data = torch.cat([x_data, y_data], dim=-1)
-        # (batch_size, sample_size, context_size, x_dim + y_dim)
-
-        context_sizes = torch.ones(
-            size=(data.shape[0], data.shape[1], 1),
-            device=self.device,
-        )  # (batch_size, num_subtasks, 1)
-
-        pos_indices = (
-            torch.arange(data.shape[2], device=self.device)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .expand(data.shape[0], data.shape[1], -1)
-        )  # (batch_size, sample_size, context_size)
-
-        mask = (pos_indices < context_sizes).float()
-        # (batch_size, sample_size, context_size)
-
-        context = data * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
-        # (batch_size, sample_size, context_size, x_dim + y_dim)
-
-        x_context = context[:, :, :, 0 : x_data.shape[-1]]
-        y_context = context[:, :, :, x_data.shape[-1] : data.shape[-1]]
-        # (batch_size, sample_size, context_size, x_dim)
-        # (batch_size, sample_size, context_size, y_dim)
-
-        r = self.dvinp.encoder(context, mask)
-        # (batch_size, sample_size, h_dim)
-        # (batch_size, sample_size, context_size, h_dim)
-
-        target = DecoderTimesPrior(
-            decoder=self.dvinp.decoder,
-            x_target=x_context,
-            y_target=y_context,
-            mask=mask,
-        )
-
-        _, _, z_samples = self.dvinp.cdvi.run_chain(target, r, mask)
-        # (num_steps, batch_size, sample_size, z_dim)
-
-        tp_samples = z_samples[-1].detach().cpu().numpy()
-        # (batch_size, sample_size, z_dim)
-
-        jsds = []
-        bds = []
-
-        num_cells = int(np.sqrt(self.sample_size))
-        grid = create_grid(ranges, num_cells)
-
-        target_prob_vals = eval_dist_on_grid(grid, target, device=self.device)
-
-        for i in range(tp_samples.shape[0]):
-
-            tp_prob_vals = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
-
-            jsd = compute_jsd(target_prob_vals[i], tp_prob_vals)
-            bd = compute_bd(target_prob_vals[i], tp_prob_vals)
-
-            jsds.append(jsd)
-            bds.append(bd)
-
-        jsd = np.median(jsds)
-        bd = np.median(bds)
-
-        return {"jsd": jsd, "bd": bd}
+        raise NotImplementedError

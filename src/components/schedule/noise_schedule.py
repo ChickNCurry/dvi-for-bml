@@ -14,6 +14,7 @@ class NoiseSchedule(BaseSchedule):
         max: float = 1,
         requires_grad: bool = True,
     ) -> None:
+        super(NoiseSchedule, self).__init__()
 
         self.num_entries = num_steps + 1
 
@@ -31,7 +32,7 @@ class NoiseSchedule(BaseSchedule):
         return var_n
 
 
-class AggrNoiseSchedule(BaseSchedule, nn.Module):
+class AggrNoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -83,7 +84,7 @@ class AggrNoiseSchedule(BaseSchedule, nn.Module):
         return var_n
 
 
-class BCANoiseSchedule(BaseSchedule, nn.Module):
+class BCANoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -142,7 +143,7 @@ class BCANoiseSchedule(BaseSchedule, nn.Module):
         return var_n
 
 
-class MHANoiseSchedule(BaseSchedule, nn.Module):
+class MHANoiseSchedule(BaseSchedule):
     def __init__(
         self,
         z_dim: int,
