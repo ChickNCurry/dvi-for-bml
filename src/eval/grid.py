@@ -164,7 +164,7 @@ def compute_bd(
     p_probs, q_probs = np.exp(p_log_probs), np.exp(q_log_probs)
 
     bc = np.sum(np.sqrt(p_probs * q_probs))
-    bd = -np.log(bc)
+    bd = -np.log(np.clip(bc, a_min=1e-300, a_max=None))
 
     return bd
 

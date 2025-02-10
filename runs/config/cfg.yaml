@@ -19,7 +19,15 @@ benchmark:
     seed_noise: 1237
     seed_task: 1237
     seed_x: 123
-common:
+model:
+    model_variant: bca
+    noise_variant: cos
+    contextual_schedules: true
+    self_attn_num_heads: null
+    cross_attn_num_heads: null
+    max_context_size: null
+    use_score: false
+    num_steps: 16
     x_dim: 1
     y_dim: 1
     c_dim: 2
@@ -27,14 +35,6 @@ common:
     h_dim: 64
     num_layers: 6
     non_linearity: GELU
-    self_attn_num_heads: 1
-    cross_attn_num_heads: 1
-    max_context_size: null
-    variant: aggr
-    use_score: true
-    aggregation: mean
-    num_steps: 16
-    contextual_schedules: true
 training:
     batch_size: 128
     num_subtasks: 32

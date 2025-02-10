@@ -27,6 +27,11 @@ from src.components.schedule.annealing_schedule import (
     BCAAnnealingSchedule,
     MHAAnnealingSchedule,
 )
+from src.components.schedule.cos_noise_schedule import (
+    AggrCosineNoiseSchedule,
+    BCACosineNoiseSchedule,
+    CosineNoiseSchedule,
+)
 from src.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
@@ -39,11 +44,16 @@ from src.train.dvinp_trainer import BetterDVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 
 
-class ContextualizationVariant(Enum):
+class ModelVariant(Enum):
     MEAN = "mean"
     MAX = "max"
     BCA = "bca"
     MHA = "mha"
+
+
+class NoiseVariant(Enum):
+    FREE = "free"
+    COS = "cos"
 
 
 def load_dvinp(
@@ -89,10 +99,11 @@ def load_dvinp(
         generator=g,
     )
 
-    variant = ContextualizationVariant(cfg.model.variant)
+    model_variant = ModelVariant(cfg.model.model_variant)
+    noise_variant = NoiseVariant(cfg.model.noise_variant)
 
-    match variant:
-        case ContextualizationVariant.MEAN | ContextualizationVariant.MAX:
+    match model_variant:
+        case ModelVariant.MEAN | ModelVariant.MAX:
 
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
@@ -100,7 +111,7 @@ def load_dvinp(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
-                aggregation=Aggr(ContextualizationVariant(variant).value),
+                aggregation=Aggr(ModelVariant(model_variant).value),
                 max_context_size=cfg.model.max_context_size,
             )
 
@@ -113,14 +124,6 @@ def load_dvinp(
                 use_score=cfg.model.use_score,
             )
 
-            noise_schedule = AggrNoiseSchedule(
-                z_dim=cfg.model.z_dim,
-                h_dim=cfg.model.h_dim,
-                non_linearity=cfg.model.non_linearity,
-                num_steps=cfg.model.num_steps,
-                device=device,
-            )
-
             annealing_schedule = AggrAnnealingSchedule(
                 h_dim=cfg.model.h_dim,
                 non_linearity=cfg.model.non_linearity,
@@ -128,7 +131,27 @@ def load_dvinp(
                 device=device,
             )
 
-        case ContextualizationVariant.BCA:
+            match noise_variant:
+                case NoiseVariant.FREE:
+
+                    noise_schedule = AggrNoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                        device=device,
+                    )
+
+                case NoiseVariant.COS:
+
+                    noise_schedule = AggrCosineNoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                    )
+
+        case ModelVariant.BCA:
 
             encoder = BCAEncoder(
                 c_dim=cfg.model.c_dim,
@@ -147,14 +170,6 @@ def load_dvinp(
                 use_score=cfg.model.use_score,
             )
 
-            noise_schedule = BCANoiseSchedule(
-                z_dim=cfg.model.z_dim,
-                h_dim=cfg.model.h_dim,
-                non_linearity=cfg.model.non_linearity,
-                num_steps=cfg.model.num_steps,
-                device=device,
-            )
-
             annealing_schedule = BCAAnnealingSchedule(
                 h_dim=cfg.model.h_dim,
                 non_linearity=cfg.model.non_linearity,
@@ -162,7 +177,27 @@ def load_dvinp(
                 device=device,
             )
 
-        case ContextualizationVariant.MHA:
+            match noise_variant:
+                case NoiseVariant.FREE:
+
+                    noise_schedule = BCANoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                        device=device,
+                    )
+
+                case NoiseVariant.COS:
+
+                    noise_schedule = BCACosineNoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                    )
+
+        case ModelVariant.MHA:
 
             encoder = MHAEncoder(
                 c_dim=cfg.model.c_dim,
@@ -182,15 +217,6 @@ def load_dvinp(
                 num_heads=cfg.model.cross_attn_num_heads,
             )
 
-            noise_schedule = MHANoiseSchedule(
-                z_dim=cfg.model.z_dim,
-                h_dim=cfg.model.h_dim,
-                non_linearity=cfg.model.non_linearity,
-                num_steps=cfg.model.num_steps,
-                device=device,
-                num_heads=cfg.model.cross_attn_num_heads,
-            )
-
             annealing_schedule = MHAAnnealingSchedule(
                 h_dim=cfg.model.h_dim,
                 non_linearity=cfg.model.non_linearity,
@@ -199,18 +225,51 @@ def load_dvinp(
                 num_heads=cfg.model.cross_attn_num_heads,
             )
 
-    if not cfg.model.contextual_schedules:
+            match noise_variant:
+                case NoiseVariant.FREE:
 
-        noise_schedule = NoiseSchedule(
-            z_dim=cfg.model.z_dim,
-            num_steps=cfg.model.num_steps,
-            device=device,
-        )
+                    noise_schedule = MHANoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                        device=device,
+                    )
+
+                case NoiseVariant.COS:
+
+                    noise_schedule = MHANoiseSchedule(
+                        z_dim=cfg.model.z_dim,
+                        h_dim=cfg.model.h_dim,
+                        non_linearity=cfg.model.non_linearity,
+                        num_steps=cfg.model.num_steps,
+                        device=device,
+                        num_heads=cfg.model.cross_attn_num_heads,
+                    )  # TODO
+
+    if not cfg.model.contextual_schedules:
 
         annealing_schedule = AnnealingSchedule(
             num_steps=cfg.model.num_steps,
             device=device,
         )
+
+        match noise_variant:
+            case NoiseVariant.FREE:
+
+                noise_schedule = NoiseSchedule(
+                    z_dim=cfg.model.z_dim,
+                    num_steps=cfg.model.num_steps,
+                    device=device,
+                )
+
+            case NoiseVariant.COS:
+
+                noise_schedule = CosineNoiseSchedule(
+                    z_dim=cfg.model.z_dim,
+                    num_steps=cfg.model.num_steps,
+                    device=device,
+                )
 
     step_size_schedule = StepSizeSchedule(
         num_steps=cfg.model.num_steps,
