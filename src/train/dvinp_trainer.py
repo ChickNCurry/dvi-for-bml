@@ -185,8 +185,11 @@ class BetterDVINPTrainer(BaseTrainer):
 
         loss = -elbo
 
-        lmpl = compute_lmpl(self.model.decoder, z_samples[-1], x_data, y_data)
-        mse = compute_mse(self.model.decoder, z_samples[-1], x_data, y_data)
+        y_dist = self.model.decoder(z_samples[-1], x_data)
+        # (batch_size, num_subtasks, z_dim)
+
+        lmpl = compute_lmpl(y_dist, y_data)
+        mse = compute_mse(y_dist, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 

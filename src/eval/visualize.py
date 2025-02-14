@@ -10,9 +10,10 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.components.np import AGGRCNP, AGGRNP, BCACNP, BCANP
-from src.components.dvinp import DVINP
+from src.components.cnp import AggrCNP, BcaCNP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.components.dvinp import DVINP
+from src.components.lnp import AggrLNP, BcaLNP
 from src.eval.grid import (
     create_grid,
     eval_dist_on_grid,
@@ -187,7 +188,7 @@ def visualize_dvinp_both(
 
 
 def visualize_np(
-    model: AGGRNP | BCANP | AGGRCNP | BCACNP,
+    model: AggrLNP | BcaLNP | AggrCNP | BcaCNP,
     device: torch.device,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     num_samples: int,
@@ -228,8 +229,12 @@ def visualize_np(
         context = torch.cat([x_context, y_context], dim=-1)
         # (1, num_samples, context_size, x_dim + y_dim)
 
-        output = model(context, None, x_data)
-        y_dist = output[0]
+        if isinstance(model, AggrLNP | BcaLNP):
+            y_dist, _, _ = model(context, None, x_data)
+
+        elif isinstance(model, AggrCNP | BcaCNP):
+            y_dist = model(context, None, x_data)
+
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
 

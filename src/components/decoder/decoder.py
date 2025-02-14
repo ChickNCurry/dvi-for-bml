@@ -1,5 +1,5 @@
-from torch import Tensor, nn
 import torch
+from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
 
 
@@ -47,8 +47,8 @@ class Decoder(nn.Module):
         # (batch_size, num_subtasks, target_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        # y_sigma = 0.1 + 0.9 * nn.functional.softplus(self.proj_y_w(h))
-        y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
+        y_sigma = 0.1 + 0.9 * nn.functional.softplus(self.proj_y_logvar(h))
+        # y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
         # (batch_size, num_subtasks, target_size, y_dim)
 
         return Normal(y_mu, y_sigma)  # type: ignore

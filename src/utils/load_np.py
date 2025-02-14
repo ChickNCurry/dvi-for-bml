@@ -11,11 +11,23 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
+from src.components.cnp import AggrCNP, BcaCNP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
-from src.components.np import AGGRCNP, AGGRNP, BCACNP, BCANP
-from src.train.np_trainer import BetterNPTrainer, NoisyNPTrainer
+from src.components.lnp import AggrLNP, BcaLNP
+from src.train.cnp_trainer import (
+    CNPTrainer,
+    CNPTrainerContext,
+    CNPTrainerData,
+    CNPTrainerTarget,
+)
+from src.train.lnp_trainer import (
+    LNPTrainer,
+    LNPTrainerContext,
+    LNPTrainerData,
+    LNPTrainerTarget,
+)
 from src.utils.datasets import MetaLearningDataset
 
 
@@ -27,16 +39,20 @@ class ContextVariant(Enum):
 
 class ModelVariant(Enum):
     CNP = "cnp"
-    NP = "np"
+    LNP = "lnp"
+
+
+class TrainerVariant(Enum):
+    DATA = "data"
+    TARGET = "target"
+    CONTEXT = "context"
 
 
 def load_np(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
-) -> Tuple[
-    AGGRNP | BCANP | AGGRCNP | BCACNP, NoisyNPTrainer | BetterNPTrainer, DataLoader
-]:
+) -> Tuple[AggrLNP | BcaLNP | AggrCNP | BcaCNP, LNPTrainer | CNPTrainer, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -84,6 +100,7 @@ def load_np(
 
     context_variant = ContextVariant(cfg.model.context_variant)
     model_variant = ModelVariant(cfg.model.model_variant)
+    trainer_variant = TrainerVariant(cfg.training.trainer_variant)
 
     match context_variant:
         case ContextVariant.MEAN | ContextVariant.MAX:
@@ -101,11 +118,11 @@ def load_np(
             match model_variant:
                 case ModelVariant.CNP:
 
-                    model = AGGRCNP(encoder=encoder, decoder=decoder)
+                    model = AggrCNP(encoder=encoder, decoder=decoder)
 
-                case ModelVariant.NP:
+                case ModelVariant.LNP:
 
-                    model = AGGRNP(encoder=encoder, decoder=decoder)
+                    model = AggrLNP(encoder=encoder, decoder=decoder)
 
         case ContextVariant.BCA:
 
@@ -120,40 +137,111 @@ def load_np(
             match model_variant:
                 case ModelVariant.CNP:
 
-                    model = BCACNP(encoder=encoder, decoder=decoder)
+                    model = BcaCNP(encoder=encoder, decoder=decoder)
 
-                case ModelVariant.NP:
+                case ModelVariant.LNP:
 
-                    model = BCANP(encoder=encoder, decoder=decoder)
+                    model = BcaLNP(encoder=encoder, decoder=decoder)
 
     model = model.to(device)
     optimizer = AdamW(params=model.parameters(), lr=cfg.training.learning_rate)
 
-    trainer = NoisyNPTrainer(
-        model=model,
-        device=device,
-        dataset=dataset,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=optimizer,
-        scheduler=None,
-        wandb_logging=cfg.wandb.logging,
-        num_subtasks=cfg.training.num_subtasks,
-        sample_size=cfg.training.sample_size,
-    )
+    match model_variant:
+        case ModelVariant.CNP:
 
-    # trainer = BetterNPTrainer(
-    #     model=model,
-    #     device=device,
-    #     dataset=dataset,
-    #     train_loader=train_loader,
-    #     val_loader=val_loader,
-    #     optimizer=optimizer,
-    #     scheduler=None,
-    #     wandb_logging=cfg.wandb.logging,
-    #     num_subtasks=cfg.training.num_subtasks,
-    #     sample_size=cfg.training.sample_size,
-    # )
+            match trainer_variant:
+                case TrainerVariant.DATA:
+
+                    trainer = CNPTrainerData(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
+
+                case TrainerVariant.TARGET:
+
+                    trainer = CNPTrainerTarget(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
+
+                case TrainerVariant.CONTEXT:
+
+                    trainer = CNPTrainerContext(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
+
+        case ModelVariant.LNP:
+
+            match trainer_variant:
+                case TrainerVariant.DATA:
+
+                    trainer = LNPTrainerData(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
+
+                case TrainerVariant.TARGET:
+
+                    trainer = LNPTrainerTarget(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
+
+                case TrainerVariant.CONTEXT:
+
+                    trainer = LNPTrainerContext(
+                        model=model,
+                        device=device,
+                        dataset=dataset,
+                        train_loader=train_loader,
+                        val_loader=val_loader,
+                        optimizer=optimizer,
+                        scheduler=None,
+                        wandb_logging=cfg.wandb.logging,
+                        num_subtasks=cfg.training.num_subtasks,
+                        sample_size=cfg.training.sample_size,
+                    )
 
     if dir is not None:
 

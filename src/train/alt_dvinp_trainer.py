@@ -20,6 +20,24 @@ from src.eval.grid import (
     eval_hist_on_grid,
 )
 
+# class AbstractTrainer(ABC):
+#     def __init__(
+#         self, optimizer: Optimizer, wandb_logging: bool, dataset: Dataset[Any]
+#     ) -> None:
+#         self.optimizer = optimizer
+#         self.wandb_logging = wandb_logging
+#         self.dataset = dataset
+
+#     @abstractmethod
+#     def train(
+#         self,
+#         num_epochs: int,
+#         max_clip_norm: float | None,
+#         alpha: float | None,
+#         validate: bool = False,
+#     ) -> None:
+#         raise NotImplementedError
+
 
 class AlternatingDVINPTrainer(AbstractTrainer):
     def __init__(
