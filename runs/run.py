@@ -2,9 +2,9 @@ import os
 
 import hydra
 import torch
+import wandb
 from omegaconf import DictConfig, OmegaConf
 
-import wandb
 from src.utils.load_dvinp import load_dvinp
 
 
@@ -17,7 +17,7 @@ def run(cfg: DictConfig) -> None:
 
     if cfg.wandb.logging:
 
-        name = "".join([f"({v})" for v in cfg.model.values()])
+        name = "-".join([f"{v}" for v in cfg.model.values()])
 
         wandb.init(
             name=name,
@@ -29,7 +29,7 @@ def run(cfg: DictConfig) -> None:
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
-        validate=True,
+        validate=False,
     )
 
     if cfg.wandb.logging and wandb.run is not None:

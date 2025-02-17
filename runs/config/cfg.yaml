@@ -26,7 +26,7 @@ model:
     self_attn_num_heads: null
     cross_attn_num_heads: null
     max_context_size: null
-    use_score: false
+    use_score: true
     num_steps: 16
     x_dim: 1
     y_dim: 1
@@ -41,8 +41,8 @@ training:
     num_val_tasks: 32
     sample_size: 100
     max_context_size: 16
-    learning_rate: 0.0003
-    num_epochs: 1000
+    learning_rate: 0.0001
+    num_epochs: 2000
     alternating_ratio: null
     max_clip_norm: null
     alpha: null
