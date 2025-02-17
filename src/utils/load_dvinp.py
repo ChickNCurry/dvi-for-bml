@@ -15,17 +15,14 @@ from torch.utils.data import DataLoader, random_split
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
 from src.components.control.bca_control import BCAControl
-from src.components.control.mha_control import MHAControl
 from src.components.decoder.decoder import Decoder
 from src.components.dvinp import DVINP
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
-from src.components.encoder.mha_encoder import MHAEncoder
 from src.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
-    MHAAnnealingSchedule,
 )
 from src.components.schedule.cos_noise_schedule import (
     AggrCosineNoiseSchedule,
@@ -35,25 +32,39 @@ from src.components.schedule.cos_noise_schedule import (
 from src.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
-    MHANoiseSchedule,
     NoiseSchedule,
 )
 from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.train.base_trainer import AbstractTrainer
-from src.train.dvinp_trainer import DVINPTrainer
+from src.train.dvinp_trainer import (
+    DVINPTrainer,
+    DVINPTrainerContext,
+    DVINPTrainerData,
+    DVINPTrainerForward,
+    DVINPTrainerForwardAndContext,
+)
 from src.utils.datasets import MetaLearningDataset
 
 
-class ModelVariant(Enum):
+class ContextVariant(Enum):
     MEAN = "mean"
     MAX = "max"
     BCA = "bca"
-    MHA = "mha"
 
 
 class NoiseVariant(Enum):
     FREE = "free"
     COS = "cos"
+
+
+class ModelVariant(Enum):
+    DIS = "dis"
+
+
+class TrainerVariant(Enum):
+    DATA = "data"
+    CONTEXT = "context"
+    FORWARD = "forward"
+    FORWARDANDCONTEXT = "forwardandcontext"
 
 
 def load_dvinp(
@@ -62,7 +73,7 @@ def load_dvinp(
     dir: str | None = None,
     load_decoder_only: bool = False,
     train_decoder: bool = True,
-) -> Tuple[DVINP, AbstractTrainer, DataLoader]:
+) -> Tuple[DVINP, DVINPTrainer, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -99,11 +110,13 @@ def load_dvinp(
         generator=g,
     )
 
-    model_variant = ModelVariant(cfg.model.model_variant)
+    context_variant = ContextVariant(cfg.model.context_variant)
     noise_variant = NoiseVariant(cfg.model.noise_variant)
+    model_variant = ModelVariant(cfg.model.model_variant)
+    trainer_variant = TrainerVariant(cfg.training.trainer_variant)
 
-    match model_variant:
-        case ModelVariant.MEAN | ModelVariant.MAX:
+    match context_variant:
+        case ContextVariant.MEAN | ContextVariant.MAX:
 
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
@@ -111,7 +124,7 @@ def load_dvinp(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
-                aggregation=Aggr(ModelVariant(model_variant).value),
+                aggregation=Aggr(ContextVariant(context_variant).value),
                 max_context_size=cfg.model.max_context_size,
             )
 
@@ -151,7 +164,7 @@ def load_dvinp(
                         num_steps=cfg.model.num_steps,
                     )
 
-        case ModelVariant.BCA:
+        case ContextVariant.BCA:
 
             encoder = BCAEncoder(
                 c_dim=cfg.model.c_dim,
@@ -197,56 +210,6 @@ def load_dvinp(
                         num_steps=cfg.model.num_steps,
                     )
 
-        case ModelVariant.MHA:
-
-            encoder = MHAEncoder(
-                c_dim=cfg.model.c_dim,
-                h_dim=cfg.model.h_dim,
-                num_layers=cfg.model.num_layers,
-                non_linearity=cfg.model.non_linearity,
-                num_heads=cfg.model.self_attn_num_heads,
-            )
-
-            control = MHAControl(
-                h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.z_dim,
-                num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers,
-                non_linearity=cfg.model.non_linearity,
-                use_score=cfg.model.use_score,
-                num_heads=cfg.model.cross_attn_num_heads,
-            )
-
-            annealing_schedule = MHAAnnealingSchedule(
-                h_dim=cfg.model.h_dim,
-                non_linearity=cfg.model.non_linearity,
-                num_steps=cfg.model.num_steps,
-                device=device,
-                num_heads=cfg.model.cross_attn_num_heads,
-            )
-
-            match noise_variant:
-                case NoiseVariant.FREE:
-
-                    noise_schedule = MHANoiseSchedule(
-                        z_dim=cfg.model.z_dim,
-                        h_dim=cfg.model.h_dim,
-                        non_linearity=cfg.model.non_linearity,
-                        num_steps=cfg.model.num_steps,
-                        device=device,
-                    )
-
-                case NoiseVariant.COS:
-
-                    noise_schedule = MHANoiseSchedule(
-                        z_dim=cfg.model.z_dim,
-                        h_dim=cfg.model.h_dim,
-                        non_linearity=cfg.model.non_linearity,
-                        num_steps=cfg.model.num_steps,
-                        device=device,
-                        num_heads=cfg.model.cross_attn_num_heads,
-                    )  # TODO
-
     if not cfg.model.contextual_schedules:
 
         annealing_schedule = AnnealingSchedule(
@@ -276,16 +239,19 @@ def load_dvinp(
         device=device,
     )
 
-    cdvi = DIS(
-        z_dim=cfg.model.z_dim,
-        num_steps=cfg.model.num_steps,
-        control=control,
-        step_size_schedule=step_size_schedule,
-        noise_schedule=noise_schedule,
-        annealing_schedule=annealing_schedule,
-        use_score=cfg.model.use_score,
-        device=device,
-    )
+    match model_variant:
+        case ModelVariant.DIS:
+
+            cdvi = DIS(
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                control=control,
+                step_size_schedule=step_size_schedule,
+                noise_schedule=noise_schedule,
+                annealing_schedule=annealing_schedule,
+                use_score=cfg.model.use_score,
+                device=device,
+            )
 
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
@@ -296,17 +262,16 @@ def load_dvinp(
         non_linearity=cfg.model.non_linearity,
     )
 
-    dvinp = DVINP(
+    model = DVINP(
         encoder=encoder,
         cdvi=cdvi,
         decoder=decoder,
-        contextual_target=None,
     ).to(device)
 
     params = (
-        dvinp.parameters()
+        model.parameters()
         if train_decoder
-        else list(dvinp.encoder.parameters()) + list(dvinp.cdvi.parameters())
+        else list(model.encoder.parameters()) + list(model.cdvi.parameters())
     )
 
     optimizer = AdamW(params=params, lr=cfg.training.learning_rate)
@@ -318,41 +283,89 @@ def load_dvinp(
     #     eta_min=cfg.training.learning_rate * 0.01,
     # )
 
-    trainer = DVINPTrainer(
-        device=device,
-        dvinp=dvinp,
-        dataset=dataset,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        optimizer=optimizer,
-        scheduler=None,  # scheduler,
-        wandb_logging=cfg.wandb.logging,
-        num_subtasks=cfg.training.num_subtasks,
-        sample_size=cfg.training.sample_size,
-    )
+    match trainer_variant:
+        case TrainerVariant.CONTEXT:
+
+            trainer = DVINPTrainerContext(
+                model=model,
+                device=device,
+                dataset=dataset,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                optimizer=optimizer,
+                scheduler=None,  # scheduler,
+                wandb_logging=cfg.wandb.logging,
+                num_subtasks=cfg.training.num_subtasks,
+                sample_size=cfg.training.sample_size,
+            )
+
+        case TrainerVariant.DATA:
+
+            trainer = DVINPTrainerData(
+                model=model,
+                device=device,
+                dataset=dataset,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                optimizer=optimizer,
+                scheduler=None,  # scheduler,
+                wandb_logging=cfg.wandb.logging,
+                num_subtasks=cfg.training.num_subtasks,
+                sample_size=cfg.training.sample_size,
+            )
+
+        case TrainerVariant.FORWARD:
+
+            trainer = DVINPTrainerForward(
+                model=model,
+                device=device,
+                dataset=dataset,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                optimizer=optimizer,
+                scheduler=None,  # scheduler,
+                wandb_logging=cfg.wandb.logging,
+                num_subtasks=cfg.training.num_subtasks,
+                sample_size=cfg.training.sample_size,
+            )
+
+        case TrainerVariant.FORWARDANDCONTEXT:
+
+            trainer = DVINPTrainerForwardAndContext(
+                model=model,
+                device=device,
+                dataset=dataset,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                optimizer=optimizer,
+                scheduler=None,  # scheduler,
+                wandb_logging=cfg.wandb.logging,
+                num_subtasks=cfg.training.num_subtasks,
+                sample_size=cfg.training.sample_size,
+            )
 
     if dir is not None:
 
-        dvinp_path = f"{dir}/dvinp.pth"
+        model_path = f"{dir}/model.pth"
         optim_path = f"{dir}/optim.pth"
 
-        if os.path.exists(dvinp_path):
+        if os.path.exists(model_path):
             dvinp_state_dict = torch.load(
-                dvinp_path, map_location=torch.device("cpu"), weights_only=False
+                model_path, map_location=torch.device("cpu"), weights_only=False
             )
 
             if load_decoder_only:
-                dvinp.decoder.load_state_dict(
+                model.decoder.load_state_dict(
                     {
                         k.split("decoder.")[-1]: v
                         for k, v in dvinp_state_dict.items()
                         if "decoder" in k
                     }
                 )
-                print(f"loaded decoder from {dvinp_path}")
+                print(f"loaded decoder from {model_path}")
             else:
-                dvinp.load_state_dict(dvinp_state_dict, strict=False)
-                print(f"loaded dvinp from {dvinp_path}")
+                model.load_state_dict(dvinp_state_dict, strict=False)
+                print(f"loaded model from {model_path}")
 
         if os.path.exists(optim_path):
             optim_state_dict = torch.load(
@@ -363,4 +376,4 @@ def load_dvinp(
                 trainer.optimizer.load_state_dict(optim_state_dict)
                 print(f"loaded optim from {optim_path}")
 
-    return dvinp, trainer, test_loader
+    return model, trainer, test_loader

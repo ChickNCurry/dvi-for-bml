@@ -8,9 +8,8 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.decoder.decoder_times_prior import DecoderTimesPrior, Mode
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.components.dvinp import DVINP
-from src.train.base_trainer import BaseTrainer
 from src.eval.grid import (
     compute_bd,
     compute_jsd,
@@ -18,8 +17,8 @@ from src.eval.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-
 from src.eval.metrics import compute_lmpl, compute_mse
+from src.train.base_trainer import BaseTrainer
 
 
 class DVINPTrainer(BaseTrainer, ABC):
@@ -87,7 +86,7 @@ class DVINPTrainer(BaseTrainer, ABC):
             # (batch_size, sample_size, h_dim)
             # (batch_size, sample_size, data_size, h_dim)
 
-            _, _, zs = self.model.cdvi.run_both_processes(target, r, mask)
+            _, zs = self.model.cdvi.run_both_processes(target, r, mask)
             # (num_steps, batch_size, sample_size, z_dim)
 
         tp_samples = zs[-1].detach().cpu().numpy()
@@ -115,6 +114,76 @@ class DVINPTrainer(BaseTrainer, ABC):
         bd = np.median(bds)
 
         return {"jsd": jsd, "bd": bd}
+
+
+class DVINPTrainerContext(DVINPTrainer):
+    def __init__(
+        self,
+        model: DVINP,
+        device: torch.device,
+        dataset: Dataset[Any],
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: LRScheduler | None,
+        wandb_logging: bool,
+        num_subtasks: int,
+        sample_size: int,
+    ) -> None:
+        super().__init__(
+            model,
+            device,
+            dataset,
+            train_loader,
+            val_loader,
+            optimizer,
+            scheduler,
+            wandb_logging,
+            num_subtasks,
+            sample_size,
+        )
+
+    def train_step(
+        self, batch: Tensor, alpha: float | None
+    ) -> Tuple[Tensor, Dict[str, float]]:
+        assert isinstance(self.model, DVINP)
+
+        data, x_data, y_data = self.get_data(batch)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        mask = self.get_train_mask(alpha, data)
+        # (batch_size, num_subtasks, data_size)
+
+        context, x_context, y_context = self.get_context(data, x_data, mask)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        r_context = self.model.encoder(context, mask)
+        # (batch_size, num_subtasks, h_dim)
+
+        target = DecoderTimesPrior(
+            decoder=self.model.decoder,
+            x=x_context,
+            y=y_context,
+            mask=mask,
+        )
+
+        elbo, zs = self.model.cdvi.run_both_processes(target, r_context, mask)
+        # (1), (num_steps, batch_size, num_subtasks, z_dim)
+
+        with torch.no_grad():
+            y_dist = self.model.decoder(zs[-1], x_data)
+            # (batch_size, num_subtasks, z_dim)
+
+        loss = -elbo
+
+        lmpl = compute_lmpl(y_dist, y_data)
+        mse = compute_mse(y_dist, y_data)
+
+        return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
 
 class DVINPTrainerData(DVINPTrainer):
@@ -193,76 +262,6 @@ class DVINPTrainerData(DVINPTrainer):
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
 
-class DVINPTrainerContext(DVINPTrainer):
-    def __init__(
-        self,
-        model: DVINP,
-        device: torch.device,
-        dataset: Dataset[Any],
-        train_loader: DataLoader[Any],
-        val_loader: DataLoader[Any],
-        optimizer: Optimizer,
-        scheduler: LRScheduler | None,
-        wandb_logging: bool,
-        num_subtasks: int,
-        sample_size: int,
-    ) -> None:
-        super().__init__(
-            model,
-            device,
-            dataset,
-            train_loader,
-            val_loader,
-            optimizer,
-            scheduler,
-            wandb_logging,
-            num_subtasks,
-            sample_size,
-        )
-
-    def train_step(
-        self, batch: Tensor, alpha: float | None
-    ) -> Tuple[Tensor, Dict[str, float]]:
-        assert isinstance(self.model, DVINP)
-
-        data, x_data, y_data = self.get_data(batch)
-        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
-        # (batch_size, num_subtasks, data_size, x_dim)
-        # (batch_size, num_subtasks, data_size, y_dim)
-
-        mask = self.get_train_mask(alpha, data)
-        # (batch_size, num_subtasks, data_size)
-
-        context, x_context, y_context = self.get_context(data, x_data, mask)
-        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
-        # (batch_size, num_subtasks, data_size, x_dim)
-        # (batch_size, num_subtasks, data_size, y_dim)
-
-        r_context = self.model.encoder(context, mask)
-        # (batch_size, num_subtasks, h_dim)
-
-        target = DecoderTimesPrior(
-            decoder=self.model.decoder,
-            x=x_context,
-            y=y_context,
-            mask=mask,
-        )
-
-        elbo, zs = self.model.cdvi.run_both_processes(target, r_context, mask)
-        # (1), (num_steps, batch_size, num_subtasks, z_dim)
-
-        with torch.no_grad():
-            y_dist = self.model.decoder(zs[-1], x_data)
-            # (batch_size, num_subtasks, z_dim)
-
-        loss = -elbo
-
-        lmpl = compute_lmpl(y_dist, y_data)
-        mse = compute_mse(y_dist, y_data)
-
-        return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
-
-
 class DVINPTrainerForward(DVINPTrainer):
     def __init__(
         self,
@@ -320,7 +319,9 @@ class DVINPTrainerForward(DVINPTrainer):
             mask=1 - mask,
         )
 
-        log_prob_fw_data, zs = self.model.cdvi.run_forward_process(target, r_data, None)
+        log_prob_fw_data, zs = self.model.cdvi.run_forward_process(
+            target, r_data, None, None
+        )
         log_prob_fw_context, _ = self.model.cdvi.run_forward_process(
             target, r_context, mask, zs
         )
@@ -414,7 +415,9 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
             mask=1 - mask,
         )
 
-        log_prob_fw_data, zs = self.model.cdvi.run_forward_process(target, r_data, None)
+        log_prob_fw_data, zs = self.model.cdvi.run_forward_process(
+            target, r_data, None, None
+        )
         log_prob_fw_context, _ = self.model.cdvi.run_forward_process(
             target, r_context, mask, zs
         )

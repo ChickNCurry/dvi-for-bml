@@ -82,7 +82,7 @@ def visualize_dvinp_both(
             mask=None,
         )
 
-        _, _, z_samples = dvinp.cdvi.run_both_processes(target, r, None)
+        _, z_samples = dvinp.cdvi.run_both_processes(target, r, None)
 
         tp_samples = z_samples[-1].cpu().detach().numpy()
 

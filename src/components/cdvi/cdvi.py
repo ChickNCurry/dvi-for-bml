@@ -73,21 +73,26 @@ class CDVI(nn.Module, ABC):
             zs = [self.prior.sample()]
             # (batch_size, num_subtasks, z_dim)
 
-        log_prob = self.prior.log_prob(zs[0] if other_zs is None else other_zs[0])
+        log_prob = self.prior.log_prob(zs[0] if other_zs is None else other_zs[0]).sum(
+            -1
+        )
         # (batch_size, num_subtasks, z_dim)
 
         for n in range(0, self.num_steps):
 
-            fwd_kernel = self.forward_kernel(n, zs[n])
+            fwd_kernel = self.forward_kernel(
+                n, zs[n] if other_zs is None else other_zs[0]
+            )
 
             if other_zs is None:
                 zs.append(fwd_kernel.rsample())
 
             log_prob += fwd_kernel.log_prob(
                 zs[n + 1] if other_zs is None else other_zs[n + 1]
-            )  # (batch_size, num_subtasks, z_dim)
+            ).sum(-1)
+            # (batch_size, num_subtasks, z_dim)
 
-        log_prob = log_prob.sum(-1).mean()
+        log_prob = log_prob.mean()
         # (1)
 
         return log_prob, zs if other_zs is None else None
@@ -101,16 +106,16 @@ class CDVI(nn.Module, ABC):
     ) -> Tensor:
         self.contextualize(target, r, mask)
 
-        log_prob = self.target.log_prob(zs[-1])
-        # (batch_size, num_subtasks, z_dim)
+        log_prob = self.target.log_prob(zs[-1]).sum(-1)
+        # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
 
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])
-            log_prob += bwd_kernel.log_prob(zs[n])
-            # (batch_size, num_subtasks, z_dim)
+            log_prob += bwd_kernel.log_prob(zs[n]).sum(-1)
+            # (batch_size, num_subtasks)
 
-        log_prob = log_prob.sum(-1).mean()
+        log_prob = log_prob.mean()
         # (1)
 
         return log_prob
@@ -126,8 +131,8 @@ class CDVI(nn.Module, ABC):
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)
 
-        elbo = torch.zeros(self.size, device=self.device)
-        # (batch_size, num_subtasks, z_dim)
+        elbo = torch.zeros(self.size[:-1], device=self.device)
+        # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
 
@@ -135,13 +140,15 @@ class CDVI(nn.Module, ABC):
             zs.append(fwd_kernel.rsample())
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])
 
-            elbo += bwd_kernel.log_prob(zs[n]) - fwd_kernel.log_prob(zs[n + 1])
-            # (batch_size, num_subtasks, z_dim or 1)
+            elbo += bwd_kernel.log_prob(zs[n]).sum(-1)
+            elbo -= fwd_kernel.log_prob(zs[n + 1]).sum(-1)
+            # (batch_size, num_subtasks)
 
-        elbo += self.target.log_prob(zs[-1]) - self.prior.log_prob(zs[0])
-        # (batch_size, num_subtasks, z_dim or 1)
+        elbo += self.target.log_prob(zs[-1]).sum(-1)
+        elbo -= self.prior.log_prob(zs[0]).sum(-1)
+        # (batch_size, num_subtasks)
 
-        elbo = elbo.sum(-1).mean()
+        elbo = elbo.mean()
         # (1)
 
         return elbo, zs

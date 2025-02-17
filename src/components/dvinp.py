@@ -1,8 +1,4 @@
-from typing import Callable
-
-from torch import Tensor, nn
-
-from components.decoder.decoder_times_prior import DecoderTimesPrior
+from torch import nn
 from src.components.cdvi.cdvi import CDVI
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.base_encoder import BaseEncoder
