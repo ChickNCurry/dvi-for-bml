@@ -62,7 +62,7 @@ def load_np(
     g.manual_seed(cfg.training.seed)
 
     benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
-    dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size)
+    dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size, g)
 
     train_set, val_set = random_split(
         dataset, [len(dataset) - cfg.training.num_val_tasks, cfg.training.num_val_tasks]
@@ -78,14 +78,14 @@ def load_np(
     val_loader = DataLoader(
         dataset=val_set,
         batch_size=cfg.training.num_val_tasks,
-        shuffle=False,
+        shuffle=True,
         generator=g,
     )
 
     test_loader = DataLoader(
         dataset=val_set,
         batch_size=1,
-        shuffle=False,
+        shuffle=True,
         generator=g,
     )
 

@@ -51,8 +51,8 @@ class BaseTrainer(ABC):
     def train(
         self,
         num_epochs: int,
-        max_clip_norm: float | None,
-        alpha: float | None,
+        max_clip_norm: float | None = None,
+        alpha: float | None = None,
         validate: bool = False,
     ) -> None:
 

@@ -46,10 +46,29 @@ class CNPTrainer(BaseTrainer, ABC):
     ) -> Tuple[Tensor, Dict[str, float]]:
         pass
 
-    def val_step(
-        self, batch: Tensor, ranges: List[Tuple[float, float]]
-    ) -> Dict[str, float]:
-        raise NotImplementedError
+    def val_step(self, batch: Tensor) -> Dict[str, float]:
+        assert isinstance(self.model, AggrCNP | BcaCNP)
+
+        data, x_data, y_data = self.get_data(batch)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        mask = self.get_train_mask(None, data)
+        # (batch_size, num_subtasks, data_size)
+
+        context, _, _ = self.get_context(data, x_data, mask)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        y_dist_data = self.model(context, mask, x_data)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        lmpl = compute_lmpl(y_dist_data, y_data)
+        mse = compute_mse(y_dist_data, y_data)
+
+        return {"lmpl": lmpl.item(), "mse": mse.item()}
 
 
 class CNPTrainerData(CNPTrainer):

@@ -1,3 +1,4 @@
+import hashlib
 import random
 from typing import Tuple
 
@@ -61,9 +62,11 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
         self,
         benchmark: MetaLearningBenchmark,
         max_context_size: int,
+        generator: torch.Generator | None = None,
     ) -> None:
         self.benchmark = benchmark
         self.max_context_size = max_context_size
+        self.generator = generator
 
         assert self.max_context_size <= self.benchmark.n_datapoints_per_task
 
@@ -77,9 +80,16 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
         y_context = Tensor(task.y)
 
         assert x_context.shape[0] == y_context.shape[0]
-        perm = torch.randperm(x_context.shape[0])
+        perm = torch.randperm(x_context.shape[0], generator=self.generator)
 
         x_context = x_context[perm]
         y_context = y_context[perm]
 
+        # print(hash_tensor(x_context), hash_tensor(y_context))
+
         return x_context, y_context
+
+
+def hash_tensor(t: Tensor) -> str:
+    tensor_bytes = t.numpy().tobytes()
+    return hashlib.sha256(tensor_bytes).hexdigest()

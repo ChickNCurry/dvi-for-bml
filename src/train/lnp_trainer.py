@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 import torch
 from torch import Tensor
@@ -47,10 +47,29 @@ class LNPTrainer(BaseTrainer, ABC):
     ) -> Tuple[Tensor, Dict[str, float]]:
         pass
 
-    def val_step(
-        self, batch: Tensor, ranges: List[Tuple[float, float]]
-    ) -> Dict[str, float]:
-        raise NotImplementedError
+    def val_step(self, batch: Tensor) -> Dict[str, float]:
+        assert isinstance(self.model, AggrLNP | BcaLNP)
+
+        data, x_data, y_data = self.get_data(batch)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        mask = self.get_train_mask(None, data)
+        # (batch_size, num_subtasks, data_size)
+
+        context, _, _ = self.get_context(data, x_data, mask)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        y_dist_data, _, _ = self.model(context, mask, x_data)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        lmpl = compute_lmpl(y_dist_data, y_data)
+        mse = compute_mse(y_dist_data, y_data)
+
+        return {"lmpl": lmpl.item(), "mse": mse.item()}
 
 
 class LNPTrainerData(LNPTrainer):
@@ -98,7 +117,7 @@ class LNPTrainerData(LNPTrainer):
         log_like = log_like.sum(dim=-1).sum(dim=-1)
         # (batch_size, num_subtasks)
 
-        kl_div = kl_divergence(z_dist_data, z_dist_context)
+        kl_div = kl_divergence(z_dist_data, z_dist_context).sum(dim=-1)
         # (batch_size, num_subtasks)
 
         return -(log_like - kl_div).mean()
@@ -149,7 +168,7 @@ class LNPTrainerData(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        y_dist_data, z_dist_data, z_data = self.model(data, mask, x_data)
+        y_dist_data, z_dist_data, z_data = self.model(data, None, x_data)
         # (batch_size, num_subtasks, data_size, y_dim)
 
         z_dist_context, _ = self.model.encode(context, mask)
@@ -219,7 +238,7 @@ class LNPTrainerTarget(LNPTrainer):
         log_like = log_like.sum(dim=-1).sum(dim=-1)
         # (batch_size, num_subtasks)
 
-        kl_div = kl_divergence(z_dist_data, z_dist_context)
+        kl_div = kl_divergence(z_dist_data, z_dist_context).sum(dim=-1)
         # (batch_size, num_subtasks)
 
         return -(log_like - kl_div).mean()
@@ -280,7 +299,7 @@ class LNPTrainerTarget(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        y_dist_target, z_dist_data, z_data = self.model(data, mask, x_target)
+        y_dist_target, z_dist_data, z_data = self.model(data, None, x_target)
         # (batch_size, num_subtasks, data_size, y_dim)
 
         z_dist_context, _ = self.model.encode(context, mask)
@@ -291,7 +310,7 @@ class LNPTrainerTarget(LNPTrainer):
         )
 
         with torch.no_grad():
-            y_dist_data, _, _ = self.model(data, mask, x_data)
+            y_dist_data, _, _ = self.model(data, None, x_data)
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
@@ -399,7 +418,7 @@ class LNPTrainerContext(LNPTrainer):
         )
 
         with torch.no_grad():
-            y_dist_data, _, _ = self.model(data, mask, x_data)
+            y_dist_data, _, _ = self.model(data, None, x_data)
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)

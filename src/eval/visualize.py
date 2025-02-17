@@ -207,8 +207,10 @@ def visualize_np(
     # (1, num_samples, context_size, y_dim)
 
     x_data_sorted, indices = x_data.sort(dim=2)
-    x_data_sorted = x_data_sorted.cpu().squeeze(0).detach().numpy()
-    y_data_sorted = y_data.gather(2, indices).squeeze(0).cpu().detach().numpy()
+    x_data_sorted = x_data_sorted.squeeze(0).squeeze(-1).detach().cpu().numpy()
+    y_data_sorted = (
+        y_data.gather(2, indices).squeeze(0).squeeze(-1).detach().cpu().numpy()
+    )
     # (num_samples, context_size, x_dim)
     # (num_samples, context_size, y_dim)
 
@@ -235,25 +237,43 @@ def visualize_np(
         elif isinstance(model, AggrCNP | BcaCNP):
             y_dist = model(context, None, x_data)
 
-        y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
+        y_mu_sorted = (
+            y_dist.mean.gather(2, indices).squeeze(0).squeeze(-1).detach().cpu().numpy()
+        )
+        y_sigma_sorted = (
+            y_dist.scale.gather(2, indices)
+            .squeeze(0)
+            .squeeze(-1)
+            .detach()
+            .cpu()
+            .numpy()
+        )
         # (num_samples, target_size, y_dim)
 
-        ax.set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
-        ax.scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
+        ax.scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=2)
         ax.scatter(
-            x_context.cpu().detach().numpy(),
-            y_context.cpu().detach().numpy(),
+            x_context.detach().cpu().numpy(),
+            y_context.detach().cpu().numpy(),
             marker="X",
             c="red",
             s=100,
-            zorder=2,
+            zorder=3,
         )
+
         for k in range(num_samples):
             ax.plot(
-                x_data_sorted[k].squeeze(-1),
-                y_mu_sorted[k].squeeze(-1),
-                alpha=0.2,
+                x_data_sorted[k],
+                y_mu_sorted[k],
+                alpha=0.8,
                 c="tab:blue",
+                zorder=1,
+            )
+            ax.fill_between(
+                x_data_sorted[k],
+                y_mu_sorted[k] - y_sigma_sorted[k],  # Lower bound
+                y_mu_sorted[k] + y_sigma_sorted[k],  # Upper bound
+                color="tab:purple",
+                alpha=0.2,
                 zorder=0,
             )
 
