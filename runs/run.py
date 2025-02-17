@@ -13,11 +13,11 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dvinp, trainer, _ = load_dvinp(cfg=cfg, device=device)
+    model, trainer, _ = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
 
-        name = "".join([f"({k}:{v})" for k, v in cfg.model.items()])
+        name = "".join([f"({v})" for v in cfg.model.values()])
 
         wandb.init(
             name=name,
@@ -40,17 +40,17 @@ def run(cfg: DictConfig) -> None:
         dir = os.path.join("models", wandb.run.name)
         os.mkdir(dir)
 
-        dvinp_path = os.path.join(dir, "dvinp.pth")
+        model_path = os.path.join(dir, "model.pth")
         optim_path = os.path.join(dir, "optim.pth")
         cfg_path = os.path.join(dir, "cfg.yaml")
 
-        torch.save(dvinp.state_dict(), dvinp_path)
+        torch.save(model.state_dict(), model_path)
         torch.save(trainer.optimizer.state_dict(), optim_path)
         with open(cfg_path, "w") as f:
             OmegaConf.save(cfg, f)
 
         if cfg.wandb.logging and wandb.run is not None:
-            wandb.run.log_model(path=dvinp_path, name=f"{wandb.run.name}_dvinp.pth")
+            wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
             wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
             wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
 
