@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 import torch
 from torch import Tensor
+from torch.distributions.kl import kl_divergence
 from torch.distributions.normal import Normal
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
@@ -28,8 +29,8 @@ class LNPTrainer(BaseTrainer, ABC):
         sample_size: int,
     ) -> None:
         super().__init__(
-            device,
             model,
+            device,
             dataset,
             train_loader,
             val_loader,
@@ -79,6 +80,29 @@ class LNPTrainerData(LNPTrainer):
             sample_size,
         )
 
+    def lnp_loss_data_kl(
+        self,
+        y_dist_data: Normal,
+        y_data: Normal,
+        z_dist_data: Normal,
+        z_data: Normal,
+        z_dist_context: Normal,
+    ) -> Tensor:
+        # (batch_size, num_subtasks, data_size, y_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, z_dim)
+
+        log_like: Tensor = y_dist_data.log_prob(y_data)
+        log_like = log_like.sum(dim=-1).sum(dim=-1)
+        # (batch_size, num_subtasks)
+
+        kl_div = kl_divergence(z_dist_data, z_dist_context)
+        # (batch_size, num_subtasks)
+
+        return -(log_like - kl_div).mean()
+
     def lnp_loss_data(
         self,
         y_dist_data: Normal,
@@ -94,18 +118,18 @@ class LNPTrainerData(LNPTrainer):
         # (batch_size, num_subtasks, z_dim)
 
         log_like: Tensor = y_dist_data.log_prob(y_data)
-        log_like = log_like.sum(dim=-1).sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_like = log_like.sum(dim=-1).sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         log_tp_context: Tensor = z_dist_context.log_prob(z_data)
-        log_tp_context.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_tp_context.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         log_tp_data: Tensor = z_dist_data.log_prob(z_data)
-        log_tp_data.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_tp_data.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
-        return -(log_like + log_tp_context - log_tp_data).sum(dim=-1).mean()
+        return -(log_like + log_tp_context - log_tp_data).mean()
 
     def train_step(
         self, batch: Tensor, alpha: float | None
@@ -117,7 +141,7 @@ class LNPTrainerData(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -131,7 +155,7 @@ class LNPTrainerData(LNPTrainer):
         z_dist_context, _ = self.model.encode(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        loss = self.lnp_loss_data(
+        loss = self.lnp_loss_data_kl(
             y_dist_data, y_data, z_dist_data, z_data, z_dist_context
         )
 
@@ -168,6 +192,38 @@ class LNPTrainerTarget(LNPTrainer):
             sample_size,
         )
 
+    def lnp_loss_target_kl(
+        self,
+        y_dist_target: Normal,
+        y_target: Normal,
+        mask: Tensor,
+        z_dist_data: Normal,
+        z_data: Normal,
+        z_dist_context: Normal,
+    ) -> Tensor:
+        # (batch_size, num_subtasks, data_size, y_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, z_dim)
+
+        log_like: Tensor = y_dist_target.log_prob(y_target)
+
+        if mask is not None:
+            mask = mask.unsqueeze(-1).expand(-1, -1, -1, log_like.shape[-1])
+            mask = 1 - mask
+            # (batch_size, num_subtasks, data_size, y_dim)
+
+            log_like = log_like * mask
+
+        log_like = log_like.sum(dim=-1).sum(dim=-1)
+        # (batch_size, num_subtasks)
+
+        kl_div = kl_divergence(z_dist_data, z_dist_context)
+        # (batch_size, num_subtasks)
+
+        return -(log_like - kl_div).mean()
+
     def lnp_loss_target(
         self,
         y_dist_target: Normal,
@@ -192,18 +248,18 @@ class LNPTrainerTarget(LNPTrainer):
 
             log_like = log_like * mask
 
-        log_like = log_like.sum(dim=-1).sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_like = log_like.sum(dim=-1).sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         log_tp_context: Tensor = z_dist_context.log_prob(z_data)
-        log_tp_context.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_tp_context.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         log_tp_data: Tensor = z_dist_data.log_prob(z_data)
-        log_tp_data.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_tp_data.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
-        return -(log_like + log_tp_context - log_tp_data).sum(dim=-1).mean()
+        return -(log_like + log_tp_context - log_tp_data).mean()
 
     def train_step(
         self, batch: Tensor, alpha: float | None
@@ -215,7 +271,7 @@ class LNPTrainerTarget(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -230,7 +286,7 @@ class LNPTrainerTarget(LNPTrainer):
         z_dist_context, _ = self.model.encode(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        loss = self.lnp_loss_target(
+        loss = self.lnp_loss_target_kl(
             y_dist_target, y_target, mask, z_dist_data, z_data, z_dist_context
         )
 
@@ -299,23 +355,23 @@ class LNPTrainerContext(LNPTrainer):
 
             log_like = log_like * mask
 
-        log_like = log_like.sum(dim=-1).sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_like = log_like.sum(dim=-1).sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         prior_dist = Normal(  # type: ignore
             torch.zeros((batch_size, num_subtasks, z_dim), device=device),
             torch.ones((batch_size, num_subtasks, z_dim), device=device),
-        )
+        )  # (batch_size, num_subtasks, z_dim)
 
         log_prior: Tensor = prior_dist.log_prob(z_context)  # type: ignore
-        log_prior = log_prior.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_prior = log_prior.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
         log_tp: Tensor = z_dist_context.log_prob(z_context)
-        log_tp = log_tp.sum(dim=-1, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+        log_tp = log_tp.sum(dim=-1)
+        # (batch_size, num_subtasks)
 
-        return -(log_like + log_prior - log_tp).sum(dim=-1).mean()
+        return -(log_like + log_prior - log_tp).mean()
 
     def train_step(
         self, batch: Tensor, alpha: float | None
@@ -327,7 +383,7 @@ class LNPTrainerContext(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)

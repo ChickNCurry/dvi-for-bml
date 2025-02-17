@@ -28,8 +28,8 @@ class CNPTrainer(BaseTrainer, ABC):
         sample_size: int,
     ) -> None:
         super().__init__(
-            device,
             model,
+            device,
             dataset,
             train_loader,
             val_loader,
@@ -96,7 +96,7 @@ class CNPTrainerData(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -169,7 +169,7 @@ class CNPTrainerTarget(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -246,7 +246,7 @@ class CNPTrainerContext(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_mask(alpha, data)
+        mask = self.get_train_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)

@@ -1,7 +1,7 @@
 from typing import Tuple
 
-import torch
 from torch import Tensor, nn
+import torch
 from torch.distributions.normal import Normal
 
 from src.components.decoder.decoder import Decoder
@@ -33,7 +33,7 @@ class AggrLNP(nn.Module):
         # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
         z_mu = self.proj_z_mu(r)
-        z_log_var = 0.1 + 0.9 * nn.functional.softplus(self.proj_z_logvar(r))
+        z_log_var = 0.01 + nn.functional.softplus(self.proj_z_logvar(r))
         z_dist = Normal(z_mu, z_log_var)
 
         z = z_dist.rsample()
@@ -83,8 +83,8 @@ class BcaLNP(nn.Module):
         # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
         z_mu = self.proj_z_mu(z_mu)
-        z_log_var = 0.1 + 0.9 * nn.functional.softplus(self.proj_z_logvar(z_var))
-        z_dist = Normal(z_mu, z_log_var)
+        z_sigma = 0.01 + nn.functional.softplus(self.proj_z_logvar(torch.sqrt(z_var)))
+        z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)

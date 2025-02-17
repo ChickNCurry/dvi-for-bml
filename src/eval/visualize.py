@@ -77,12 +77,12 @@ def visualize_dvinp_both(
 
         target = DecoderTimesPrior(
             decoder=dvinp.decoder,
-            x_target=x_context,
-            y_target=y_context,
+            x=x_context,
+            y=y_context,
             mask=None,
         )
 
-        _, _, z_samples = dvinp.cdvi.run_chain(target, r, None)
+        _, _, z_samples = dvinp.cdvi.run_both_processes(target, r, None)
 
         tp_samples = z_samples[-1].cpu().detach().numpy()
 

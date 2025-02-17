@@ -16,8 +16,8 @@ import wandb
 class BaseTrainer(ABC):
     def __init__(
         self,
-        device: torch.device,
         model: nn.Module,
+        device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
         val_loader: DataLoader[Any],
@@ -27,9 +27,8 @@ class BaseTrainer(ABC):
         num_subtasks: int,
         sample_size: int,
     ) -> None:
-
-        self.device = device
         self.model = model
+        self.device = device
         self.dataset = dataset
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -151,7 +150,7 @@ class BaseTrainer(ABC):
 
         return data, x_data, y_data
 
-    def get_mask(self, alpha: float | None, data: Tensor) -> Tensor:
+    def get_train_mask(self, alpha: float | None, data: Tensor) -> Tensor:
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
 
         if alpha is None:
@@ -180,6 +179,26 @@ class BaseTrainer(ABC):
 
         mask = (pos_indices < rand_data_sizes).float()
         # (batch_size, num_subtasks, data_size)
+
+        return mask
+
+    def get_val_mask(self, data: Tensor) -> Tensor:
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+
+        context_sizes = torch.ones(
+            size=(data.shape[0], data.shape[1], 1),
+            device=self.device,
+        )  # (batch_size, num_subtasks, 1)
+
+        pos_indices = (
+            torch.arange(data.shape[2], device=self.device)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(data.shape[0], data.shape[1], -1)
+        )  # (batch_size, sample_size, data_size)
+
+        mask = (pos_indices < context_sizes).float()
+        # (batch_size, sample_size, data_size)
 
         return mask
 

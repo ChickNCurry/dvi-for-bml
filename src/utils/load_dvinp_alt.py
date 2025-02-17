@@ -16,7 +16,7 @@ from src.components.control.aggr_control import AggrControl
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.train.base_trainer import AbstractTrainer
-from src.train.dvinp_trainer import BetterDVINPTrainer
+from src.train.dvinp_trainer import DVINPTrainer
 from src.train.alt_dvinp_trainer import AlternatingDVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 
@@ -195,7 +195,7 @@ def load_dvinp_alt(
     )
 
     trainer: AbstractTrainer = (
-        BetterDVINPTrainer(
+        DVINPTrainer(
             device=device,
             dvinp=dvinp,
             dataset=dataset,

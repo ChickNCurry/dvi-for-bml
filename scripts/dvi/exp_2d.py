@@ -9,13 +9,13 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 
 import wandb
+from src.components.dvi import DVI
 from src.components.cdvi.cmcd import CMCD
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
 from src.components.control.base_control import BaseControl
 from src.components.control.bca_control import BCAControl
 from src.components.control.mha_control import MHAControl
-from src.components.dvinp import DVINP
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.base_encoder import BaseEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
@@ -40,7 +40,7 @@ from src.components.schedule.noise_schedule import (
 )
 from src.components.schedule.step_size_schedule import StepSizeSchedule
 from src.eval.grid import compute_jsd, create_grid, eval_dist_on_grid, eval_hist_on_grid
-from src.train.static_trainer import BetterStaticTargetTrainer
+from src.train.dvi_trainer import DVITrainer
 from src.utils.datasets import ContextSetDataset
 from src.utils.distros import TaskPosteriorGMM
 from src.utils.hash import get_object_hash, get_var_name
@@ -357,18 +357,17 @@ def run() -> None:
         #     device=device,
         # )
 
-        dvinp = DVINP(
+        model = DVI(
             encoder=comps[3],
             cdvi=cdvi,
-            decoder=None,
             contextual_target=contextual_target,
         )
 
         optimizer = AdamW(cdvi.parameters(), lr=config.learning_rate)
 
-        trainer = BetterStaticTargetTrainer(
+        trainer = DVITrainer(
             device=device,
-            dvinp=dvinp,
+            model=model,
             dataset=dataset,
             train_loader=dataloader,
             val_loader=dataloader,
@@ -422,12 +421,12 @@ def run() -> None:
                 context_size = row + 1
                 sub_context = context[:, :, :context_size, :]
 
-                assert dvinp.contextual_target is not None
+                assert model.contextual_target is not None
 
-                target = dvinp.contextual_target(sub_context, None)
+                target = model.contextual_target(sub_context, None)
 
-                r = dvinp.encoder(sub_context.to(device), None)
-                _, _, z_samples = dvinp.cdvi.run_chain(target, r, None)
+                r = model.encoder(sub_context.to(device), None)
+                _, _, z_samples = model.cdvi.run_both_processes(target, r, None)
 
                 z_0_samples = z_samples[0].detach().cpu().numpy()
                 z_T_samples = z_samples[-1].detach().cpu().numpy()

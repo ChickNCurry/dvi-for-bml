@@ -40,7 +40,7 @@ from src.components.schedule.noise_schedule import (
 )
 from src.components.schedule.step_size_schedule import StepSizeSchedule
 from src.train.base_trainer import AbstractTrainer
-from src.train.dvinp_trainer import BetterDVINPTrainer
+from src.train.dvinp_trainer import DVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 
 
@@ -318,7 +318,7 @@ def load_dvinp(
     #     eta_min=cfg.training.learning_rate * 0.01,
     # )
 
-    trainer = BetterDVINPTrainer(
+    trainer = DVINPTrainer(
         device=device,
         dvinp=dvinp,
         dataset=dataset,

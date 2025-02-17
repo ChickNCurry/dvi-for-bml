@@ -220,15 +220,15 @@ class AlternatingDVINPTrainer(AbstractTrainer):
 
         target = DecoderTimesPrior(
             decoder=self.dvinp.decoder,
-            x_target=x_context,
-            y_target=y_context,
+            x=x_context,
+            y=y_context,
             x_context=x_context,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        elbo, log_like, z_samples = self.dvinp.cdvi.run_chain(
+        elbo, log_like, z_samples = self.dvinp.cdvi.run_both_processes(
             target,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
@@ -313,15 +313,15 @@ class AlternatingDVINPTrainer(AbstractTrainer):
 
         target = DecoderTimesPrior(
             decoder=self.dvinp.decoder,
-            x_target=x_context,
-            y_target=y_context,
+            x=x_context,
+            y=y_context,
             x_context=x_context,
             r_aggr=r_aggr,
             r_non_aggr=r_non_aggr,
             mask=mask,
         )
 
-        _, _, z_samples = self.dvinp.cdvi.run_chain(
+        _, _, z_samples = self.dvinp.cdvi.run_both_processes(
             target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
         )  # (num_steps, batch_size, sample_size, z_dim)
 
