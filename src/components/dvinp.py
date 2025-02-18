@@ -1,4 +1,5 @@
 from torch import nn
+
 from src.components.cdvi.cdvi import CDVI
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.base_encoder import BaseEncoder
@@ -9,7 +10,7 @@ class DVINP(nn.Module):
         self,
         encoder: BaseEncoder,
         cdvi: CDVI,
-        decoder: Decoder | None,
+        decoder: Decoder,
     ) -> None:
         super().__init__()
 

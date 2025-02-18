@@ -4,8 +4,8 @@ which python
 
 python ../run_dvinp.py --multirun \
 hydra=gpu \
-wandb.project=cluster-score \
-training.seed=1,2 \
+wandb.project=cluster-dvinp-score \
+training.seed=1 \
 training.max_clip_norm=1.0,0.1 \
 model.self_attn_num_heads=null,1 \
 model.model_variant=bca,mean \

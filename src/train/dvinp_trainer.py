@@ -59,7 +59,7 @@ class DVINPTrainer(BaseTrainer, ABC):
     def val_step(
         self,
         batch: Tensor,
-        # ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+        ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
         assert isinstance(self.model, DVINP)
 
@@ -71,12 +71,12 @@ class DVINPTrainer(BaseTrainer, ABC):
         mask = self.get_mask(None, data)
         # (batch_size, num_subtasks, data_size)
 
-        context, x_context, y_context, _ = self.get_context(data, x_data, mask)
+        context, x_context, y_context = self.get_context(data, x_data, mask)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        target = DecoderTimesPrior(
+        target_dist = DecoderTimesPrior(
             decoder=self.model.decoder,
             x=x_context,
             y=y_context,
@@ -87,7 +87,7 @@ class DVINPTrainer(BaseTrainer, ABC):
         # (batch_size, sample_size, h_dim)
         # (batch_size, sample_size, data_size, h_dim)
 
-        _, zs = self.model.cdvi.run_both_processes(target, r_context, mask)
+        _, zs = self.model.cdvi.run_both_processes(target_dist, r_context, mask)
         # (num_steps, batch_size, sample_size, z_dim)
 
         y_dist_data = self.model.decoder(
@@ -98,60 +98,53 @@ class DVINPTrainer(BaseTrainer, ABC):
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)
 
-        return {"lmpl": lmpl.item(), "mse": mse.item()}
+        mask = self.get_mask_1(data)
+        # (batch_size, num_subtasks, data_size)
 
-        # data, x_data, y_data = self.get_data(batch)
-        # # (batch_size, num_subtasks, data_size, x_dim + y_dim)
-        # # (batch_size, num_subtasks, data_size, x_dim)
-        # # (batch_size, num_subtasks, data_size, y_dim)
+        context, x_context, y_context = self.get_context(data, x_data, mask)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
 
-        # mask = self.get_mask_1(data)
-        # # (batch_size, num_subtasks, data_size)
+        target_dist = DecoderTimesPrior(
+            decoder=self.model.decoder,
+            x=x_context,
+            y=y_context,
+            mask=mask,
+        )
 
-        # context, x_context, y_context = self.get_context(data, x_data, mask)
-        # # (batch_size, num_subtasks, data_size, x_dim + y_dim)
-        # # (batch_size, num_subtasks, data_size, x_dim)
-        # # (batch_size, num_subtasks, data_size, y_dim)
+        r = self.model.encoder(context, mask)
+        # (batch_size, sample_size, h_dim)
+        # (batch_size, sample_size, data_size, h_dim)
 
-        # target = DecoderTimesPrior(
-        #     decoder=self.model.decoder,
-        #     x=x_context,
-        #     y=y_context,
-        #     mask=mask,
-        # )
+        _, zs = self.model.cdvi.run_both_processes(target_dist, r, mask)
+        # (num_steps, batch_size, sample_size, z_dim)
 
-        # r = self.model.encoder(context, mask)
-        # # (batch_size, sample_size, h_dim)
-        # # (batch_size, sample_size, data_size, h_dim)
+        tp_samples = zs[-1].detach().cpu().numpy()
+        # (batch_size, sample_size, z_dim)
 
-        # _, zs = self.model.cdvi.run_both_processes(target, r, mask)
-        # # (num_steps, batch_size, sample_size, z_dim)
+        jsds = []
+        bds = []
 
-        # tp_samples = zs[-1].detach().cpu().numpy()
-        # # (batch_size, sample_size, z_dim)
+        num_cells = int(np.sqrt(self.sample_size))
+        grid = create_grid(ranges, num_cells)
 
-        # jsds = []
-        # bds = []
+        target_log_probs = eval_dist_on_grid(grid, target_dist, device=self.device)
 
-        # num_cells = int(np.sqrt(self.sample_size))
-        # grid = create_grid(ranges, num_cells)
+        for i in range(tp_samples.shape[0]):
 
-        # target_log_probs = eval_dist_on_grid(grid, target, device=self.device)
+            tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
 
-        # for i in range(tp_samples.shape[0]):
+            jsd = compute_jsd(target_log_probs[i], tp_log_probs)
+            bd = compute_bd(target_log_probs[i], tp_log_probs)
 
-        #     tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+            jsds.append(jsd)
+            bds.append(bd)
 
-        #     jsd = compute_jsd(target_log_probs[i], tp_log_probs)
-        #     bd = compute_bd(target_log_probs[i], tp_log_probs)
+        jsd = np.median(jsds)
+        bd = np.median(bds)
 
-        #     jsds.append(jsd)
-        #     bds.append(bd)
-
-        # jsd = np.median(jsds)
-        # bd = np.median(bds)
-
-        # return {"jsd": jsd, "bd": bd}
+        return {"lmpl": lmpl.item(), "mse": mse.item(), "jsd": jsd, "bd": bd}
 
 
 class DVINPTrainerContext(DVINPTrainer):
@@ -290,6 +283,8 @@ class DVINPTrainerData(DVINPTrainer):
             target, r_context, mask, None
         )  # (1), (num_entries, batch_size, num_subtasks, z_dim)
 
+        assert zs is not None
+
         log_prob_bw = self.model.cdvi.run_backward_process(
             target, r_data, None, zs
         )  # (num_entries, batch_size, num_subtasks, z_dim)
@@ -351,7 +346,7 @@ class DVINPTrainerForward(DVINPTrainer):
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
-        target, x_target, y_target = self.get_target(data, x_data, mask)
+        _, x_target, y_target = self.get_target(data, x_data, mask)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -360,7 +355,7 @@ class DVINPTrainerForward(DVINPTrainer):
         r_data = self.model.encoder(data, None)
         # (batch_size, num_subtasks, h_dim)
 
-        target = DecoderTimesPrior(
+        target_dist = DecoderTimesPrior(
             decoder=self.model.decoder,
             x=x_target,
             y=y_target,
@@ -368,10 +363,13 @@ class DVINPTrainerForward(DVINPTrainer):
         )
 
         log_prob_fw_data, zs = self.model.cdvi.run_forward_process(
-            target, r_data, None, None
+            target_dist, r_data, None, None
         )
+
+        assert zs is not None
+
         log_prob_fw_context, _ = self.model.cdvi.run_forward_process(
-            target, r_context, mask, zs
+            target_dist, r_context, mask, zs
         )
         # (1), (num_steps, batch_size, num_subtasks, z_dim)
 
@@ -439,7 +437,7 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
-        target, x_target, y_target = self.get_target(data, x_data, mask)
+        _, x_target, y_target = self.get_target(data, x_data, mask)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -448,19 +446,19 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         r_data = self.model.encoder(data, None)
         # (batch_size, num_subtasks, h_dim)
 
-        target = DecoderTimesPrior(
+        target_dist = DecoderTimesPrior(
             decoder=self.model.decoder,
             x=x_context,
             y=y_context,
             mask=mask,
         )
 
-        elbo, zs = self.model.cdvi.run_both_processes(target, r_context, mask)
+        elbo, _ = self.model.cdvi.run_both_processes(target_dist, r_context, mask)
         # (1), (num_steps, batch_size, num_subtasks, z_dim)
 
         loss_context = -elbo
 
-        target = DecoderTimesPrior(
+        target_dist = DecoderTimesPrior(
             decoder=self.model.decoder,
             x=x_target,
             y=y_target,
@@ -468,10 +466,13 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         )
 
         log_prob_fw_data, zs = self.model.cdvi.run_forward_process(
-            target, r_data, None, None
+            target_dist, r_data, None, None
         )
+
+        assert zs is not None
+
         log_prob_fw_context, _ = self.model.cdvi.run_forward_process(
-            target, r_context, mask, zs
+            target_dist, r_context, mask, zs
         )
         # (1), (num_steps, batch_size, num_subtasks, z_dim)
 

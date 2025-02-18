@@ -35,7 +35,7 @@ model:
     noise_variant: free
     model_variant: dis
     contextual_schedules: true
-    use_score: false
+    use_score: true
 training:
     trainer_variant: context
     batch_size: 128
@@ -51,4 +51,4 @@ training:
     seed: 0
 wandb:
     logging: true
-    project: cluster
+    project: cluster-dvinp

@@ -65,54 +65,18 @@ class BaseTrainer(ABC):
             if validate:
 
                 self.model.eval()
-                with torch.inference_mode(False):
+                # with torch.inference_mode(False):
 
-                    loop = tqdm(self.val_loader, total=len(self.val_loader))
-
-                    for batch in loop:
-
-                        metrics = self.val_step(batch)
-
-                        loop.set_postfix(
-                            ordered_dict=OrderedDict(
-                                [
-                                    ("epoch", epoch),
-                                    *[(k, v) for k, v in metrics.items()],
-                                ]
-                            )
-                        )
-
-                        if self.wandb_logging:
-                            wandb.log(
-                                {
-                                    **{f"val/{k}": v for k, v in metrics.items()},
-                                }
-                            )
-
-            self.model.train()
-            with torch.inference_mode(False):
-
-                loop = tqdm(self.train_loader, total=len(self.train_loader))
+                loop = tqdm(self.val_loader, total=len(self.val_loader))
 
                 for batch in loop:
 
-                    self.optimizer.zero_grad()
-
-                    loss, metrics = self.train_step(batch, alpha)
-                    loss.backward()  # type: ignore
-
-                    if max_clip_norm is not None:
-                        torch.nn.utils.clip_grad_norm_(
-                            self.model.parameters(), max_clip_norm
-                        )
-
-                    self.optimizer.step()
+                    metrics = self.val_step(batch)
 
                     loop.set_postfix(
                         ordered_dict=OrderedDict(
                             [
                                 ("epoch", epoch),
-                                ("loss", loss.item()),
                                 *[(k, v) for k, v in metrics.items()],
                             ]
                         )
@@ -121,14 +85,50 @@ class BaseTrainer(ABC):
                     if self.wandb_logging:
                         wandb.log(
                             {
-                                "train/loss": loss.item(),
-                                **(
-                                    {f"train/{k}": v for k, v in metrics.items()}
-                                    if metrics is not None
-                                    else {}
-                                ),
+                                **{f"val/{k}": v for k, v in metrics.items()},
                             }
                         )
+
+            self.model.train()
+            # with torch.inference_mode(False):
+
+            loop = tqdm(self.train_loader, total=len(self.train_loader))
+
+            for batch in loop:
+
+                self.optimizer.zero_grad()
+
+                loss, metrics = self.train_step(batch, alpha)
+                loss.backward()  # type: ignore
+
+                if max_clip_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_clip_norm
+                    )
+
+                self.optimizer.step()
+
+                loop.set_postfix(
+                    ordered_dict=OrderedDict(
+                        [
+                            ("epoch", epoch),
+                            ("loss", loss.item()),
+                            *[(k, v) for k, v in metrics.items()],
+                        ]
+                    )
+                )
+
+                if self.wandb_logging:
+                    wandb.log(
+                        {
+                            "train/loss": loss.item(),
+                            **(
+                                {f"train/{k}": v for k, v in metrics.items()}
+                                if metrics is not None
+                                else {}
+                            ),
+                        }
+                    )
 
             if self.scheduler is not None:
                 self.scheduler.step(epoch)
@@ -161,7 +161,7 @@ class BaseTrainer(ABC):
                 high=data.shape[2] + 1,
                 size=(data.shape[0], data.shape[1], 1),
                 device=self.device,
-                generator=self.generator,
+                # generator=self.generator,
             )  # (batch_size, num_subtasks, 1)
 
         else:
