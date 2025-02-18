@@ -29,7 +29,7 @@ def run(cfg: DictConfig) -> None:
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
-        validate=False,
+        validate=True,
     )
 
     if cfg.wandb.logging and wandb.run is not None:
