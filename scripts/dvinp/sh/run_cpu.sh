@@ -2,7 +2,7 @@ module load devel/miniconda
 conda activate dvi-for-bml
 which python
 
-python ../run.py --multirun \
+python ../run_dvinp.py --multirun \
 hydra=cpu \
 wandb.project=cluster-noscore-cpu \
 training.seed=1,2,3 \

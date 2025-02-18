@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 
 import torch
-from torch import Tensor
+from torch import Generator, Tensor
 from torch.distributions.kl import kl_divergence
 from torch.distributions.normal import Normal
 from torch.optim.lr_scheduler import LRScheduler
@@ -24,6 +24,7 @@ class LNPTrainer(BaseTrainer, ABC):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -36,6 +37,7 @@ class LNPTrainer(BaseTrainer, ABC):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -55,7 +57,7 @@ class LNPTrainer(BaseTrainer, ABC):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(None, data)
+        mask = self.get_mask(None, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -82,6 +84,7 @@ class LNPTrainerData(LNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -94,6 +97,7 @@ class LNPTrainerData(LNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -160,7 +164,7 @@ class LNPTrainerData(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -194,6 +198,7 @@ class LNPTrainerTarget(LNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -206,6 +211,7 @@ class LNPTrainerTarget(LNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -290,7 +296,7 @@ class LNPTrainerTarget(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -310,7 +316,9 @@ class LNPTrainerTarget(LNPTrainer):
         )
 
         with torch.no_grad():
-            y_dist_data, _, _ = self.model(data, None, x_data)
+            y_dist_data, _, _ = self.model(
+                context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
@@ -329,6 +337,7 @@ class LNPTrainerContext(LNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -341,6 +350,7 @@ class LNPTrainerContext(LNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -402,7 +412,7 @@ class LNPTrainerContext(LNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
@@ -418,7 +428,9 @@ class LNPTrainerContext(LNPTrainer):
         )
 
         with torch.no_grad():
-            y_dist_data, _, _ = self.model(data, None, x_data)
+            y_dist_data, _, _ = self.model(
+                context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)

@@ -4,7 +4,7 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
-from torch import Tensor, nn
+from torch import Generator, Tensor, nn
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
@@ -23,6 +23,7 @@ class BaseTrainer(ABC):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -34,6 +35,7 @@ class BaseTrainer(ABC):
         self.val_loader = val_loader
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.generator = generator
         self.wandb_logging = wandb_logging
         self.num_subtasks = num_subtasks
         self.sample_size = sample_size
@@ -150,7 +152,7 @@ class BaseTrainer(ABC):
 
         return data, x_data, y_data
 
-    def get_train_mask(self, alpha: float | None, data: Tensor) -> Tensor:
+    def get_mask(self, alpha: float | None, data: Tensor) -> Tensor:
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
 
         if alpha is None:
@@ -159,6 +161,7 @@ class BaseTrainer(ABC):
                 high=data.shape[2] + 1,
                 size=(data.shape[0], data.shape[1], 1),
                 device=self.device,
+                generator=self.generator,
             )  # (batch_size, num_subtasks, 1)
 
         else:
@@ -182,7 +185,7 @@ class BaseTrainer(ABC):
 
         return mask
 
-    def get_val_mask(self, data: Tensor) -> Tensor:
+    def get_mask_1(self, data: Tensor) -> Tensor:
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
 
         context_sizes = torch.ones(

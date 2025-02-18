@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
 
 import torch
-from torch import Tensor
+from torch import Generator, Tensor
 from torch.distributions.normal import Normal
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
@@ -23,6 +23,7 @@ class CNPTrainer(BaseTrainer, ABC):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -35,6 +36,7 @@ class CNPTrainer(BaseTrainer, ABC):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -54,7 +56,7 @@ class CNPTrainer(BaseTrainer, ABC):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(None, data)
+        mask = self.get_mask(None, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -81,6 +83,7 @@ class CNPTrainerData(CNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -93,6 +96,7 @@ class CNPTrainerData(CNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -115,7 +119,7 @@ class CNPTrainerData(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -144,6 +148,7 @@ class CNPTrainerTarget(CNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -156,6 +161,7 @@ class CNPTrainerTarget(CNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -173,7 +179,6 @@ class CNPTrainerTarget(CNPTrainer):
 
         if mask is not None:
             mask = mask.unsqueeze(-1).expand(-1, -1, -1, log_like.shape[-1])
-            mask = 1 - mask
             # (batch_size, num_subtasks, data_size, y_dim)
 
             log_like = log_like * mask
@@ -188,7 +193,7 @@ class CNPTrainerTarget(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -200,10 +205,12 @@ class CNPTrainerTarget(CNPTrainer):
         y_dist_target = self.model(context, mask, x_target)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        loss = self.cnp_loss_target(y_dist_target, y_target, mask)
+        loss = self.cnp_loss_target(y_dist_target, y_target, 1 - mask)
 
         with torch.no_grad():
-            y_dist_data = self.model(context, mask, x_data)
+            y_dist_data = self.model(
+                context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
@@ -222,6 +229,7 @@ class CNPTrainerContext(CNPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -234,6 +242,7 @@ class CNPTrainerContext(CNPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -265,7 +274,7 @@ class CNPTrainerContext(CNPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
@@ -279,7 +288,9 @@ class CNPTrainerContext(CNPTrainer):
         loss = self.cnp_loss_context(y_dist_context, y_context, mask)
 
         with torch.no_grad():
-            y_dist_data = self.model(context, mask, x_data)
+            y_dist_data = self.model(
+                context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)

@@ -33,8 +33,8 @@ class AggrLNP(nn.Module):
         # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
         z_mu = self.proj_z_mu(r)
-        z_log_var = 0.01 + nn.functional.softplus(self.proj_z_logvar(r))
-        z_dist = Normal(z_mu, z_log_var)
+        z_sigma = nn.functional.softplus(self.proj_z_logvar(r)) + 1e-6
+        z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)
@@ -83,7 +83,7 @@ class BcaLNP(nn.Module):
         # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
         z_mu = self.proj_z_mu(z_mu)
-        z_sigma = 0.01 + nn.functional.softplus(self.proj_z_logvar(torch.sqrt(z_var)))
+        z_sigma = nn.functional.softplus(self.proj_z_logvar(torch.sqrt(z_var))) + 1e-6
         z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()

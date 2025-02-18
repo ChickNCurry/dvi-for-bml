@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
-from torch import Tensor
+from torch import Generator, Tensor
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
@@ -31,6 +31,7 @@ class DVINPTrainer(BaseTrainer, ABC):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -43,6 +44,7 @@ class DVINPTrainer(BaseTrainer, ABC):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -57,7 +59,7 @@ class DVINPTrainer(BaseTrainer, ABC):
     def val_step(
         self,
         batch: Tensor,
-        ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+        # ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
         assert isinstance(self.model, DVINP)
 
@@ -66,10 +68,10 @@ class DVINPTrainer(BaseTrainer, ABC):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_val_mask(data)
+        mask = self.get_mask(None, data)
         # (batch_size, num_subtasks, data_size)
 
-        context, x_context, y_context = self.get_context(data, x_data, mask)
+        context, x_context, y_context, _ = self.get_context(data, x_data, mask)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -81,39 +83,75 @@ class DVINPTrainer(BaseTrainer, ABC):
             mask=mask,
         )
 
-        with torch.no_grad():
-            r = self.model.encoder(context, mask)
-            # (batch_size, sample_size, h_dim)
-            # (batch_size, sample_size, data_size, h_dim)
+        r_context = self.model.encoder(context, mask)
+        # (batch_size, sample_size, h_dim)
+        # (batch_size, sample_size, data_size, h_dim)
 
-            _, zs = self.model.cdvi.run_both_processes(target, r, mask)
-            # (num_steps, batch_size, sample_size, z_dim)
+        _, zs = self.model.cdvi.run_both_processes(target, r_context, mask)
+        # (num_steps, batch_size, sample_size, z_dim)
 
-        tp_samples = zs[-1].detach().cpu().numpy()
-        # (batch_size, sample_size, z_dim)
+        y_dist_data = self.model.decoder(
+            zs[-1].clone().detach(), x_data.clone().detach()
+        )
+        # (batch_size, num_subtasks, z_dim)
 
-        jsds = []
-        bds = []
+        lmpl = compute_lmpl(y_dist_data, y_data)
+        mse = compute_mse(y_dist_data, y_data)
 
-        num_cells = int(np.sqrt(self.sample_size))
-        grid = create_grid(ranges, num_cells)
+        return {"lmpl": lmpl.item(), "mse": mse.item()}
 
-        target_log_probs = eval_dist_on_grid(grid, target, device=self.device)
+        # data, x_data, y_data = self.get_data(batch)
+        # # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # # (batch_size, num_subtasks, data_size, x_dim)
+        # # (batch_size, num_subtasks, data_size, y_dim)
 
-        for i in range(tp_samples.shape[0]):
+        # mask = self.get_mask_1(data)
+        # # (batch_size, num_subtasks, data_size)
 
-            tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+        # context, x_context, y_context = self.get_context(data, x_data, mask)
+        # # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # # (batch_size, num_subtasks, data_size, x_dim)
+        # # (batch_size, num_subtasks, data_size, y_dim)
 
-            jsd = compute_jsd(target_log_probs[i], tp_log_probs)
-            bd = compute_bd(target_log_probs[i], tp_log_probs)
+        # target = DecoderTimesPrior(
+        #     decoder=self.model.decoder,
+        #     x=x_context,
+        #     y=y_context,
+        #     mask=mask,
+        # )
 
-            jsds.append(jsd)
-            bds.append(bd)
+        # r = self.model.encoder(context, mask)
+        # # (batch_size, sample_size, h_dim)
+        # # (batch_size, sample_size, data_size, h_dim)
 
-        jsd = np.median(jsds)
-        bd = np.median(bds)
+        # _, zs = self.model.cdvi.run_both_processes(target, r, mask)
+        # # (num_steps, batch_size, sample_size, z_dim)
 
-        return {"jsd": jsd, "bd": bd}
+        # tp_samples = zs[-1].detach().cpu().numpy()
+        # # (batch_size, sample_size, z_dim)
+
+        # jsds = []
+        # bds = []
+
+        # num_cells = int(np.sqrt(self.sample_size))
+        # grid = create_grid(ranges, num_cells)
+
+        # target_log_probs = eval_dist_on_grid(grid, target, device=self.device)
+
+        # for i in range(tp_samples.shape[0]):
+
+        #     tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
+
+        #     jsd = compute_jsd(target_log_probs[i], tp_log_probs)
+        #     bd = compute_bd(target_log_probs[i], tp_log_probs)
+
+        #     jsds.append(jsd)
+        #     bds.append(bd)
+
+        # jsd = np.median(jsds)
+        # bd = np.median(bds)
+
+        # return {"jsd": jsd, "bd": bd}
 
 
 class DVINPTrainerContext(DVINPTrainer):
@@ -126,6 +164,7 @@ class DVINPTrainerContext(DVINPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -138,6 +177,7 @@ class DVINPTrainerContext(DVINPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -153,7 +193,7 @@ class DVINPTrainerContext(DVINPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
@@ -175,13 +215,15 @@ class DVINPTrainerContext(DVINPTrainer):
         # (1), (num_steps, batch_size, num_subtasks, z_dim)
 
         with torch.no_grad():
-            y_dist = self.model.decoder(zs[-1], x_data)
+            y_dist_data = self.model.decoder(
+                zs[-1].clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, z_dim)
 
         loss = -elbo
 
-        lmpl = compute_lmpl(y_dist, y_data)
-        mse = compute_mse(y_dist, y_data)
+        lmpl = compute_lmpl(y_dist_data, y_data)
+        mse = compute_mse(y_dist_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
@@ -196,6 +238,7 @@ class DVINPTrainerData(DVINPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -208,6 +251,7 @@ class DVINPTrainerData(DVINPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -223,7 +267,7 @@ class DVINPTrainerData(DVINPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -251,7 +295,9 @@ class DVINPTrainerData(DVINPTrainer):
         )  # (num_entries, batch_size, num_subtasks, z_dim)
 
         with torch.no_grad():
-            y_dist_data = self.model.decoder(zs[-1], x_data)
+            y_dist_data = self.model.decoder(
+                zs[-1].clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, z_dim)
 
         loss = log_prob_fw - log_prob_bw
@@ -272,6 +318,7 @@ class DVINPTrainerForward(DVINPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -284,6 +331,7 @@ class DVINPTrainerForward(DVINPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -299,7 +347,7 @@ class DVINPTrainerForward(DVINPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, _, _ = self.get_context(data, x_data, mask)
@@ -331,7 +379,9 @@ class DVINPTrainerForward(DVINPTrainer):
         # (batch_size, num_subtasks, z_dim)
 
         with torch.no_grad():
-            y_dist_data = self.model.decoder(zs[-1], x_data)
+            y_dist_data = self.model.decoder(
+                zs[-1].clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, z_dim)
 
         log_like: Tensor = y_dist_target.log_prob(y_target)
@@ -356,6 +406,7 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -368,6 +419,7 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,
@@ -383,7 +435,7 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        mask = self.get_train_mask(alpha, data)
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
@@ -427,7 +479,9 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         # (batch_size, num_subtasks, z_dim)
 
         with torch.no_grad():
-            y_dist_data = self.model.decoder(zs[-1], x_data)
+            y_dist_data = self.model.decoder(
+                zs[-1].clone().detach(), x_data.clone().detach()
+            )
             # (batch_size, num_subtasks, z_dim)
 
         log_like: Tensor = y_dist_target.log_prob(y_target)
