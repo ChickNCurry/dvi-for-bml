@@ -11,6 +11,7 @@ class BCAEncoder(BaseEncoder):
         self,
         c_dim: int,
         h_dim: int,
+        z_dim: int,
         num_layers: int,
         non_linearity: str,
         num_heads: int | None,
@@ -19,6 +20,7 @@ class BCAEncoder(BaseEncoder):
 
         self.num_heads = num_heads
         self.h_dim = h_dim
+        self.z_dim = z_dim
 
         self.proj_in = nn.Linear(c_dim, h_dim)
 
@@ -33,8 +35,8 @@ class BCAEncoder(BaseEncoder):
             ],
         )
 
-        self.proj_r = nn.Linear(h_dim, h_dim)
-        self.proj_r_logvar = nn.Linear(h_dim, h_dim)
+        self.proj_r = nn.Linear(h_dim, z_dim)
+        self.proj_r_logvar = nn.Linear(h_dim, z_dim)
 
     def forward(self, context: Tensor, mask: Tensor | None) -> Tuple[Tensor, Tensor]:
         # (batch_size, num_subtasks, context_size, c_dim)
@@ -70,12 +72,12 @@ class BCAEncoder(BaseEncoder):
 
         h = self.mlp(h)
         r = self.proj_r(h)
-        # r_var = nn.functional.softplus(self.proj_r_var(h))
+        # r_var = nn.functional.softplus(self.proj_r_logvar(h)) + 1e-6
         r_var = torch.exp(self.proj_r_logvar(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
-        z_var_0 = torch.ones((batch_size, num_subtasks, self.h_dim), device=h.device)
-        z_mu_0 = torch.zeros((batch_size, num_subtasks, self.h_dim), device=h.device)
+        z_var_0 = torch.ones((batch_size, num_subtasks, self.z_dim), device=h.device)
+        z_mu_0 = torch.zeros((batch_size, num_subtasks, self.z_dim), device=h.device)
         # (batch_size, num_subtasks, h_dim)
 
         if mask is None:

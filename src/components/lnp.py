@@ -29,12 +29,12 @@ class AggrLNP(nn.Module):
         r = self.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
 
-        # z_mu, z_log_var = self.proj_z_mu(r), self.proj_z_logvar(r)
-        # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
+        z_mu, z_log_var = self.proj_z_mu(r), self.proj_z_logvar(r)
+        z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
-        z_mu = self.proj_z_mu(r)
-        z_sigma = nn.functional.softplus(self.proj_z_logvar(r)) + 1e-6
-        z_dist = Normal(z_mu, z_sigma)
+        # z_mu = self.proj_z_mu(r)
+        # z_sigma = nn.functional.softplus(self.proj_z_logvar(r)) + 1e-6
+        # z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)
@@ -66,8 +66,6 @@ class BcaLNP(nn.Module):
         super(BcaLNP, self).__init__()
 
         self.encoder = encoder
-        self.proj_z_mu = nn.Linear(encoder.h_dim, decoder.z_dim)
-        self.proj_z_logvar = nn.Linear(encoder.h_dim, decoder.z_dim)
         self.decoder = decoder
 
     def encode(self, context: Tensor, mask: Tensor | None) -> Tuple[Normal, Tensor]:
@@ -75,17 +73,7 @@ class BcaLNP(nn.Module):
         # (batch_size, num_subtasks, data_size)
 
         z_mu, z_var = self.encoder(context, mask)
-        # (batch_size, num_subtasks, h_dim)
-
-        # z_dist = Normal(z_mu, torch.sqrt(z_var))
-
-        # z_mu, z_log_var = self.proj_z_mu(z_mu), self.proj_z_logvar(z_var)
-        # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
-
-        z_mu = self.proj_z_mu(z_mu)
-        z_sigma = nn.functional.softplus(self.proj_z_logvar(torch.sqrt(z_var))) + 1e-6
-        z_dist = Normal(z_mu, z_sigma)
-
+        z_dist = Normal(z_mu, torch.sqrt(z_var))
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)
 
