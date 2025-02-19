@@ -2,9 +2,10 @@ import os
 
 import hydra
 import torch
-import wandb
 from omegaconf import DictConfig, OmegaConf
 
+import wandb
+from src.utils.helper import get_name_dvinp
 from src.utils.load_dvinp import load_dvinp
 
 
@@ -16,11 +17,8 @@ def run(cfg: DictConfig) -> None:
     model, trainer, _ = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
-
-        name = "-".join([f"{v}" for v in cfg.model.values()])
-
         wandb.init(
-            name=name,
+            name=get_name_dvinp(cfg),
             project=cfg.wandb.project,
             config=OmegaConf.to_container(cfg),  # type: ignore
         )

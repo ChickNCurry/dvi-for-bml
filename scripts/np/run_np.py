@@ -5,6 +5,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 import wandb
+from src.utils.helper import get_name_np
 from src.utils.load_np import load_np
 
 
@@ -16,11 +17,8 @@ def run(cfg: DictConfig) -> None:
     model, trainer, _ = load_np(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
-
-        name = "-".join([f"{v}" for v in cfg.model.values()])
-
         wandb.init(
-            name=name,
+            name=get_name_np(cfg),
             project=cfg.wandb.project,
             config=OmegaConf.to_container(cfg),  # type: ignore
         )
