@@ -20,19 +20,15 @@ class AggrControl(BaseControl):
         self.use_score = use_score
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
-        self.proj_z = nn.Linear(z_dim, h_dim)
+        # self.proj_z = nn.Linear(z_dim, h_dim)
 
         self.mlp = nn.Sequential(
+            nn.Linear(z_dim + 2 * h_dim, h_dim),
             *[
                 layer
-                for layer in (
-                    # nn.BatchNorm1d(h_dim),
-                    getattr(nn, non_linearity)(),
-                    nn.Linear(h_dim, h_dim),
-                )
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers - 2)
             ],
-            # nn.BatchNorm1d(h_dim),
             getattr(nn, non_linearity)()
         )
 
@@ -63,24 +59,11 @@ class AggrControl(BaseControl):
         if self.use_score:
             assert score is not None
 
-        h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
-        # (batch_size, num_subtasks, h_dim)
+        n_emb = self.proj_n(torch.tensor([n], device=z.device))
+        input = torch.cat([z, r, n_emb], dim=-1)
+        # (batch_size, num_subtasks, z_dim + 2 * h_dim)
 
-        h = h + r
-        # (batch_size, num_subtasks, h_dim)
-
-        # h = h.view(batch_size * num_subtasks, -1)
-        # z = z.view(batch_size * num_subtasks, -1)
-        # (batch_size * num_subtasks, h_dim)
-
-        # control_t: Tensor = getattr(nn, self.non_linearity)()(
-        #     self.proj_out(self.mlp(h)) + z
-        # )  # (batch_size * num_subtasks, z_dim)
-
-        # control_t = control_t.view(batch_size, num_subtasks, -1)
-        # (batch_size, num_subtasks, z_dim)
-
-        h = self.mlp(h)
+        h = self.mlp(input)
         # (batch_size, num_subtasks, h_dim)
 
         if self.use_score:

@@ -1,6 +1,6 @@
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 
-import numpy as np
 import torch
 from torch import Generator, Tensor
 from torch.optim.lr_scheduler import LRScheduler
@@ -11,7 +11,46 @@ from src.components.dvi import DVI
 from src.train.base_trainer import BaseTrainer
 
 
-class DVITrainer(BaseTrainer):
+class DVITrainer(BaseTrainer, ABC):
+    def __init__(
+        self,
+        model: DVI,
+        device: torch.device,
+        dataset: Dataset[Any],
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
+        optimizer: Optimizer,
+        scheduler: LRScheduler | None,
+        generator: Generator,
+        wandb_logging: bool,
+        num_subtasks: int,
+        sample_size: int,
+    ) -> None:
+        super().__init__(
+            model,
+            device,
+            dataset,
+            train_loader,
+            val_loader,
+            optimizer,
+            scheduler,
+            generator,
+            wandb_logging,
+            num_subtasks,
+            sample_size,
+        )
+
+    @abstractmethod
+    def train_step(
+        self, batch: Tensor, alpha: float | None
+    ) -> Tuple[Tensor, Dict[str, float]]:
+        pass
+
+    def val_step(self, batch: Tensor) -> Dict[str, float]:
+        raise NotImplementedError
+
+
+class DVITrainerContext(DVITrainer):
     def __init__(
         self,
         model: DVI,
@@ -45,43 +84,26 @@ class DVITrainer(BaseTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVI)
 
-        batch = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
+        data = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
         # (batch_size, num_subtasks, context_size, c_dim)
 
-        rand_context_sizes = torch.randint(
-            low=1,
-            high=batch.shape[2] + 1,
-            size=(batch.shape[0], batch.shape[1], 1),
-            device=self.device,
-        )  # (batch_size, num_subtasks, 1)
-
-        pos_indices = (
-            torch.arange(batch.shape[2], device=self.device)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .expand(batch.shape[0], batch.shape[1], -1)
-        )  # (batch_size, num_subtasks, context_size)
-
-        mask = (pos_indices < rand_context_sizes).float()
+        mask = self.get_mask(alpha, data)
         # (batch_size, num_subtasks, context_size)
 
-        context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, batch.shape[-1])
+        context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
         # (batch_size, num_subtasks, context_size, c_dim)
 
-        target = self.model.contextual_target(context, mask)
+        target_dist = self.model.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
         r = self.model.encoder(context, mask)
         # (batch_size, num_subtasks, c_dim)
 
-        elbo, _ = self.model.cdvi.run_both_processes(target, r, mask)
+        elbo, _ = self.model.cdvi.run_both_processes(target_dist, r, mask)
 
         loss = -elbo
 
         return loss, {}
-
-    def val_step(self, batch: Tensor) -> Dict[str, float]:
-        raise NotImplementedError
 
 
 # class NoisyDVITrainer(BaseTrainer):

@@ -2,7 +2,6 @@ import torch
 from torch import Tensor, nn
 
 from src.components.schedule.base_schedule import BaseSchedule
-from torch.functional import softplus
 
 
 class NoiseSchedule(BaseSchedule):
@@ -19,16 +18,17 @@ class NoiseSchedule(BaseSchedule):
 
         self.num_entries = num_steps + 1
 
-        self.vars = nn.Parameter(
+        self.log_vars = nn.Parameter(
             torch.linspace(max, min, self.num_entries, device=device)
             .unsqueeze(1)
             .expand(self.num_entries, z_dim)
-            .pow(2),
+            .pow(2)
+            .log(),
             requires_grad=requires_grad,
         )  # (num_entries, z_dim)
 
     def get(self, n: int) -> Tensor:
-        var_n = softplus(self.vars[n, :])
+        var_n = self.log_vars[n, :].exp()
         return var_n
 
 
@@ -57,9 +57,9 @@ class AggrNoiseSchedule(BaseSchedule):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.vars_init = torch.linspace(max, min, self.num_entries, device=device).pow(
-            2
-        )  # (num_entries)
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
@@ -67,18 +67,18 @@ class AggrNoiseSchedule(BaseSchedule):
         batch_size = r.shape[0]
         num_subtasks = r.shape[1]
 
-        vars_pred: Tensor = self.noise_mlp(r)
+        log_vars_pred: Tensor = self.noise_mlp(r)
         # (batch_size, num_subtasks, z_dim * num_entries)
 
-        vars_pred = vars_pred.view(
+        log_vars_pred = log_vars_pred.view(
             batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
-        self.vars = softplus(self.vars_init[None, None, None, :] + vars_pred)
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
         # (batch_size, num_subtasks, z_dim, num_entries)
 
     def get(self, n: int) -> Tensor:
-        var_n: Tensor = self.vars[:, :, :, n]
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
         # (batch_size, num_subtasks, z_dim)
 
         return var_n
@@ -100,8 +100,11 @@ class BCANoiseSchedule(BaseSchedule):
         self.z_dim = z_dim
         self.num_entries = num_steps + 1
 
+        self.proj_z_mu = nn.Linear(h_dim, h_dim)
+        self.proj_z_var = nn.Linear(h_dim, h_dim)
+
         self.noise_mlp = nn.Sequential(
-            nn.Linear(2 * h_dim, h_dim),
+            nn.Linear(h_dim, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
         )
@@ -109,9 +112,9 @@ class BCANoiseSchedule(BaseSchedule):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.vars_init = torch.linspace(max, min, self.num_entries, device=device).pow(
-            2
-        )  # (num_entries)
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
@@ -120,21 +123,21 @@ class BCANoiseSchedule(BaseSchedule):
         num_subtasks = r[0].shape[1]
 
         z_mu, z_var = r
-        input = torch.cat([z_mu, z_var], dim=-1)
-        # (batch_size, num_subtasks, 2 * h_dim)
+        z_mu, z_var = self.proj_z_mu(z_mu), self.proj_z_var(z_var)
+        # (batch_size, num_subtasks, h_dim)
 
-        vars_pred: Tensor = self.noise_mlp(input)
+        log_vars_pred: Tensor = self.noise_mlp(z_mu + z_var)
         # (batch_size, num_subtasks, z_dim * num_entries)
 
-        vars_pred = vars_pred.view(
+        log_vars_pred = log_vars_pred.view(
             batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
-        self.vars = softplus(self.vars_init[None, None, None, :] + vars_pred)
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
         # (batch_size, num_subtasks, z_dim, num_entries)
 
     def get(self, n: int) -> Tensor:
-        var_n: Tensor = self.vars[:, :, :, n]
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
         # (batch_size, num_subtasks, z_dim)
 
         return var_n

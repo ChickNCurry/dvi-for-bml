@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
+from torch.nn.functional import softplus
 
 
 class Decoder(nn.Module):
@@ -17,10 +18,8 @@ class Decoder(nn.Module):
 
         self.z_dim = z_dim
 
-        self.proj_x = nn.Linear(x_dim, h_dim)
-        self.proj_z = nn.Linear(z_dim, h_dim)
-
         self.mlp = nn.Sequential(
+            nn.Linear(x_dim + z_dim, h_dim),
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
@@ -30,25 +29,28 @@ class Decoder(nn.Module):
         )
 
         self.proj_y_mu = nn.Linear(h_dim, y_dim)
-        self.proj_y_logvar = nn.Linear(h_dim, y_dim)
+        self.proj_y_var = nn.Linear(h_dim, y_dim)
 
     def forward(
         self,
         z: Tensor,
-        x_target: Tensor,
+        x: Tensor,
     ) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
-        # (batch_size, num_subtasks, target_size, x_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
 
-        z = z.unsqueeze(2).expand(-1, -1, x_target.shape[2], -1)
-        # (batch_size, num_subtasks, target_size, z_dim)
+        z = z.unsqueeze(2).expand(-1, -1, x.shape[2], -1)
+        # (batch_size, num_subtasks, data_size, z_dim)
 
-        h = self.mlp(self.proj_x(x_target) + self.proj_z(z))
-        # (batch_size, num_subtasks, target_size, h_dim)
+        input = torch.cat([x, z], dim=-1)
+        # (batch_size, num_subtasks, data_size, x_dim + z_dim)
+
+        h = self.mlp(input)
+        # (batch_size, num_subtasks, data_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        # y_sigma = nn.functional.softplus(self.proj_y_logvar(h)) + 1e-6
-        y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
-        # (batch_size, num_subtasks, target_size, y_dim)
+        y_sigma = softplus(self.proj_y_var(h))
+        # y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
+        # (batch_size, num_subtasks, data_size, y_dim)
 
         return Normal(y_mu, y_sigma)  # type: ignore

@@ -210,8 +210,7 @@ class DVINPTrainerContext(DVINPTrainer):
         with torch.no_grad():
             y_dist_data = self.model.decoder(
                 zs[-1].clone().detach(), x_data.clone().detach()
-            )
-            # (batch_size, num_subtasks, z_dim)
+            )  # (batch_size, num_subtasks, z_dim)
 
         loss = -elbo
 
@@ -292,8 +291,7 @@ class DVINPTrainerData(DVINPTrainer):
         with torch.no_grad():
             y_dist_data = self.model.decoder(
                 zs[-1].clone().detach(), x_data.clone().detach()
-            )
-            # (batch_size, num_subtasks, z_dim)
+            )  # (batch_size, num_subtasks, z_dim)
 
         loss = log_prob_fw - log_prob_bw
 
@@ -332,7 +330,7 @@ class DVINPTrainerForward(DVINPTrainer):
             sample_size,
         )
 
-    def train_step(
+    def train_step_old(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
@@ -379,14 +377,66 @@ class DVINPTrainerForward(DVINPTrainer):
         with torch.no_grad():
             y_dist_data = self.model.decoder(
                 zs[-1].clone().detach(), x_data.clone().detach()
-            )
-            # (batch_size, num_subtasks, z_dim)
+            )  # (batch_size, num_subtasks, z_dim)
 
         log_like: Tensor = y_dist_target.log_prob(y_target)
         mask = (1 - mask).unsqueeze(-1).expand(-1, -1, -1, log_like.shape[-1])
         log_like = (log_like * mask).sum(-1).mean()
 
         loss = -(log_like + log_prob_fw_context - log_prob_fw_data)
+
+        lmpl = compute_lmpl(y_dist_data, y_data)
+        mse = compute_mse(y_dist_data, y_data)
+
+        return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
+
+    def train_step(
+        self, batch: Tensor, alpha: float | None
+    ) -> Tuple[Tensor, Dict[str, float]]:
+        assert isinstance(self.model, DVINP)
+
+        data, x_data, y_data = self.get_data(batch)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        mask = self.get_mask(alpha, data)
+        # (batch_size, num_subtasks, data_size)
+
+        context, _, _ = self.get_context(data, x_data, mask)
+        _, x_target, y_target = self.get_target(data, x_data, mask)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        r_context = self.model.encoder(context, mask)
+        r_data = self.model.encoder(data, None)
+        # (batch_size, num_subtasks, h_dim)
+
+        target_dist = DecoderTimesPrior(
+            decoder=self.model.decoder,
+            x=x_target,
+            y=y_target,
+            mask=1 - mask,
+        )
+
+        log_prob, zs = self.model.cdvi.run_2_forward_processes(
+            target_dist, r_data, r_context, mask
+        )  # (1), (num_steps, batch_size, num_subtasks, z_dim)
+
+        y_dist_target = self.model.decoder(zs[-1], x_target)
+        # (batch_size, num_subtasks, z_dim)
+
+        with torch.no_grad():
+            y_dist_data = self.model.decoder(
+                zs[-1].clone().detach(), x_data.clone().detach()
+            )  # (batch_size, num_subtasks, z_dim)
+
+        log_like: Tensor = y_dist_target.log_prob(y_target)
+        mask = (1 - mask).unsqueeze(-1).expand(-1, -1, -1, log_like.shape[-1])
+        log_like = (log_like * mask).sum(-1).mean()
+
+        loss = -(log_like - log_prob)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)

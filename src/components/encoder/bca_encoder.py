@@ -4,6 +4,7 @@ import torch
 from torch import Tensor, nn
 
 from src.components.encoder.base_encoder import BaseEncoder
+from torch.nn.functional import softplus
 
 
 class BCAEncoder(BaseEncoder):
@@ -36,7 +37,7 @@ class BCAEncoder(BaseEncoder):
         )
 
         self.proj_r = nn.Linear(h_dim, z_dim)
-        self.proj_r_logvar = nn.Linear(h_dim, z_dim)
+        self.proj_r_var = nn.Linear(h_dim, z_dim)
 
     def forward(self, context: Tensor, mask: Tensor | None) -> Tuple[Tensor, Tensor]:
         # (batch_size, num_subtasks, context_size, c_dim)
@@ -72,8 +73,8 @@ class BCAEncoder(BaseEncoder):
 
         h = self.mlp(h)
         r = self.proj_r(h)
-        # r_var = nn.functional.softplus(self.proj_r_logvar(h)) + 1e-6
-        r_var = torch.exp(self.proj_r_logvar(h))
+        r_var = softplus(self.proj_r_var(h))
+        # r_var = torch.exp(self.proj_r_logvar(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
         z_var_0 = torch.ones((batch_size, num_subtasks, self.z_dim), device=h.device)
@@ -84,14 +85,12 @@ class BCAEncoder(BaseEncoder):
             z_var = -(-z_var_0 + torch.sum(-r_var, dim=2))
             z_mu = z_mu_0 + z_var * torch.sum(
                 (r - z_mu_0[:, :, None, :]) / r_var, dim=2
-            )
-            # (batch_size, num_subtasks, h_dim)
+            )  # (batch_size, num_subtasks, h_dim)
         else:
             z_var = -(-z_var_0 + torch.sum(-r_var * mask.unsqueeze(-1), dim=2))
             z_mu = z_mu_0 + z_var * torch.sum(
                 ((r - z_mu_0[:, :, None, :]) / r_var) * mask.unsqueeze(-1), dim=2
-            )
-            # (batch_size, num_subtasks, h_dim)
+            )  # (batch_size, num_subtasks, h_dim)
 
         r = (z_mu, z_var)
 

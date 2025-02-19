@@ -156,7 +156,7 @@ class BaseTrainer(ABC):
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
 
         if alpha is None:
-            rand_data_sizes = torch.randint(
+            rand_context_sizes = torch.randint(
                 low=1,
                 high=data.shape[2] + 1,
                 size=(data.shape[0], data.shape[1], 1),
@@ -165,7 +165,7 @@ class BaseTrainer(ABC):
             )  # (batch_size, num_subtasks, 1)
 
         else:
-            rand_data_sizes = torch.tensor(
+            rand_context_sizes = torch.tensor(
                 np.ceil(
                     np.random.beta(a=alpha, b=2, size=(data.shape[0], data.shape[1], 1))
                     * data.shape[2]
@@ -180,7 +180,7 @@ class BaseTrainer(ABC):
             .expand(data.shape[0], data.shape[1], -1)
         )  # (batch_size, num_subtasks, data_size)
 
-        mask = (pos_indices < rand_data_sizes).float()
+        mask = (pos_indices < rand_context_sizes).float()
         # (batch_size, num_subtasks, data_size)
 
         return mask

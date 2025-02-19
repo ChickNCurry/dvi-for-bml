@@ -22,11 +22,12 @@ class BCAControl(BaseControl):
         self.use_score = use_score
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
-        self.proj_z = nn.Linear(z_dim, h_dim)
-        self.proj_z_mu = nn.Linear(h_dim, h_dim)
-        self.proj_z_var = nn.Linear(h_dim, h_dim)
+        # self.proj_z = nn.Linear(z_dim, h_dim)
+        # self.proj_z_mu = nn.Linear(h_dim, h_dim)
+        # self.proj_z_var = nn.Linear(h_dim, h_dim)
 
         self.mlp = nn.Sequential(
+            nn.Linear(z_dim + 3 * h_dim, h_dim),
             *[
                 layer
                 for layer in (
@@ -68,16 +69,11 @@ class BCAControl(BaseControl):
             assert score is not None
 
         z_mu, z_var = r
-
-        h: Tensor = (
-            self.proj_n(torch.tensor([n], device=z.device))
-            + self.proj_z(z)
-            + self.proj_z_mu(z_mu)
-            + self.proj_z_var(z_var)
-        )
+        n_emb = self.proj_n(torch.tensor([n], device=z.device))
+        input = torch.cat([z, z_mu, z_var, n_emb], dim=-1)
         # (batch_size, num_subtasks, h_dim)
 
-        h = self.mlp(h)
+        h = self.mlp(input)
         # (batch_size, num_subtasks, h_dim)
 
         if self.use_score:

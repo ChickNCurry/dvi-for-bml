@@ -4,6 +4,7 @@ from typing import List, Tuple
 import torch
 from torch import Tensor, nn
 from torch.distributions import Distribution, Normal
+from torch.distributions.kl import kl_divergence
 
 
 class CDVI(nn.Module, ABC):
@@ -37,11 +38,11 @@ class CDVI(nn.Module, ABC):
         num_subtasks = r[0].shape[1] if isinstance(r, tuple) else r.shape[1]
 
         self.device = device
-        self.size = (batch_size, num_subtasks, self.z_dim)
+        self.size = (batch_size, num_subtasks)
 
         self.prior: Distribution = Normal(  # type: ignore
-            torch.zeros(self.size, device=device),
-            torch.ones(self.size, device=device),
+            torch.zeros((batch_size, num_subtasks, self.z_dim), device=device),
+            torch.ones((batch_size, num_subtasks, self.z_dim), device=device),
         )  # (batch_size, num_subtasks, z_dim)
 
     @abstractmethod
@@ -67,35 +68,28 @@ class CDVI(nn.Module, ABC):
         mask: Tensor | None,
         other_zs: List[Tensor] | None,
     ) -> Tuple[Tensor, List[Tensor] | None]:
-        self.contextualize(target, r, mask)
-
-        if other_zs is None:
-            zs = [self.prior.sample()]
-            # (batch_size, num_subtasks, z_dim)
-
-        log_prob = self.prior.log_prob(zs[0] if other_zs is None else other_zs[0]).sum(
-            -1
-        )
+        zs = [self.prior.sample()] if other_zs is None else other_zs
         # (batch_size, num_subtasks, z_dim)
+
+        log_prob = self.prior.log_prob(zs[0]).sum(-1)
+        # (batch_size, num_subtasks, z_dim)
+
+        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 
-            fwd_kernel = self.forward_kernel(
-                n, zs[n] if other_zs is None else other_zs[0]
-            )
+            fwd_kernel = self.forward_kernel(n, zs[n])
 
             if other_zs is None:
                 zs.append(fwd_kernel.rsample())
 
-            log_prob += fwd_kernel.log_prob(
-                zs[n + 1] if other_zs is None else other_zs[n + 1]
-            ).sum(-1)
-            # (batch_size, num_subtasks, z_dim)
+            log_prob += fwd_kernel.log_prob(zs[n + 1]).sum(-1)
+            # (batch_size, num_subtasks)
 
         log_prob = log_prob.mean()
         # (1)
 
-        return log_prob, zs if other_zs is None else None
+        return log_prob, zs
 
     def run_backward_process(
         self,
@@ -104,10 +98,10 @@ class CDVI(nn.Module, ABC):
         mask: Tensor | None,
         zs: List[Tensor],
     ) -> Tensor:
-        self.contextualize(target, r, mask)
-
         log_prob = self.target.log_prob(zs[-1]).sum(-1)
         # (batch_size, num_subtasks)
+
+        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 
@@ -120,19 +114,60 @@ class CDVI(nn.Module, ABC):
 
         return log_prob
 
+    def run_2_forward_processes(
+        self,
+        target: Distribution,
+        r_data: Tensor | Tuple[Tensor, Tensor],
+        r_context: Tensor | Tuple[Tensor, Tensor],
+        mask_context: Tensor | None,
+    ) -> Tuple[Tensor, List[Tensor]]:
+
+        z_dists_data = []
+        z_dists_context = []
+        zs = [self.prior.sample()]
+        # (batch_size, num_subtasks, z_dim)
+
+        self.contextualize(target, r_data, None)
+
+        for n in range(0, self.num_steps):
+
+            fwd_kernel_data = self.forward_kernel(n, zs[n])
+            z_dists_data.append(fwd_kernel_data)
+            zs.append(fwd_kernel_data.rsample())
+
+        self.contextualize(target, r_context, mask_context)
+
+        for n in range(0, self.num_steps):
+            fwd_kernel_context = self.forward_kernel(n, zs[n])
+            z_dists_context.append(fwd_kernel_context)
+
+        log_prob = (
+            torch.stack(
+                [
+                    kl_divergence(zd, zc).sum(-1)
+                    for zd, zc in zip(z_dists_data, z_dists_context)
+                ],
+                dim=0,
+            )
+            .sum(0)
+            .mean()
+        )  # (1)
+
+        return log_prob, zs
+
     def run_both_processes(
         self,
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
-        self.contextualize(target, r, mask)
-
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)
 
-        elbo = torch.zeros(self.size[:-1], device=self.device)
+        elbo = torch.zeros(self.size, device=self.device)
         # (batch_size, num_subtasks)
+
+        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 

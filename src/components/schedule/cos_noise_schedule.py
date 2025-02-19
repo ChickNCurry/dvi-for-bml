@@ -6,6 +6,7 @@ import torch
 from torch import Tensor, nn
 
 from src.components.schedule.base_schedule import BaseSchedule
+from torch.functional import softplus
 
 
 class CosineNoiseSchedule(BaseSchedule):
@@ -30,13 +31,10 @@ class CosineNoiseSchedule(BaseSchedule):
         self.cosine_square_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
-        ]
+        ]  # (num_entries)
 
     def get(self, n: int) -> Tensor:
-        var_n = (
-            nn.functional.softplus(self.amplitude) * self.cosine_square_schedule[n]
-        ).pow(2)
-
+        var_n = (softplus(self.amplitude) * self.cosine_square_schedule[n]).pow(2)
         return var_n
 
 
@@ -67,7 +65,7 @@ class AggrCosineNoiseSchedule(BaseSchedule):
         self.cosine_square_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
-        ]
+        ]  # (num_entries)
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
@@ -93,11 +91,8 @@ class BCACosineNoiseSchedule(BaseSchedule):
 
         self.num_entries = num_steps + 1
 
-        self.proj_z_mu = nn.Linear(h_dim, h_dim)
-        self.proj_z_var = nn.Linear(h_dim, h_dim)
-
         self.amplitude_mlp = nn.Sequential(
-            nn.Linear(h_dim, h_dim),
+            nn.Linear(2 * h_dim, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
@@ -115,10 +110,10 @@ class BCACosineNoiseSchedule(BaseSchedule):
         # (batch_size, num_subtasks, h_dim)
 
         z_mu, z_var = r
-        z_mu, z_var = self.proj_z_mu(z_mu), self.proj_z_var(z_var)
-        # (batch_size, num_subtasks, h_dim)
+        input = torch.cat([z_mu, z_var], dim=-1)
+        # (batch_size, num_subtasks, 2 * h_dim)
 
-        self.amplitude: Tensor = self.amplitude_mlp(z_mu + z_var)
+        self.amplitude: Tensor = self.amplitude_mlp(input)
 
     def get(self, n: int) -> Tensor:
         var_n: Tensor = (self.amplitude * self.cosine_square_schedule[n]).pow(2)
