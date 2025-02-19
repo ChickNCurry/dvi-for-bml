@@ -2,7 +2,7 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
-from torch import Tensor
+from torch import Generator, Tensor
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
@@ -21,6 +21,7 @@ class DVITrainer(BaseTrainer):
         val_loader: DataLoader[Any],
         optimizer: Optimizer,
         scheduler: LRScheduler | None,
+        generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
         sample_size: int,
@@ -33,6 +34,7 @@ class DVITrainer(BaseTrainer):
             val_loader,
             optimizer,
             scheduler,
+            generator,
             wandb_logging,
             num_subtasks,
             sample_size,

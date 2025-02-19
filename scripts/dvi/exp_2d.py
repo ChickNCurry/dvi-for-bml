@@ -94,7 +94,7 @@ def run() -> None:
 
     torch.save(
         aggr_enc_mean.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_enc_mean)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_enc_mean)}.pth",
     )
 
     aggr_enc_mean_cse = AggrEncoder(
@@ -109,7 +109,7 @@ def run() -> None:
 
     torch.save(
         aggr_enc_mean_cse.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_enc_mean_cse)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_enc_mean_cse)}.pth",
     )
 
     aggr_enc_max = AggrEncoder(
@@ -124,7 +124,7 @@ def run() -> None:
 
     torch.save(
         aggr_enc_max.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_enc_max)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_enc_max)}.pth",
     )
 
     aggr_enc_max_cse = AggrEncoder(
@@ -139,12 +139,13 @@ def run() -> None:
 
     torch.save(
         aggr_enc_max_cse.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_enc_max_cse)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_enc_max_cse)}.pth",
     )
 
     bca_encoder = BCAEncoder(
         c_dim=config.c_dim,
         h_dim=config.h_dim,
+        z_dim=config.z_dim,
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         num_heads=None,
@@ -152,7 +153,7 @@ def run() -> None:
 
     torch.save(
         bca_encoder.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(bca_encoder)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(bca_encoder)}.pth",
     )
 
     # Controls
@@ -168,7 +169,7 @@ def run() -> None:
 
     torch.save(
         aggr_control.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_control)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_control)}.pth",
     )
 
     bca_control = BCAControl(
@@ -182,7 +183,7 @@ def run() -> None:
 
     torch.save(
         bca_control.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(bca_control)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(bca_control)}.pth",
     )
 
     # Noise Schedules
@@ -195,7 +196,7 @@ def run() -> None:
 
     torch.save(
         noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(noise_schedule)}.pth",
     )
 
     cos_noise_schedule = CosineNoiseSchedule(
@@ -206,7 +207,7 @@ def run() -> None:
 
     torch.save(
         cos_noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(cos_noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(cos_noise_schedule)}.pth",
     )
 
     aggr_noise_schedule = AggrNoiseSchedule(
@@ -219,7 +220,7 @@ def run() -> None:
 
     torch.save(
         aggr_noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_noise_schedule)}.pth",
     )
 
     aggr_cos_noise_schedule = AggrCosineNoiseSchedule(
@@ -231,7 +232,7 @@ def run() -> None:
 
     torch.save(
         aggr_cos_noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_cos_noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_cos_noise_schedule)}.pth",
     )
 
     bca_noise_schedule = BCANoiseSchedule(
@@ -244,7 +245,7 @@ def run() -> None:
 
     torch.save(
         bca_noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(bca_noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(bca_noise_schedule)}.pth",
     )
 
     bca_cos_noise_schedule = BCACosineNoiseSchedule(
@@ -256,7 +257,7 @@ def run() -> None:
 
     torch.save(
         bca_cos_noise_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(bca_cos_noise_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(bca_cos_noise_schedule)}.pth",
     )
 
     # Annealing Schedules
@@ -265,7 +266,7 @@ def run() -> None:
 
     torch.save(
         ann_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(ann_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(ann_schedule)}.pth",
     )
 
     aggr_annealing_schedule = AggrAnnealingSchedule(
@@ -277,7 +278,7 @@ def run() -> None:
 
     torch.save(
         aggr_annealing_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(aggr_annealing_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(aggr_annealing_schedule)}.pth",
     )
 
     bca_annealing_schedule = BCAAnnealingSchedule(
@@ -289,7 +290,7 @@ def run() -> None:
 
     torch.save(
         bca_annealing_schedule.state_dict(),
-        f"scripts/state_dicts/{get_object_hash(bca_annealing_schedule)}.pth",
+        f"scripts/dvi/state_dicts/{get_object_hash(bca_annealing_schedule)}.pth",
     )
 
     # Step Size Schedules
@@ -323,7 +324,7 @@ def run() -> None:
 
         for c in comps:
             c.load_state_dict(
-                torch.load(f"scripts/state_dicts/{get_object_hash(c)}.pth")
+                torch.load(f"scripts/dvi/state_dicts/{get_object_hash(c)}.pth")
             )
             print(f"{c.__class__.__name__} loaded")
 
@@ -366,13 +367,14 @@ def run() -> None:
         optimizer = AdamW(cdvi.parameters(), lr=config.learning_rate)
 
         trainer = DVITrainer(
-            device=device,
             model=model,
+            device=device,
             dataset=dataset,
             train_loader=dataloader,
             val_loader=dataloader,
             optimizer=optimizer,
             scheduler=None,
+            generator=torch.Generator(),
             wandb_logging=False,
             num_subtasks=32,
             sample_size=32,
@@ -426,7 +428,7 @@ def run() -> None:
                 target = model.contextual_target(sub_context, None)
 
                 r = model.encoder(sub_context.to(device), None)
-                _, _, z_samples = model.cdvi.run_both_processes(target, r, None)
+                _, z_samples = model.cdvi.run_both_processes(target, r, None)
 
                 z_0_samples = z_samples[0].detach().cpu().numpy()
                 z_T_samples = z_samples[-1].detach().cpu().numpy()
@@ -474,9 +476,9 @@ def run() -> None:
                 jsds.append(jsd)
 
             df = pd.DataFrame({name: jsds}, index=[row + 1 for row in range(nrows)])
-            df.to_csv(f"scripts/use_score_{config.use_score}/csv/{name}.csv")
+            df.to_csv(f"scripts/dvi/use_score_{config.use_score}/csv/{name}.csv")
 
-            plt.savefig(f"scripts/use_score_{config.use_score}/png/{name}.png")
+            plt.savefig(f"scripts/dvi/use_score_{config.use_score}/png/{name}.png")
 
         wandb.finish()
 
