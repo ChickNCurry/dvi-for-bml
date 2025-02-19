@@ -29,7 +29,7 @@ class Decoder(nn.Module):
         )
 
         self.proj_y_mu = nn.Linear(h_dim, y_dim)
-        self.proj_y_var = nn.Linear(h_dim, y_dim)
+        self.proj_y_sigma = nn.Linear(h_dim, y_dim)
 
     def forward(
         self,
@@ -49,7 +49,7 @@ class Decoder(nn.Module):
         # (batch_size, num_subtasks, data_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        y_sigma = softplus(self.proj_y_var(h))
+        y_sigma = softplus(torch.clamp(self.proj_y_sigma(h), min=1e-6, max=1e2))
         # y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
         # (batch_size, num_subtasks, data_size, y_dim)
 

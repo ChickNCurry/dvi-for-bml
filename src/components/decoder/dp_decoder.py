@@ -126,11 +126,7 @@ class DualPathDecoder(nn.Module):
         # (batch_size, num_subtasks, target_size, h_dim)
 
         y_mu = self.proj_y_mu(h)
-        # y_sigma = 0.1 + 0.9 * nn.Softplus()(self.proj_y_w(h))
         y_sigma = torch.exp(0.5 * self.proj_y_logvar(h))
         # (batch_size, num_subtasks, target_size, y_dim)
-
-        # y_mu = torch.nan_to_num(y_mu)
-        # y_sigma = torch.nan_to_num(y_sigma)
 
         return Normal(y_mu, y_sigma)  # type: ignore

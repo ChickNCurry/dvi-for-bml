@@ -72,8 +72,9 @@ class BCAEncoder(BaseEncoder):
             # (batch_size, num_subtasks, context_size, h_dim)
 
         h = self.mlp(h)
+
         r = self.proj_r(h)
-        r_var = softplus(self.proj_r_var(h))
+        r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e2))
         # r_var = torch.exp(self.proj_r_logvar(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
@@ -92,6 +93,4 @@ class BCAEncoder(BaseEncoder):
                 ((r - z_mu_0[:, :, None, :]) / r_var) * mask.unsqueeze(-1), dim=2
             )  # (batch_size, num_subtasks, h_dim)
 
-        r = (z_mu, z_var)
-
-        return r
+        return z_mu, z_var

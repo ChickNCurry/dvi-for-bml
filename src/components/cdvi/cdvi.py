@@ -68,13 +68,13 @@ class CDVI(nn.Module, ABC):
         mask: Tensor | None,
         other_zs: List[Tensor] | None,
     ) -> Tuple[Tensor, List[Tensor] | None]:
+        self.contextualize(target, r, mask)
+
         zs = [self.prior.sample()] if other_zs is None else other_zs
         # (batch_size, num_subtasks, z_dim)
 
         log_prob = self.prior.log_prob(zs[0]).sum(-1)
         # (batch_size, num_subtasks, z_dim)
-
-        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 
@@ -98,10 +98,10 @@ class CDVI(nn.Module, ABC):
         mask: Tensor | None,
         zs: List[Tensor],
     ) -> Tensor:
+        self.contextualize(target, r, mask)
+
         log_prob = self.target.log_prob(zs[-1]).sum(-1)
         # (batch_size, num_subtasks)
-
-        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 
@@ -121,13 +121,12 @@ class CDVI(nn.Module, ABC):
         r_context: Tensor | Tuple[Tensor, Tensor],
         mask_context: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
+        self.contextualize(target, r_data, None)
 
         z_dists_data = []
         z_dists_context = []
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)
-
-        self.contextualize(target, r_data, None)
 
         for n in range(0, self.num_steps):
 
@@ -161,13 +160,13 @@ class CDVI(nn.Module, ABC):
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
+        self.contextualize(target, r, mask)
+
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)
 
         elbo = torch.zeros(self.size, device=self.device)
         # (batch_size, num_subtasks)
-
-        self.contextualize(target, r, mask)
 
         for n in range(0, self.num_steps):
 

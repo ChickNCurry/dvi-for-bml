@@ -1,13 +1,13 @@
 from typing import Tuple
 
-from torch import Tensor, nn
 import torch
+from torch import Tensor, nn
 from torch.distributions.normal import Normal
+from torch.nn.functional import softplus
 
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
-from torch.nn.functional import softplus
 
 
 class AggrLNP(nn.Module):
@@ -34,7 +34,7 @@ class AggrLNP(nn.Module):
         # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
 
         z_mu = self.proj_z_mu(r)
-        z_sigma = softplus(self.proj_z_sigma(r))
+        z_sigma = softplus(torch.clamp(self.proj_z_sigma(r), min=1e-6, max=1e2))
         z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()

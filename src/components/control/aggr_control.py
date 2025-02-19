@@ -60,6 +60,7 @@ class AggrControl(BaseControl):
             assert score is not None
 
         n_emb = self.proj_n(torch.tensor([n], device=z.device))
+        n_emb = n_emb.repeat(z.shape[0], z.shape[1], 1)
         input = torch.cat([z, r, n_emb], dim=-1)
         # (batch_size, num_subtasks, z_dim + 2 * h_dim)
 

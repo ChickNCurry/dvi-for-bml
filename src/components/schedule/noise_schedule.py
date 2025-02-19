@@ -1,8 +1,8 @@
 import torch
 from torch import Tensor, nn
+from torch.nn.functional import softplus
 
 from src.components.schedule.base_schedule import BaseSchedule
-from torch.functional import softplus
 
 
 class NoiseSchedule(BaseSchedule):

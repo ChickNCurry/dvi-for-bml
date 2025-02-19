@@ -1,5 +1,4 @@
-from typing import Tuple
-
+import torch
 from torch import Tensor, nn
 from torch.distributions.normal import Normal
 
@@ -46,6 +45,7 @@ class BcaCNP(nn.Module):
         super(BcaCNP, self).__init__()
 
         self.encoder = encoder
+        self.proj_r = nn.Linear(encoder.z_dim * 2, decoder.z_dim)
         self.decoder = decoder
 
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
@@ -56,7 +56,13 @@ class BcaCNP(nn.Module):
         z_mu, z_var = self.encoder(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        y_dist = self.decoder(z_mu + z_var, x)
+        input = torch.cat([z_mu, z_var], dim=-1)
+        # (batch_size, num_subtasks, 2 * z_dim)
+
+        r = self.proj_r(input)
+        # (batch_size, num_subtasks, z_dim)
+
+        y_dist = self.decoder(r, x)
         # (batch_size, num_subtasks, data_size, y_dim)
 
         return y_dist

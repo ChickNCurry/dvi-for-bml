@@ -58,6 +58,8 @@ class BaseTrainer(ABC):
         validate: bool = False,
     ) -> None:
 
+        debug = False
+
         # torch.autograd.set_detect_anomaly(True)
 
         for epoch in range(num_epochs):
@@ -99,7 +101,29 @@ class BaseTrainer(ABC):
                 self.optimizer.zero_grad()
 
                 loss, metrics = self.train_step(batch, alpha)
+
+                if debug and torch.isnan(loss) or torch.isinf(loss):
+                    print("loss is nan or inf")
+
                 loss.backward()  # type: ignore
+
+                if debug and (
+                    torch.stack(
+                        [
+                            torch.isnan(p.grad).any()
+                            for p in self.model.parameters()
+                            if p.grad is not None
+                        ]
+                    ).any()
+                    or torch.stack(
+                        [
+                            torch.isinf(p.grad).any()
+                            for p in self.model.parameters()
+                            if p.grad is not None
+                        ]
+                    ).any()
+                ):
+                    print("grads are nan or inf")
 
                 if max_clip_norm is not None:
                     torch.nn.utils.clip_grad_norm_(
@@ -107,6 +131,16 @@ class BaseTrainer(ABC):
                     )
 
                 self.optimizer.step()
+
+                if debug and (
+                    torch.stack(
+                        [torch.isnan(p).any() for p in self.model.parameters()]
+                    ).any()
+                    or torch.stack(
+                        [torch.isinf(p).any() for p in self.model.parameters()]
+                    ).any()
+                ):
+                    print("params are nan or inf")
 
                 loop.set_postfix(
                     ordered_dict=OrderedDict(

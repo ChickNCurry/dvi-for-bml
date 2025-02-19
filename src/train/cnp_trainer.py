@@ -210,8 +210,7 @@ class CNPTrainerTarget(CNPTrainer):
         with torch.no_grad():
             y_dist_data = self.model(
                 context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
-            )
-            # (batch_size, num_subtasks, data_size, y_dim)
+            )  # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)
@@ -290,8 +289,7 @@ class CNPTrainerContext(CNPTrainer):
         with torch.no_grad():
             y_dist_data = self.model(
                 context.clone().detach(), mask.clone().detach(), x_data.clone().detach()
-            )
-            # (batch_size, num_subtasks, data_size, y_dim)
+            )  # (batch_size, num_subtasks, data_size, y_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)
