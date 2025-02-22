@@ -40,10 +40,10 @@ training:
     sample_size: 100
     max_context_size: 64
     learning_rate: 0.001
-    num_epochs: 1000
+    num_epochs: 500
     max_clip_norm: null
     alpha: null
-    seed: 1
+    seed: 0
 wandb:
     logging: true
     project: cluster-np
