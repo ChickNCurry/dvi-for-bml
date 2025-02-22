@@ -1,13 +1,34 @@
+from abc import ABC, abstractmethod
+
 import torch
 from torch import Tensor, nn
 from torch.distributions.normal import Normal
 
+from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
-class AggrCNP(nn.Module):
+class CNP(NP, ABC):
+    def __init__(self) -> None:
+        super(CNP, self).__init__()
+
+    @abstractmethod
+    def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
+        raise NotImplementedError
+
+    def inference(
+        self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
+    ) -> Normal:
+        context = torch.cat([x_context, y_context], dim=-1)
+
+        y_dist: Normal = self(context, mask, x_data)
+
+        return y_dist
+
+
+class AggrCNP(CNP):
     def __init__(
         self,
         encoder: AggrEncoder,
@@ -36,7 +57,7 @@ class AggrCNP(nn.Module):
         return y_dist
 
 
-class BcaCNP(nn.Module):
+class BcaCNP(CNP):
     def __init__(
         self,
         encoder: BCAEncoder,

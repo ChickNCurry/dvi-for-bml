@@ -7,8 +7,8 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.components.dvi import DVI
-from src.train.base_trainer import BaseTrainer
+from src.architectures.dvi import DVI
+from src.training.base_trainer import BaseTrainer
 
 
 class DVITrainer(BaseTrainer, ABC):

@@ -8,17 +8,17 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
+from src.architectures.dvinp import DVINP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.components.dvinp import DVINP
-from src.eval.grid import (
+from src.evaluation.grid import (
     compute_bd,
     compute_jsd,
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.eval.metrics import compute_lmpl, compute_mse
-from src.train.base_trainer import BaseTrainer
+from src.evaluation.metrics import compute_lmpl, compute_mse
+from src.training.base_trainer import BaseTrainer
 
 
 class DVINPTrainer(BaseTrainer, ABC):

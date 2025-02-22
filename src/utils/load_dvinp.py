@@ -12,11 +12,11 @@ from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, random_split
 
+from src.architectures.dvinp import DVINP
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
 from src.components.control.bca_control import BCAControl
 from src.components.decoder.decoder import Decoder
-from src.components.dvinp import DVINP
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 from src.components.schedule.annealing_schedule import (
@@ -35,7 +35,7 @@ from src.components.schedule.noise_schedule import (
     NoiseSchedule,
 )
 from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.train.dvinp_trainer import (
+from src.training.dvinp_trainer import (
     DVINPTrainer,
     DVINPTrainerContext,
     DVINPTrainerData,
@@ -283,70 +283,29 @@ def load_dvinp(
     #     eta_min=cfg.training.learning_rate * 0.01,
     # )
 
+    trainer_params = {
+        "model": model,
+        "device": device,
+        "dataset": dataset,
+        "train_loader": train_loader,
+        "val_loader": val_loader,
+        "optimizer": optimizer,
+        "scheduler": None,  # scheduler,
+        "generator": g,
+        "wandb_logging": cfg.wandb.logging,
+        "num_subtasks": cfg.training.num_subtasks,
+        "sample_size": cfg.training.sample_size,
+    }
+
     match trainer_variant:
         case TrainerVariant.CONTEXT:
-
-            trainer = DVINPTrainerContext(
-                model=model,
-                device=device,
-                dataset=dataset,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                optimizer=optimizer,
-                scheduler=None,  # scheduler,
-                generator=g,
-                wandb_logging=cfg.wandb.logging,
-                num_subtasks=cfg.training.num_subtasks,
-                sample_size=cfg.training.sample_size,
-            )
-
+            trainer = DVINPTrainerContext(**trainer_params)
         case TrainerVariant.DATA:
-
-            trainer = DVINPTrainerData(
-                model=model,
-                device=device,
-                dataset=dataset,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                optimizer=optimizer,
-                scheduler=None,  # scheduler,
-                generator=g,
-                wandb_logging=cfg.wandb.logging,
-                num_subtasks=cfg.training.num_subtasks,
-                sample_size=cfg.training.sample_size,
-            )
-
+            trainer = DVINPTrainerData(**trainer_params)
         case TrainerVariant.FORWARD:
-
-            trainer = DVINPTrainerForward(
-                model=model,
-                device=device,
-                dataset=dataset,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                optimizer=optimizer,
-                scheduler=None,  # scheduler,
-                generator=g,
-                wandb_logging=cfg.wandb.logging,
-                num_subtasks=cfg.training.num_subtasks,
-                sample_size=cfg.training.sample_size,
-            )
-
+            trainer = DVINPTrainerForward(**trainer_params)
         case TrainerVariant.FORWARDANDCONTEXT:
-
-            trainer = DVINPTrainerForwardAndContext(
-                model=model,
-                device=device,
-                dataset=dataset,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                optimizer=optimizer,
-                scheduler=None,  # scheduler,
-                generator=g,
-                wandb_logging=cfg.wandb.logging,
-                num_subtasks=cfg.training.num_subtasks,
-                sample_size=cfg.training.sample_size,
-            )
+            trainer = DVINPTrainerForwardAndContext(**trainer_params)
 
     if dir is not None:
 

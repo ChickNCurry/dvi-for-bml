@@ -10,10 +10,10 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.components.cnp import AggrCNP, BcaCNP
+from src.architectures.cnp import AggrCNP, BcaCNP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.components.dvinp import DVINP
-from src.components.lnp import AggrLNP, BcaLNP
+from src.architectures.dvinp import DVINP
+from src.architectures.lnp import AggrLNP, BcaLNP
 from src.eval.grid import (
     create_grid,
     eval_dist_on_grid,

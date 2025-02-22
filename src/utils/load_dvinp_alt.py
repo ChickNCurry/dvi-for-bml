@@ -10,14 +10,14 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.components.dvinp import DVINP
+from src.architectures.dvinp import DVINP
 from src.components.cdvi.cdvi import CDVI
 from src.components.control.aggr_control import AggrControl
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
-from src.train.base_trainer import AbstractTrainer
-from src.train.dvinp_trainer import DVINPTrainer
-from src.train.alt_dvinp_trainer import AlternatingDVINPTrainer
+from src.training.alt_dvinp_trainer import AlternatingDVINPTrainer
+from src.training.base_trainer import AbstractTrainer
+from src.training.dvinp_trainer import DVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 
 

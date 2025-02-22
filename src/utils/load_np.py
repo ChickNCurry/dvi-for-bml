@@ -11,18 +11,18 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.components.cnp import AggrCNP, BcaCNP
+from src.architectures.cnp import CNP, AggrCNP, BcaCNP
+from src.architectures.lnp import LNP, AggrLNP, BcaLNP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
-from src.components.lnp import AggrLNP, BcaLNP
-from src.train.cnp_trainer import (
+from src.training.cnp_trainer import (
     CNPTrainer,
     CNPTrainerContext,
     CNPTrainerData,
     CNPTrainerTarget,
 )
-from src.train.lnp_trainer import (
+from src.training.lnp_trainer import (
     LNPTrainer,
     LNPTrainerContext,
     LNPTrainerData,
@@ -52,7 +52,7 @@ def load_np(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
-) -> Tuple[AggrLNP | BcaLNP | AggrCNP | BcaCNP, LNPTrainer | CNPTrainer, DataLoader]:
+) -> Tuple[LNP | CNP, LNPTrainer | CNPTrainer, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -103,7 +103,6 @@ def load_np(
 
     match context_variant:
         case ContextVariant.MEAN | ContextVariant.MAX:
-
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
@@ -113,18 +112,12 @@ def load_np(
                 aggregation=Aggr(ContextVariant(context_variant).value),
                 max_context_size=cfg.model.max_context_size,
             )
-
             match model_variant:
                 case ModelVariant.CNP:
-
                     model = AggrCNP(encoder=encoder, decoder=decoder)
-
                 case ModelVariant.LNP:
-
                     model = AggrLNP(encoder=encoder, decoder=decoder)
-
         case ContextVariant.BCA:
-
             encoder = BCAEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
@@ -133,121 +126,46 @@ def load_np(
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
             )
-
             match model_variant:
                 case ModelVariant.CNP:
-
                     model = BcaCNP(encoder=encoder, decoder=decoder)
-
                 case ModelVariant.LNP:
-
                     model = BcaLNP(encoder=encoder, decoder=decoder)
 
     model = model.to(device)
     optimizer = AdamW(params=model.parameters(), lr=cfg.training.learning_rate)
 
+    trainer_params = {
+        "model": model,
+        "device": device,
+        "dataset": dataset,
+        "train_loader": train_loader,
+        "val_loader": val_loader,
+        "optimizer": optimizer,
+        "scheduler": None,
+        "generator": g,
+        "wandb_logging": cfg.wandb.logging,
+        "num_subtasks": cfg.training.num_subtasks,
+        "sample_size": cfg.training.sample_size,
+    }
+
     match model_variant:
         case ModelVariant.CNP:
-
             match trainer_variant:
                 case TrainerVariant.DATA:
-
-                    trainer = CNPTrainerData(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
-
+                    trainer = CNPTrainerData(**trainer_params)
                 case TrainerVariant.TARGET:
-
-                    trainer = CNPTrainerTarget(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
-
+                    trainer = CNPTrainerTarget(**trainer_params)
                 case TrainerVariant.CONTEXT:
-
-                    trainer = CNPTrainerContext(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
-
+                    trainer = CNPTrainerContext(**trainer_params)
         case ModelVariant.LNP:
-
             match trainer_variant:
                 case TrainerVariant.DATA:
-
-                    trainer = LNPTrainerData(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
-
+                    trainer = LNPTrainerData(**trainer_params)
                 case TrainerVariant.TARGET:
-
-                    trainer = LNPTrainerTarget(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
-
+                    trainer = LNPTrainerTarget(**trainer_params)
                 case TrainerVariant.CONTEXT:
-
-                    trainer = LNPTrainerContext(
-                        model=model,
-                        device=device,
-                        dataset=dataset,
-                        train_loader=train_loader,
-                        val_loader=val_loader,
-                        optimizer=optimizer,
-                        scheduler=None,
-                        generator=g,
-                        wandb_logging=cfg.wandb.logging,
-                        num_subtasks=cfg.training.num_subtasks,
-                        sample_size=cfg.training.sample_size,
-                    )
+                    trainer = LNPTrainerContext(**trainer_params)
 
     if dir is not None:
 

@@ -1,18 +1,21 @@
-from torch import nn
+from torch import Tensor
+from torch.distributions.normal import Normal
 
+from components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.architectures.np import NP
 from src.components.cdvi.cdvi import CDVI
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.base_encoder import BaseEncoder
 
 
-class DVINP(nn.Module):
+class DVINP(NP):
     def __init__(
         self,
         encoder: BaseEncoder,
         cdvi: CDVI,
         decoder: Decoder,
     ) -> None:
-        super().__init__()
+        super(DVINP).__init__()
 
         self.encoder = encoder
         self.cdvi = cdvi
@@ -34,29 +37,22 @@ class DVINP(nn.Module):
             for param in self.cdvi.parameters():
                 param.requires_grad = False
 
+    def inference(
+        self, x_context: Tensor, y_context: Tensor, context: Tensor, x_data: Tensor
+    ) -> Normal:
+        r = self.encoder(context, None)
 
-# class AggrDVINP(DVINP):
-#     def __init__(
-#         self,
-#         encoder: BaseEncoder,
-#         cdvi: CDVI,
-#         decoder: Decoder | None,
-#     ) -> None:
-#         super().__init__(encoder, cdvi, decoder)
+        target = DecoderTimesPrior(
+            decoder=self.decoder,
+            x=x_context,
+            y=y_context,
+            mask=None,
+        )
 
-#     def forward(
-#         self, context: Tensor, mask: Tensor | None, x: Tensor, y: Tensor
-#     ) -> Tensor:
-#         # (batch_size, num_subtasks, data_size, c_dim)
-#         # (batch_size, num_subtasks, data_size)
-#         # (batch_size, num_subtasks, data_size, x_dim)
-#         # (batch_size, num_subtasks, data_size, y_dim)
+        _, zs = self.cdvi.run_forward_process(target, r, None, None)
 
-#         r = self.encoder(context, mask)
-#         # (batch_size, num_subtasks, h_dim)
+        assert zs is not None
 
-#         target = DecoderTimesPrior(decoder=self.decoder, x=x, y=y, mask=mask)
+        y_dist_data: Normal = self.decoder(zs[-1], x_data)
 
-#         elbo, _, z = self.cdvi.run_chain(target, r, mask)
-#         # (1)
-#         # (num_steps, batch_size, num_subtasks, z_dim)
+        return y_dist_data

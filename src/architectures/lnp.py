@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Tuple
 
 import torch
@@ -5,12 +6,35 @@ from torch import Tensor, nn
 from torch.distributions.normal import Normal
 from torch.nn.functional import softplus
 
+from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
-class AggrLNP(nn.Module):
+class LNP(NP, ABC):
+    def __init__(self) -> None:
+        super(LNP, self).__init__()
+
+    @abstractmethod
+    def forward(
+        self, context: Tensor, mask: Tensor | None, x: Tensor
+    ) -> Tuple[Normal, Normal, Tensor]:
+        raise NotImplementedError
+
+    def inference(
+        self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
+    ) -> Normal:
+        context = torch.cat([x_context, y_context], dim=-1)
+
+        y_dist, _, _ = self(context, mask, x_data)
+
+        assert isinstance(y_dist, Normal)
+
+        return y_dist
+
+
+class AggrLNP(LNP):
     def __init__(
         self,
         encoder: AggrEncoder,
@@ -58,7 +82,7 @@ class AggrLNP(nn.Module):
         return y_dist, z_dist, z
 
 
-class BcaLNP(nn.Module):
+class BcaLNP(LNP):
     def __init__(
         self,
         encoder: BCAEncoder,

@@ -9,7 +9,7 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 
 import wandb
-from src.components.dvi import DVI
+from src.architectures.dvi import DVI
 from src.components.cdvi.cmcd import CMCD
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
@@ -24,7 +24,6 @@ from src.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
-    MHAAnnealingSchedule,
 )
 from src.components.schedule.base_schedule import BaseSchedule
 from src.components.schedule.cos_noise_schedule import (
@@ -35,12 +34,16 @@ from src.components.schedule.cos_noise_schedule import (
 from src.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
-    MHANoiseSchedule,
     NoiseSchedule,
 )
 from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.eval.grid import compute_jsd, create_grid, eval_dist_on_grid, eval_hist_on_grid
-from src.train.dvi_trainer import DVITrainer
+from src.evaluation.grid import (
+    compute_jsd,
+    create_grid,
+    eval_dist_on_grid,
+    eval_hist_on_grid,
+)
+from src.training.dvi_trainer import DVITrainer
 from src.utils.datasets import ContextSetDataset
 from src.utils.distros import TaskPosteriorGMM
 from src.utils.hash import get_object_hash, get_var_name
