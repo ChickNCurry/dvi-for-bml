@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Tuple
 
 import torch
 from torch import Tensor, nn
@@ -20,12 +21,12 @@ class CNP(NP, ABC):
 
     def inference(
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
-    ) -> Normal:
+    ) -> Tuple[Normal, Tensor | None]:
         context = torch.cat([x_context, y_context], dim=-1)
 
         y_dist: Normal = self(context, mask, x_data)
 
-        return y_dist
+        return y_dist, None
 
 
 class AggrCNP(CNP):

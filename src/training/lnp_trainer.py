@@ -10,7 +10,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
 from src.architectures.lnp import AggrLNP, BcaLNP
-from src.evaluation.metrics import compute_lmpl, compute_mse
+from src.evaluation.predictive.metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
 

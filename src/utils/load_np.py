@@ -52,7 +52,7 @@ def load_np(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
-) -> Tuple[LNP | CNP, LNPTrainer | CNPTrainer, DataLoader]:
+) -> Tuple[LNP | CNP, LNPTrainer | CNPTrainer, DataLoader, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -179,6 +179,8 @@ def load_np(
 
             model.load_state_dict(model_state_dict, strict=False)
             print(f"loaded model from {model_path}")
+        else:
+            print(f"model not found at {model_path}")
 
         if os.path.exists(optim_path):
             optim_state_dict = torch.load(
@@ -187,5 +189,7 @@ def load_np(
 
             trainer.optimizer.load_state_dict(optim_state_dict)
             print(f"loaded optim from {optim_path}")
+        else:
+            print(f"optim not found at {optim_path}")
 
-    return model, trainer, test_loader
+    return model, trainer, test_loader, val_loader

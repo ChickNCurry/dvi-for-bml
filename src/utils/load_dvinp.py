@@ -73,7 +73,7 @@ def load_dvinp(
     dir: str | None = None,
     load_decoder_only: bool = False,
     train_decoder: bool = True,
-) -> Tuple[DVINP, DVINPTrainer, DataLoader]:
+) -> Tuple[DVINP, DVINPTrainer, DataLoader, DataLoader]:
 
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -329,6 +329,8 @@ def load_dvinp(
             else:
                 model.load_state_dict(dvinp_state_dict, strict=False)
                 print(f"loaded model from {model_path}")
+        else:
+            print(f"model not found at {model_path}")
 
         if os.path.exists(optim_path):
             optim_state_dict = torch.load(
@@ -338,5 +340,7 @@ def load_dvinp(
             if not load_decoder_only:
                 trainer.optimizer.load_state_dict(optim_state_dict)
                 print(f"loaded optim from {optim_path}")
+        else:
+            print(f"optim not found at {optim_path}")
 
-    return model, trainer, test_loader
+    return model, trainer, test_loader, val_loader

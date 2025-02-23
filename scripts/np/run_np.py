@@ -2,9 +2,9 @@ import os
 
 import hydra
 import torch
+import wandb
 from omegaconf import DictConfig, OmegaConf
 
-import wandb
 from src.utils.helper import get_name_np
 from src.utils.load_np import load_np
 
@@ -14,7 +14,7 @@ def run(cfg: DictConfig) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model, trainer, _ = load_np(cfg=cfg, device=device)
+    model, trainer, _, _ = load_np(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
         wandb.init(

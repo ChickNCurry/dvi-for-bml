@@ -24,14 +24,14 @@ class LNP(NP, ABC):
 
     def inference(
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
-    ) -> Normal:
+    ) -> Tuple[Normal, Tensor | None]:
         context = torch.cat([x_context, y_context], dim=-1)
 
-        y_dist, _, _ = self(context, mask, x_data)
+        y_dist, _, z = self(context, mask, x_data)
 
         assert isinstance(y_dist, Normal)
 
-        return y_dist
+        return y_dist, z
 
 
 class AggrLNP(LNP):

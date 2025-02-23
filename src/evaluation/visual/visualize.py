@@ -11,10 +11,10 @@ from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
 from src.architectures.cnp import AggrCNP, BcaCNP
-from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.architectures.dvinp import DVINP
 from src.architectures.lnp import AggrLNP, BcaLNP
-from src.eval.grid import (
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
@@ -228,14 +228,7 @@ def visualize_np(
         # (1, num_samples, context_size, x_dim)
         # (1, num_samples, context_size, y_dim)
 
-        context = torch.cat([x_context, y_context], dim=-1)
-        # (1, num_samples, context_size, x_dim + y_dim)
-
-        if isinstance(model, AggrLNP | BcaLNP):
-            y_dist, _, _ = model(context, None, x_data)
-
-        elif isinstance(model, AggrCNP | BcaCNP):
-            y_dist = model(context, None, x_data)
+        y_dist, _ = model.inference(x_context, y_context, None, x_data)
 
         y_mu_sorted = (
             y_dist.mean.gather(2, indices).squeeze(0).squeeze(-1).detach().cpu().numpy()

@@ -10,14 +10,13 @@ from torch.utils.data import DataLoader, Dataset
 
 from src.architectures.dvinp import DVINP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.evaluation.grid import (
-    compute_bd,
-    compute_jsd,
+from src.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.evaluation.metrics import compute_lmpl, compute_mse
+from src.evaluation.taskposterior.metrics import compute_bd, compute_jsd
+from src.evaluation.predictive.metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
 

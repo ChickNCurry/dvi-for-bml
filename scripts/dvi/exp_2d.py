@@ -43,7 +43,7 @@ from src.evaluation.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.training.dvi_trainer import DVITrainer
+from src.training.dvi_trainer import DVITrainer, DVITrainerContext
 from src.utils.datasets import ContextSetDataset
 from src.utils.distros import TaskPosteriorGMM
 from src.utils.hash import get_object_hash, get_var_name
@@ -369,7 +369,7 @@ def run() -> None:
 
         optimizer = AdamW(cdvi.parameters(), lr=config.learning_rate)
 
-        trainer = DVITrainer(
+        trainer = DVITrainerContext(
             model=model,
             device=device,
             dataset=dataset,
