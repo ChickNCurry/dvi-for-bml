@@ -19,7 +19,9 @@ class ModelInfo:
     type: str
 
 
-def run(infos: List[ModelInfo], num_samples: int, max_context_size: int) -> None:
+def run(
+    infos: List[ModelInfo], num_tasks: int, num_samples: int, max_context_size: int
+) -> None:
     try:
         import torch_directml  # type: ignore
 
@@ -35,7 +37,7 @@ def run(infos: List[ModelInfo], num_samples: int, max_context_size: int) -> None
 
         model: NP
 
-        with initialize(version_base=None, config_path=dir):
+        with initialize(version_base=None, config_path=f"../../{dir}"):
             cfg = compose(config_name="cfg")
 
             if info.type == "np":
@@ -53,23 +55,30 @@ def run(infos: List[ModelInfo], num_samples: int, max_context_size: int) -> None
 
         models.append(model)
 
-    vis_pred(
-        models,
-        test_loader,
-        num_samples,
-        device,
-        max_context_size,
-        names=[info.name for info in infos],
-    )
+    for index, batch in enumerate(test_loader):
 
-    vis_tp(
-        models,
-        test_loader,
-        num_samples,
-        device,
-        max_context_size,
-        names=[info.name for info in infos],
-    )
+        if index == num_tasks:
+            break
+
+        vis_pred(
+            models,
+            batch,
+            num_samples,
+            device,
+            max_context_size,
+            save_dir,
+            names=[info.name for info in infos],
+        )
+
+        vis_tp(
+            models,
+            batch,
+            num_samples,
+            device,
+            max_context_size,
+            save_dir,
+            names=[info.name for info in infos],
+        )
 
 
 if __name__ == "__main__":
@@ -87,4 +96,6 @@ if __name__ == "__main__":
         ),
     ]
 
-    run(infos=infos, num_samples=512, max_context_size=4)
+    save_dir = "scripts/evaluation/plots"
+
+    run(infos=infos, num_tasks=1, num_samples=512, max_context_size=4)

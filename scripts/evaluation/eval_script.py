@@ -5,7 +5,7 @@ from hydra import compose, initialize
 
 from src.architectures.np import NP
 from src.evaluation.predictive.eval import eval_np
-from src.utils.helper import download_run, get_dvinp, get_np
+from src.utils.helper import download_run
 from src.utils.load_dvinp import load_dvinp
 from src.utils.load_np import load_np
 

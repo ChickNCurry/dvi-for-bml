@@ -13,15 +13,16 @@ from src.evaluation.taskposterior.grid import create_grid, eval_hist_on_grid
 
 def vis_tp(
     models: List[NP],
-    test_loader: DataLoader[Tuple[Tensor, Tensor]],
+    batch: Tuple[Tensor, Tensor],
     num_samples: int,
     device: torch.device,
     max_context_size: int,
+    save_dir: str,
     ranges: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
-    show_score: bool = True,
+    show_score: bool = False,
     names: List[str] | None = None,
 ) -> None:
-    x_data, y_data = next(iter(test_loader))
+    x_data, y_data = batch
     x_data = x_data.to(device)
     y_data = y_data.to(device)
     # (1, data_size, x_dim)
@@ -32,31 +33,23 @@ def vis_tp(
     # (1, num_samples, data_size, x_dim)
     # (1, num_samples, data_size, y_dim)
 
-    fig, axs = plt.subplots(
+    _, axs = plt.subplots(
         nrows=max_context_size,
         ncols=len(models),
-        figsize=(2 * len(models), 2 * max_context_size),
+        figsize=(3 * len(models), 2 * max_context_size),
     )
 
     if len(models) == 1:
         axs = np.expand_dims(axs, axis=1)
 
     if names is not None:
-        for i, name in enumerate(names):
-            axs[0, i].set_title(name)
+        for col, name in enumerate(names):
+            axs[0, col].set_title(name, fontsize=8)
 
     for row in range(max_context_size):
         context_size = row + 1
 
-        fig.text(
-            0.02,  # X-coordinate for left margin
-            1 - (row + 0.5) / max_context_size,  # Y-coordinate for row center
-            f"Context Size: {context_size}",
-            va="center",
-            ha="center",
-            fontsize=12,
-            rotation=90,
-        )
+        axs[row, 0].set_ylabel(f"Context Size: {context_size}", fontsize=8)
 
         x_context = x_data[:, :, :context_size, :]
         y_context = y_data[:, :, :context_size, :]
@@ -82,7 +75,8 @@ def vis_tp(
             )
 
             ax.contourf(grid[:, :, 0], grid[:, :, 1], np.exp(log_probs), cmap=cm.coolwarm)  # type: ignore
+            ax.set_aspect("equal")
+            ax.grid(True)
 
-    plt.tight_layout()
-    plt.show()
+    plt.savefig(f"{save_dir}/tp.pdf")
     plt.close()
