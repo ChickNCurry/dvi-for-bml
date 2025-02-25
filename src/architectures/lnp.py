@@ -3,9 +3,11 @@ from typing import Tuple
 
 import torch
 from torch import Tensor, nn
+from torch.distributions.distribution import Distribution
 from torch.distributions.normal import Normal
 from torch.nn.functional import softplus
 
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
@@ -32,6 +34,18 @@ class LNP(NP, ABC):
         assert isinstance(y_dist, Normal)
 
         return y_dist, z
+
+    def get_target_dist(
+        self, x_context: Tensor, y_context: Tensor, mask: Tensor | None
+    ) -> Distribution | None:
+        target_dist = DecoderTimesPrior(
+            decoder=self.decoder,
+            x=x_context,
+            y=y_context,
+            mask=mask,
+        )
+
+        return target_dist
 
 
 class AggrLNP(LNP):

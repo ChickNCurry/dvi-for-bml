@@ -23,6 +23,7 @@ def compute_mse_over_samples(y_dist_data: Normal, y_data: Tensor) -> Tensor:
     # (num_val_tasks, num_samples, data_size, y_dim)
 
     mse = torch.median(((y_pred - y_data).mean(1) ** 2).sum(-1).mean(1))
+    # (1)
 
     return mse
 
@@ -34,7 +35,7 @@ def compute_lmpl(y_dist_data: Normal, y_data: Tensor) -> Tensor:
     # (batch_size, num_subtasks, data_size, y_dim)
 
     lmpl = torch.median(
-        torch.logsumexp(lmpl.sum((3, 2)), dim=1) - np.log(y_data.shape[1])
+        -np.log(y_data.shape[1]) + torch.logsumexp(lmpl.sum((3, 2)), dim=1)
     )  # (1)
 
     return lmpl

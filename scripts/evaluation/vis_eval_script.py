@@ -5,8 +5,8 @@ import torch
 from hydra import compose, initialize
 
 from src.architectures.np import NP
-from src.evaluation.visual.vis_pred import vis_pred
-from src.evaluation.visual.vis_tp import vis_tp
+from src.evaluation.predictive.vis_pred_eval import vis_pred_eval
+from src.evaluation.taskposterior.vis_tp_eval import vis_tp_eval
 from src.utils.helper import download_run
 from src.utils.load_dvinp import load_dvinp
 from src.utils.load_np import load_np
@@ -60,7 +60,7 @@ def run(
         if index == num_tasks:
             break
 
-        vis_pred(
+        vis_pred_eval(
             models,
             batch,
             num_samples,
@@ -68,9 +68,10 @@ def run(
             max_context_size,
             save_dir,
             names=[info.name for info in infos],
+            index=index,
         )
 
-        vis_tp(
+        vis_tp_eval(
             models,
             batch,
             num_samples,
@@ -78,6 +79,8 @@ def run(
             max_context_size,
             save_dir,
             names=[info.name for info in infos],
+            show_score=True,
+            index=index,
         )
 
 
@@ -98,4 +101,4 @@ if __name__ == "__main__":
 
     save_dir = "scripts/evaluation/plots"
 
-    run(infos=infos, num_tasks=1, num_samples=512, max_context_size=4)
+    run(infos=infos, num_tasks=5, num_samples=625, max_context_size=9)

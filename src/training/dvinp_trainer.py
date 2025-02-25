@@ -15,8 +15,8 @@ from src.evaluation.taskposterior.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.evaluation.taskposterior.metrics import compute_bd, compute_jsd
-from src.evaluation.predictive.metrics import compute_lmpl, compute_mse
+from src.evaluation.taskposterior.tp_metrics import compute_bd, compute_jsd
+from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
 

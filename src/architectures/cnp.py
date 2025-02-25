@@ -3,6 +3,7 @@ from typing import Tuple
 
 import torch
 from torch import Tensor, nn
+from torch.distributions.distribution import Distribution
 from torch.distributions.normal import Normal
 
 from src.architectures.np import NP
@@ -27,6 +28,11 @@ class CNP(NP, ABC):
         y_dist: Normal = self(context, mask, x_data)
 
         return y_dist, None
+
+    def get_target_dist(
+        self, x_context: Tensor, y_context: Tensor, mask: Tensor | None
+    ) -> Distribution | None:
+        return None
 
 
 class AggrCNP(CNP):

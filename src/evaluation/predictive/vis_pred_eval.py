@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from src.architectures.np import NP
 
 
-def vis_pred(
+def vis_pred_eval(
     models: List[NP],
     batch: Tuple[Tensor, Tensor],
     num_samples: int,
@@ -18,6 +18,7 @@ def vis_pred(
     save_dir: str,
     show_sigma: bool = False,
     names: List[str] | None = None,
+    index: int = 0,
 ) -> None:
     x_data, y_data = batch
     x_data = x_data.to(device)
@@ -109,5 +110,5 @@ def vis_pred(
                         zorder=0,
                     )
 
-    plt.savefig(f"{save_dir}/pred.pdf")
+    plt.savefig(f"{save_dir}/pred_{index}.pdf")
     plt.close()
