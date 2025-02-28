@@ -4,13 +4,12 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
+import wandb
 from torch import Generator, Tensor, nn
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-
-import wandb
 
 
 class BaseTrainer(ABC):
@@ -26,7 +25,8 @@ class BaseTrainer(ABC):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         self.model = model
         self.device = device
@@ -38,7 +38,8 @@ class BaseTrainer(ABC):
         self.generator = generator
         self.wandb_logging = wandb_logging
         self.num_subtasks = num_subtasks
-        self.sample_size = sample_size
+        self.num_samples = num_samples
+        self.val_grad_off = val_grad_off
 
     @abstractmethod
     def train_step(
@@ -50,6 +51,29 @@ class BaseTrainer(ABC):
     def val_step(self, batch: Tensor) -> Dict[str, float]:
         pass
 
+    def val_loop(self, epoch: int) -> None:
+        loop = tqdm(self.val_loader, total=len(self.val_loader))
+
+        for batch in loop:
+
+            metrics = self.val_step(batch)
+
+            loop.set_postfix(
+                ordered_dict=OrderedDict(
+                    [
+                        ("epoch", epoch),
+                        *[(k, v) for k, v in metrics.items()],
+                    ]
+                )
+            )
+
+            if self.wandb_logging:
+                wandb.log(
+                    {
+                        **{f"val/{k}": v for k, v in metrics.items()},
+                    }
+                )
+
     def train(
         self,
         num_epochs: int,
@@ -60,39 +84,22 @@ class BaseTrainer(ABC):
 
         debug = False
 
-        # torch.autograd.set_detect_anomaly(True)
+        if debug:
+            torch.autograd.set_detect_anomaly(True)
 
         for epoch in range(num_epochs):
 
             if validate:
 
                 self.model.eval()
-                # with torch.inference_mode(False):
 
-                loop = tqdm(self.val_loader, total=len(self.val_loader))
-
-                for batch in loop:
-
-                    metrics = self.val_step(batch)
-
-                    loop.set_postfix(
-                        ordered_dict=OrderedDict(
-                            [
-                                ("epoch", epoch),
-                                *[(k, v) for k, v in metrics.items()],
-                            ]
-                        )
-                    )
-
-                    if self.wandb_logging:
-                        wandb.log(
-                            {
-                                **{f"val/{k}": v for k, v in metrics.items()},
-                            }
-                        )
+                if self.val_grad_off:
+                    with torch.no_grad():
+                        self.val_loop(epoch)
+                else:
+                    self.val_loop(epoch)
 
             self.model.train()
-            # with torch.inference_mode(False):
 
             loop = tqdm(self.train_loader, total=len(self.train_loader))
 
@@ -168,8 +175,7 @@ class BaseTrainer(ABC):
                 self.scheduler.step(epoch)
                 print(self.scheduler.get_last_lr())
 
-    def get_data(self, batch: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-
+    def get_data_subtasks(self, batch: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         x_data, y_data = batch
         x_data = x_data.to(self.device)
         y_data = y_data.to(self.device)
@@ -178,6 +184,23 @@ class BaseTrainer(ABC):
 
         x_data = x_data.unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
         y_data = y_data.unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
+        # (batch_size, num_subtasks, data_size, x_dim)
+        # (batch_size, num_subtasks, data_size, y_dim)
+
+        data = torch.cat([x_data, y_data], dim=-1)
+        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+
+        return data, x_data, y_data
+
+    def get_data_samples(self, batch: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        x_data, y_data = batch
+        x_data = x_data.to(self.device)
+        y_data = y_data.to(self.device)
+        # (batch_size, data_size, x_dim)
+        # (batch_size, data_size, y_dim)
+
+        x_data = x_data.unsqueeze(1).expand(-1, self.num_samples, -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, self.num_samples, -1, -1)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
 
@@ -232,10 +255,10 @@ class BaseTrainer(ABC):
             .unsqueeze(0)
             .unsqueeze(0)
             .expand(data.shape[0], data.shape[1], -1)
-        )  # (batch_size, sample_size, data_size)
+        )  # (batch_size, num_samples, data_size)
 
         mask = (pos_indices < context_sizes).float()
-        # (batch_size, sample_size, data_size)
+        # (batch_size, num_samples, data_size)
 
         return mask
 

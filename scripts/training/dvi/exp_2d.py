@@ -380,7 +380,7 @@ def run() -> None:
             generator=torch.Generator(),
             wandb_logging=False,
             num_subtasks=32,
-            sample_size=32,
+            num_samples=32,
         )
 
         trainer.wandb_logging = True

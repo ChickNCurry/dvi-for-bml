@@ -265,7 +265,7 @@ class AlternatingDVINPTrainer(AbstractTrainer):
     def val_step(
         self,
         batch: Tensor,
-        sample_size: int = 100,
+        num_samples: int = 100,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
         assert self.dvinp.decoder is not None
@@ -276,13 +276,13 @@ class AlternatingDVINPTrainer(AbstractTrainer):
         # (batch_size, context_size, x_dim)
         # (batch_size, context_size, y_dim)
 
-        x_data = x_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
-        y_data = y_data.unsqueeze(1).expand(-1, sample_size, -1, -1)
-        # (batch_size, sample_size, context_size, x_dim)
-        # (batch_size, sample_size, context_size, y_dim)
+        x_data = x_data.unsqueeze(1).expand(-1, num_samples, -1, -1)
+        y_data = y_data.unsqueeze(1).expand(-1, num_samples, -1, -1)
+        # (batch_size, num_samples, context_size, x_dim)
+        # (batch_size, num_samples, context_size, y_dim)
 
         data = torch.cat([x_data, y_data], dim=-1)
-        # (batch_size, sample_size, context_size, x_dim + y_dim)
+        # (batch_size, num_samples, context_size, x_dim + y_dim)
 
         context_sizes = torch.ones(
             size=(data.shape[0], data.shape[1], 1),
@@ -294,22 +294,22 @@ class AlternatingDVINPTrainer(AbstractTrainer):
             .unsqueeze(0)
             .unsqueeze(0)
             .expand(data.shape[0], data.shape[1], -1)
-        )  # (batch_size, sample_size, context_size)
+        )  # (batch_size, num_samples, context_size)
 
         mask = (pos_indices < context_sizes).float()
-        # (batch_size, sample_size, context_size)
+        # (batch_size, num_samples, context_size)
 
         context = data * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
-        # (batch_size, sample_size, context_size, x_dim + y_dim)
+        # (batch_size, num_samples, context_size, x_dim + y_dim)
 
         x_context = context[:, :, :, 0 : x_data.shape[-1]]
         y_context = context[:, :, :, x_data.shape[-1] : data.shape[-1]]
-        # (batch_size, sample_size, context_size, x_dim)
-        # (batch_size, sample_size, context_size, y_dim)
+        # (batch_size, num_samples, context_size, x_dim)
+        # (batch_size, num_samples, context_size, y_dim)
 
         r_aggr, r_non_aggr = self.dvinp.encoder(context, mask)
-        # (batch_size, sample_size, h_dim)
-        # (batch_size, sample_size, context_size, h_dim)
+        # (batch_size, num_samples, h_dim)
+        # (batch_size, num_samples, context_size, h_dim)
 
         target = DecoderTimesPrior(
             decoder=self.dvinp.decoder,
@@ -323,15 +323,15 @@ class AlternatingDVINPTrainer(AbstractTrainer):
 
         _, _, z_samples = self.dvinp.cdvi.run_both_processes(
             target, r_aggr=r_aggr, r_non_aggr=r_non_aggr, mask=mask
-        )  # (num_steps, batch_size, sample_size, z_dim)
+        )  # (num_steps, batch_size, num_samples, z_dim)
 
         tp_samples = z_samples[-1].detach().cpu().numpy()
-        # (batch_size, sample_size, z_dim)
+        # (batch_size, num_samples, z_dim)
 
         jsds = []
         bds = []
 
-        num_cells = int(np.sqrt(sample_size))
+        num_cells = int(np.sqrt(num_samples))
         grid = create_grid(ranges, num_cells)
         target_vals = eval_dist_on_grid(grid, target, device=self.device)
 

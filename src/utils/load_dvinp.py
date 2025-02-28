@@ -294,7 +294,8 @@ def load_dvinp(
         "generator": g,
         "wandb_logging": cfg.wandb.logging,
         "num_subtasks": cfg.training.num_subtasks,
-        "sample_size": cfg.training.sample_size,
+        "num_samples": cfg.training.num_samples,
+        "val_grad_off": not cfg.model.use_score,
     }
 
     match trainer_variant:

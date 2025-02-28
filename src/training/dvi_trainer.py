@@ -24,7 +24,8 @@ class DVITrainer(BaseTrainer, ABC):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -37,7 +38,8 @@ class DVITrainer(BaseTrainer, ABC):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     @abstractmethod
@@ -63,7 +65,8 @@ class DVITrainerContext(DVITrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -76,7 +79,8 @@ class DVITrainerContext(DVITrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def train_step(
@@ -118,7 +122,8 @@ class DVITrainerContext(DVITrainer):
 #         scheduler: LRScheduler | None,
 #         wandb_logging: bool,
 #         num_subtasks: int,
-#         sample_size: int,
+#         num_samples: int,
+#         val_grad_off: bool,
 #     ) -> None:
 #         super().__init__(
 #             model,
@@ -130,7 +135,8 @@ class DVITrainerContext(DVITrainer):
 #             scheduler,
 #             wandb_logging,
 #             num_subtasks,
-#             sample_size,
+#             num_samples,
+#             val_grad_off,
 #         )
 
 #     def train_step(

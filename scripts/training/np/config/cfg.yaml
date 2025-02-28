@@ -37,7 +37,7 @@ training:
     batch_size: 128
     num_subtasks: 32
     num_val_tasks: 32
-    sample_size: 100
+    num_samples: 100
     max_context_size: 64
     learning_rate: 0.001
     num_epochs: 500

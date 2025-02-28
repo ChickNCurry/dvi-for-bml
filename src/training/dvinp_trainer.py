@@ -10,13 +10,13 @@ from torch.utils.data import DataLoader, Dataset
 
 from src.architectures.dvinp import DVINP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
 from src.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
 from src.evaluation.taskposterior.tp_metrics import compute_bd, compute_jsd
-from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
 
@@ -33,7 +33,8 @@ class DVINPTrainer(BaseTrainer, ABC):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -46,7 +47,8 @@ class DVINPTrainer(BaseTrainer, ABC):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     @abstractmethod
@@ -60,9 +62,17 @@ class DVINPTrainer(BaseTrainer, ABC):
         batch: Tensor,
         ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     ) -> Dict[str, float]:
+        pred_metrics = self.val_pred_step(batch)
+        tp_metrics = self.val_tp_step(batch, ranges)
+        return {**pred_metrics, **tp_metrics}
+
+    def val_pred_step(
+        self,
+        batch: Tensor,
+    ) -> Dict[str, float]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -83,27 +93,40 @@ class DVINPTrainer(BaseTrainer, ABC):
         )
 
         r_context = self.model.encoder(context, mask)
-        # (batch_size, sample_size, h_dim)
-        # (batch_size, sample_size, data_size, h_dim)
+        # (batch_size, num_samples, h_dim)
+        # (batch_size, num_samples, data_size, h_dim)
 
-        _, zs = self.model.cdvi.run_both_processes(target_dist, r_context, mask)
-        # (num_steps, batch_size, sample_size, z_dim)
+        _, zs = self.model.cdvi.run_forward_process(target_dist, r_context, mask, None)
+        # (num_steps, batch_size, num_samples, z_dim)
 
         y_dist_data = self.model.decoder(
             zs[-1].clone().detach(), x_data.clone().detach()
-        )
-        # (batch_size, num_subtasks, z_dim)
+        )  # (batch_size, num_subtasks, z_dim)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)
 
+        return {"lmpl": lmpl.item(), "mse": mse.item()}
+
+    def val_tp_step(
+        self,
+        batch: Tensor,
+        ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+    ) -> Dict[str, float]:
+        assert isinstance(self.model, DVINP)
+
+        data, x_data, _ = self.get_data_samples(batch)
+        # (batch_size, num_samples, data_size, x_dim + y_dim)
+        # (batch_size, num_samples, data_size, x_dim)
+        # (batch_size, num_samples, data_size, y_dim)
+
         mask = self.get_mask_1(data)
-        # (batch_size, num_subtasks, data_size)
+        # (batch_size, num_samples, data_size)
 
         context, x_context, y_context = self.get_context(data, x_data, mask)
-        # (batch_size, num_subtasks, data_size, x_dim + y_dim)
-        # (batch_size, num_subtasks, data_size, x_dim)
-        # (batch_size, num_subtasks, data_size, y_dim)
+        # (batch_size, num_samples, data_size, x_dim + y_dim)
+        # (batch_size, num_samples, data_size, x_dim)
+        # (batch_size, num_samples, data_size, y_dim)
 
         target_dist = DecoderTimesPrior(
             decoder=self.model.decoder,
@@ -112,23 +135,27 @@ class DVINPTrainer(BaseTrainer, ABC):
             mask=mask,
         )
 
-        r = self.model.encoder(context, mask)
-        # (batch_size, sample_size, h_dim)
-        # (batch_size, sample_size, data_size, h_dim)
+        r_context = self.model.encoder(context, mask)
+        # (batch_size, num_samples, h_dim)
+        # (batch_size, num_samples, data_size, h_dim)
 
-        _, zs = self.model.cdvi.run_both_processes(target_dist, r, mask)
-        # (num_steps, batch_size, sample_size, z_dim)
+        _, zs = self.model.cdvi.run_forward_process(target_dist, r_context, mask, None)
+        # (num_steps, batch_size, num_samples, z_dim)
 
         tp_samples = zs[-1].detach().cpu().numpy()
-        # (batch_size, sample_size, z_dim)
+        # (batch_size, num_samples, z_dim)
 
         jsds = []
         bds = []
 
-        num_cells = int(np.sqrt(self.sample_size))
+        sqrt = np.sqrt(self.num_samples)
+        assert sqrt.is_integer()
+        num_cells = int(sqrt)
         grid = create_grid(ranges, num_cells)
 
-        target_log_probs = eval_dist_on_grid(grid, target_dist, device=self.device)
+        target_log_probs = eval_dist_on_grid(
+            grid, target_dist, self.device, batch_size=data.shape[0]
+        )
 
         for i in range(tp_samples.shape[0]):
 
@@ -143,7 +170,7 @@ class DVINPTrainer(BaseTrainer, ABC):
         jsd = np.median(jsds)
         bd = np.median(bds)
 
-        return {"lmpl": lmpl.item(), "mse": mse.item(), "jsd": jsd, "bd": bd}
+        return {"jsd": jsd, "bd": bd}
 
 
 class DVINPTrainerContext(DVINPTrainer):
@@ -159,7 +186,8 @@ class DVINPTrainerContext(DVINPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -172,7 +200,8 @@ class DVINPTrainerContext(DVINPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def train_step(
@@ -180,7 +209,7 @@ class DVINPTrainerContext(DVINPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -232,7 +261,8 @@ class DVINPTrainerData(DVINPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -245,7 +275,8 @@ class DVINPTrainerData(DVINPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def train_step(
@@ -253,7 +284,7 @@ class DVINPTrainerData(DVINPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -313,7 +344,8 @@ class DVINPTrainerForward(DVINPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -326,7 +358,8 @@ class DVINPTrainerForward(DVINPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def train_step_old(
@@ -334,7 +367,7 @@ class DVINPTrainerForward(DVINPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -394,7 +427,7 @@ class DVINPTrainerForward(DVINPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -456,7 +489,8 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -469,7 +503,8 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def train_step(
@@ -477,7 +512,7 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, DVINP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -560,7 +595,8 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
 #         scheduler: LRScheduler | None,
 #         wandb_logging: bool,
 #         num_subtasks: int,
-#         sample_size: int,
+#         num_samples: int,
+#         val_grad_off: bool,
 #     ) -> None:
 #         super().__init__(
 #             device,
@@ -572,7 +608,8 @@ class DVINPTrainerForwardAndContext(DVINPTrainer):
 #             scheduler,
 #             wandb_logging,
 #             num_subtasks,
-#             sample_size,
+#             num_samples,
+#             val_grad_off,
 #         )
 
 #     def train_step(

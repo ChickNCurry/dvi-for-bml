@@ -27,7 +27,8 @@ class LNPTrainer(BaseTrainer, ABC):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = False,
     ) -> None:
         super().__init__(
             model,
@@ -40,7 +41,8 @@ class LNPTrainer(BaseTrainer, ABC):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     @abstractmethod
@@ -52,7 +54,7 @@ class LNPTrainer(BaseTrainer, ABC):
     def val_step(self, batch: Tensor) -> Dict[str, float]:
         assert isinstance(self.model, AggrLNP | BcaLNP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -87,7 +89,8 @@ class LNPTrainerData(LNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = False,
     ) -> None:
         super().__init__(
             model,
@@ -100,7 +103,8 @@ class LNPTrainerData(LNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def lnp_loss_data_kl(
@@ -159,7 +163,7 @@ class LNPTrainerData(LNPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, AggrLNP | BcaLNP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -201,7 +205,8 @@ class LNPTrainerTarget(LNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = False,
     ) -> None:
         super().__init__(
             model,
@@ -214,7 +219,8 @@ class LNPTrainerTarget(LNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def lnp_loss_target_kl(
@@ -291,7 +297,7 @@ class LNPTrainerTarget(LNPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, AggrLNP | BcaLNP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -340,7 +346,8 @@ class LNPTrainerContext(LNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool,
     ) -> None:
         super().__init__(
             model,
@@ -353,7 +360,8 @@ class LNPTrainerContext(LNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def lnp_loss_context(
@@ -407,7 +415,7 @@ class LNPTrainerContext(LNPTrainer):
     ) -> Tuple[Tensor, Dict[str, float]]:
         assert isinstance(self.model, AggrLNP | BcaLNP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -451,7 +459,8 @@ class LNPTrainerContext(LNPTrainer):
 #         scheduler: LRScheduler | None,
 #         wandb_logging: bool,
 #         num_subtasks: int,
-#         sample_size: int,
+#         num_samples: int,
+#         val_grad_off: bool,
 #     ) -> None:
 #         super().__init__(
 #             device,
@@ -463,7 +472,8 @@ class LNPTrainerContext(LNPTrainer):
 #             scheduler,
 #             wandb_logging,
 #             num_subtasks,
-#             sample_size,
+#             num_samples,
+#             val_grad_off,
 #         )
 
 #     def train_step(

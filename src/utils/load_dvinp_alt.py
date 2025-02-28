@@ -205,7 +205,7 @@ def load_dvinp_alt(
             scheduler=None,
             wandb_logging=cfg.wandb.logging,
             num_subtasks=cfg.training.num_subtasks,
-            sample_size=cfg.training.sample_size,
+            num_samples=cfg.training.num_samples,
         )
         if cfg.training.alternating_ratio is None
         else AlternatingDVINPTrainer(

@@ -26,7 +26,8 @@ class CNPTrainer(BaseTrainer, ABC):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -39,7 +40,8 @@ class CNPTrainer(BaseTrainer, ABC):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     @abstractmethod
@@ -51,7 +53,7 @@ class CNPTrainer(BaseTrainer, ABC):
     def val_step(self, batch: Tensor) -> Dict[str, float]:
         assert isinstance(self.model, AggrCNP | BcaCNP)
 
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -86,7 +88,8 @@ class CNPTrainerData(CNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -99,7 +102,8 @@ class CNPTrainerData(CNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def cnp_loss_data(self, y_dist_data: Normal, y_data: Tensor) -> Tensor:
@@ -114,7 +118,7 @@ class CNPTrainerData(CNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -151,7 +155,8 @@ class CNPTrainerTarget(CNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -164,7 +169,8 @@ class CNPTrainerTarget(CNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def cnp_loss_target(
@@ -188,7 +194,7 @@ class CNPTrainerTarget(CNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -231,7 +237,8 @@ class CNPTrainerContext(CNPTrainer):
         generator: Generator,
         wandb_logging: bool,
         num_subtasks: int,
-        sample_size: int,
+        num_samples: int,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -244,7 +251,8 @@ class CNPTrainerContext(CNPTrainer):
             generator,
             wandb_logging,
             num_subtasks,
-            sample_size,
+            num_samples,
+            val_grad_off,
         )
 
     def cnp_loss_context(
@@ -268,7 +276,7 @@ class CNPTrainerContext(CNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        data, x_data, y_data = self.get_data(batch)
+        data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
         # (batch_size, num_subtasks, data_size, x_dim)
         # (batch_size, num_subtasks, data_size, y_dim)
@@ -309,7 +317,8 @@ class CNPTrainerContext(CNPTrainer):
 #         scheduler: LRScheduler | None,
 #         wandb_logging: bool,
 #         num_subtasks: int,
-#         sample_size: int,
+#         num_samples: int,
+#         val_grad_off: bool = True,
 #     ) -> None:
 #         super().__init__(
 #             device,
@@ -321,7 +330,8 @@ class CNPTrainerContext(CNPTrainer):
 #             scheduler,
 #             wandb_logging,
 #             num_subtasks,
-#             sample_size,
+#             num_samples,
+#             val_grad_off,
 #         )
 
 #     def train_step(

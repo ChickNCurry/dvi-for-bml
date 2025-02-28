@@ -128,10 +128,10 @@ def num_pred_eval_for_fixed_context_size_mask(
         .unsqueeze(0)
         .unsqueeze(0)
         .expand(data.shape[0], data.shape[1], -1)
-    )  # (batch_size, sample_size, data_size)
+    )  # (batch_size, num_samples, data_size)
 
     mask = (pos_indices < context_sizes).float()
-    # (batch_size, sample_size, data_size)
+    # (batch_size, num_samples, data_size)
 
     context = data * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
     # (batch_size, num_subtasks, data_size, x_dim + y_dim)

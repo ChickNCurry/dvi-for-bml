@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -53,11 +53,15 @@ def eval_hist_on_grid(
     ]
 
     probs, _ = np.histogramdd(samples, bins=num_cells, range=outer_edges, density=True)
+
+    if np.isnan(probs).any():
+        probs = np.nan_to_num(probs)
+
     log_probs: NDArray[np.float32] = np.log(np.clip(probs, a_min=1e-300, a_max=None))
     log_probs = log_probs - logsumexp(log_probs)
     # (dim1, dim2, ...)
 
-    log_probs = log_probs.T  # TODO: why transpose needed?
+    # log_probs = log_probs.T  # TODO: why transpose needed?
 
     return log_probs
 
@@ -66,12 +70,18 @@ def eval_dist_on_grid(
     grid: NDArray[np.float32],
     dist: Distribution,
     device: torch.device,
+    batch_size: int = 1,
 ) -> NDArray[np.float32]:
     # (dim1, dim2, ..., z_dim)
 
     grid_flat = grid.reshape(-1, grid.shape[-1])
-    grid_tensor = torch.from_numpy(grid_flat).float().to(device).unsqueeze(0)
-    # (1, dim1 * dim2 * ..., z_dim)
+    grid_tensor = (
+        torch.from_numpy(grid_flat)
+        .float()
+        .to(device)
+        .unsqueeze(0)
+        .expand(batch_size, -1, -1)
+    )  # (batch_size, dim1 * dim2 * ..., z_dim)
 
     log_probs = dist.log_prob(grid_tensor).sum(-1).detach().cpu().numpy()
     log_probs = log_probs - logsumexp(log_probs)
