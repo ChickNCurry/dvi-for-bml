@@ -6,6 +6,7 @@ from matplotlib import cm
 from matplotlib import pyplot as plt
 from torch import Tensor
 
+from src.evaluation.common import ModelInfo
 from src.architectures.np import NP
 from src.evaluation.taskposterior.grid import (
     create_grid,
@@ -16,15 +17,14 @@ from src.evaluation.taskposterior.grid import (
 
 
 def vis_tp_eval(
-    models: List[NP],
+    model_infos: List[ModelInfo],
     batch: Tuple[Tensor, Tensor],
     num_samples: int,
     device: torch.device,
     max_context_size: int,
     save_dir: str,
-    ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
-    names: List[str] | None = None,
     show_score: bool = False,
+    ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
     index: int = 0,
 ) -> None:
     x_data, y_data = batch
@@ -40,24 +40,12 @@ def vis_tp_eval(
 
     fig, axs = plt.subplots(
         nrows=max_context_size,
-        ncols=2 * len(models),
-        figsize=(4 * len(models), 2 * max_context_size),
+        ncols=2 * len(model_infos),
+        figsize=(4 * len(model_infos), 2 * max_context_size),
     )
 
-    if len(models) == 1:
+    if len(model_infos) == 1:
         axs = np.expand_dims(axs, axis=1)
-
-    if names is not None:
-        for col, name in enumerate(names):
-            axs[0, col * 2].set_title("Approximation", fontsize=8)
-            axs[0, col * 2 + 1].set_title("Target", fontsize=8)
-
-            bbox1 = axs[0, col * 2].get_position()
-            bbox2 = axs[0, col * 2 + 1].get_position()
-            mid_x = (bbox1.x0 + bbox2.x1) / 2
-            mid_y = bbox1.y1 + 0.04
-
-            fig.text(mid_x, mid_y, name, ha="center", fontsize=8)
 
     for row in range(max_context_size):
         context_size = row + 1
@@ -69,35 +57,50 @@ def vis_tp_eval(
         # (1, num_samples, context_size, x_dim)
         # (1, num_samples, context_size, y_dim)
 
-        for column, model in enumerate(models):
-            ax_model = axs[row, column * 2]
-            ax_target = axs[row, column * 2 + 1]
+        for col, model_info in enumerate(model_infos):
+            assert model_info.model is not None
+
+            axs[0, col * 2].set_title("Approximation", fontsize=8)
+            axs[0, col * 2 + 1].set_title("Target", fontsize=8)
+
+            bbox1 = axs[0, col * 2].get_position()
+            bbox2 = axs[0, col * 2 + 1].get_position()
+            mid_x = (bbox1.x0 + bbox2.x1) / 2
+            mid_y = bbox1.y1 + 0.04
+
+            fig.text(mid_x, mid_y, model_info.name, ha="center", fontsize=8)
+
+            ax_model = axs[row, col * 2]
+            ax_target = axs[row, col * 2 + 1]
 
             sqrt = np.sqrt(x_data.shape[0] * x_data.shape[1])
             assert sqrt.is_integer()
             num_cells = int(sqrt)
             grid = create_grid(ranges, num_cells)
 
-            target_dist = model.get_target_dist(x_context, y_context, None)
+            target_dist = model_info.model.get_target_dist(x_context, y_context, None)
 
-            with torch.no_grad():
-                _, z = model.inference(x_context, y_context, None, x_data)
-                # (1, num_samples, z_dim)
+            # with torch.no_grad():
+            _, z = model_info.model.inference(x_context, y_context, None, x_data)
+            # (1, num_samples, z_dim)
 
-            assert z is not None
+            log_probs = (
+                eval_hist_on_grid(
+                    z.reshape(-1, z[-1].shape[-1]).detach().cpu().numpy(),
+                    ranges,
+                    num_cells,
+                )
+                if z is not None
+                else np.zeros((x_context.shape[1], 2))
+            )
+            # (num_samples, z_dim)
 
-            log_probs = eval_hist_on_grid(
-                z.reshape(-1, z[-1].shape[-1]).detach().cpu().numpy(),
-                ranges,
-                num_cells,
+            # with torch.no_grad():
+            target_log_probs = (
+                eval_dist_on_grid(grid, target_dist, device=device).squeeze(0)
+                if target_dist is not None
+                else np.zeros_like(log_probs)
             )  # (num_samples, z_dim)
-
-            with torch.no_grad():
-                target_log_probs = (
-                    eval_dist_on_grid(grid, target_dist, device=device).squeeze(0)
-                    if target_dist is not None
-                    else np.zeros_like(log_probs)
-                )  # (num_samples, z_dim)
 
             ax_model.contourf(
                 grid[:, :, 0], grid[:, :, 1], np.exp(log_probs), cmap=cm.coolwarm

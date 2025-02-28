@@ -76,18 +76,18 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
     def __getitem__(self, task_idx: int) -> Tuple[Tensor, Tensor]:
         task = self.benchmark.get_task_by_index(task_index=task_idx)
 
-        x_context = Tensor(task.x)
-        y_context = Tensor(task.y)
+        x_data = Tensor(task.x)
+        y_data = Tensor(task.y)
 
-        assert x_context.shape[0] == y_context.shape[0]
-        perm = torch.randperm(x_context.shape[0], generator=self.generator)
+        assert x_data.shape[0] == y_data.shape[0]
+        perm = torch.randperm(x_data.shape[0], generator=self.generator)
 
-        x_context = x_context[perm]
-        y_context = y_context[perm]
+        x_data = x_data[perm]
+        y_data = y_data[perm]
 
         # print(hash_tensor(x_context), hash_tensor(y_context))
 
-        return x_context, y_context
+        return x_data, y_data
 
 
 def hash_tensor(t: Tensor) -> str:

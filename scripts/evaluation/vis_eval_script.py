@@ -1,10 +1,10 @@
-from dataclasses import dataclass
 from typing import List
 
 import torch
 from hydra import compose, initialize
 
 from src.architectures.np import NP
+from src.evaluation.common import ModelInfo, ModelType
 from src.evaluation.predictive.vis_pred_eval import vis_pred_eval
 from src.evaluation.taskposterior.vis_tp_eval import vis_tp_eval
 from src.utils.helper import download_run
@@ -12,15 +12,11 @@ from src.utils.load_dvinp import load_dvinp
 from src.utils.load_np import load_np
 
 
-@dataclass
-class ModelInfo:
-    name: str
-    project: str
-    type: str
-
-
 def run(
-    infos: List[ModelInfo], num_tasks: int, num_samples: int, max_context_size: int
+    model_infos: List[ModelInfo],
+    num_tasks: int,
+    num_samples: int,
+    max_context_size: int,
 ) -> None:
     try:
         import torch_directml  # type: ignore
@@ -29,9 +25,7 @@ def run(
     except ImportError:
         device = torch.device("cpu")
 
-    models: List[NP] = []
-
-    for info in infos:
+    for info in model_infos:
 
         dir = download_run(info.project, info.name)
 
@@ -40,20 +34,20 @@ def run(
         with initialize(version_base=None, config_path=f"../../{dir}"):
             cfg = compose(config_name="cfg")
 
-            if info.type == "np":
+            if info.type == ModelType.LNP or info.type == ModelType.CNP:
                 model, _, test_loader, _ = load_np(
                     cfg=cfg,
                     device=device,
                     dir=dir,
                 )
-            elif info.type == "dvinp":
+            elif info.type == ModelType.DVINP:
                 model, _, test_loader, _ = load_dvinp(
                     cfg=cfg,
                     device=device,
                     dir=dir,
                 )
 
-        models.append(model)
+        info.model = model
 
     for index, batch in enumerate(test_loader):
 
@@ -61,24 +55,22 @@ def run(
             break
 
         vis_pred_eval(
-            models,
+            model_infos,
             batch,
             num_samples,
             device,
             max_context_size,
             save_dir,
-            names=[info.name for info in infos],
             index=index,
         )
 
         vis_tp_eval(
-            models,
+            model_infos,
             batch,
             num_samples,
             device,
             max_context_size,
             save_dir,
-            names=[info.name for info in infos],
             show_score=True,
             index=index,
         )
@@ -88,17 +80,32 @@ if __name__ == "__main__":
 
     infos = [
         ModelInfo(
-            name="1-mean-lnp-data-None-0",
-            project="cluster-np",
-            type="np",
+            name="16-1-bca-free-dis-True-True-forwardandcontext-1.0-0",
+            project="cluster-dvinp-score2",
+            type=ModelType.DVINP,
         ),
         ModelInfo(
             name="16-1-bca-free-dis-True-False-forwardandcontext-1.0-0",
             project="cluster-dvinp-noscore",
-            type="dvinp",
+            type=ModelType.DVINP,
+        ),
+        ModelInfo(
+            name="16-1-bca-free-dis-True-False-context-1.0-0",
+            project="cluster-dvinp-noscore",
+            type=ModelType.DVINP,
+        ),
+        ModelInfo(
+            name="1-mean-lnp-data-1.0-0",
+            project="cluster-np",
+            type=ModelType.LNP,
+        ),
+        ModelInfo(
+            name="1-mean-cnp-data-None-0",
+            project="cluster-np",
+            type=ModelType.CNP,
         ),
     ]
 
     save_dir = "scripts/evaluation/plots"
 
-    run(infos=infos, num_tasks=5, num_samples=625, max_context_size=9)
+    run(model_infos=infos, num_tasks=6, num_samples=100, max_context_size=9)

@@ -4,23 +4,23 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from torch import Tensor
-from torch.utils.data import DataLoader
 
-from src.architectures.np import NP
+from src.evaluation.common import ModelInfo, ModelType
+from src.utils.datasets import hash_tensor
 
 
 def vis_pred_eval(
-    models: List[NP],
+    model_infos: List[ModelInfo],
     batch: Tuple[Tensor, Tensor],
     num_samples: int,
     device: torch.device,
     max_context_size: int,
     save_dir: str,
-    show_sigma: bool = False,
-    names: List[str] | None = None,
     index: int = 0,
 ) -> None:
     x_data, y_data = batch
+    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
+
     x_data = x_data.to(device)
     y_data = y_data.to(device)
     # (1, data_size, x_dim)
@@ -37,18 +37,24 @@ def vis_pred_eval(
         y_data.squeeze(0).squeeze(-1).gather(1, indices).detach().cpu().numpy()
     )  # (num_samples, data_size)
 
-    _, axs = plt.subplots(
+    fig, axs = plt.subplots(
         nrows=max_context_size,
-        ncols=len(models),
-        figsize=(4 * len(models), 2 * max_context_size),
+        ncols=len(model_infos),
+        figsize=(4 * len(model_infos), 2 * max_context_size),
     )
 
-    if len(models) == 1:
-        axs = np.expand_dims(axs, axis=1)
+    fig.text(
+        0,
+        1,
+        task_hash,
+        fontsize=12,
+        color="blue",
+        ha="left",
+        va="top",
+    )
 
-    if names is not None:
-        for col, name in enumerate(names):
-            axs[0, col].set_title(name, fontsize=8)
+    if len(model_infos) == 1:
+        axs = np.expand_dims(axs, axis=1)
 
     for row in range(max_context_size):
         context_size = row + 1
@@ -64,12 +70,18 @@ def vis_pred_eval(
         y_context_np = y_context.squeeze(0).squeeze(-1).detach().cpu().numpy()
         # (num_samples, data_size)
 
-        for column, model in enumerate(models):
-            ax = axs[row, column]
+        for col, model_info in enumerate(model_infos):
+            assert model_info.model is not None
 
-            with torch.no_grad():
-                y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
-                # (1, num_samples, data_size, y_dim)
+            axs[0, col].set_title(model_info.name, fontsize=8)
+
+            ax = axs[row, col]
+
+            # with torch.no_grad():
+            y_dist_data, _ = model_info.model.inference(
+                x_context, y_context, None, x_data
+            )
+            # (1, num_samples, data_size, y_dim)
 
             y_mu_sorted = (
                 y_dist_data.mean.squeeze(0)
@@ -100,7 +112,7 @@ def vis_pred_eval(
                     x_data_sorted[k], y_mu_sorted[k], alpha=0.8, c="tab:blue", zorder=1
                 )
 
-                if show_sigma:
+                if model_info.type == ModelType.CNP:
                     ax.fill_between(
                         x_data_sorted[0],
                         y_mu_sorted[k] - y_sigma_sorted[k],

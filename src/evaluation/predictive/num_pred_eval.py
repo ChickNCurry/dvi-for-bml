@@ -4,9 +4,9 @@ import pandas as pd  # type: ignore
 import torch
 from matplotlib import pyplot as plt
 from torch import Tensor
-from torch.utils.data import DataLoader
 
 from src.architectures.np import NP
+from src.evaluation.common import ModelInfo
 from src.evaluation.predictive.pred_metrics import (
     compute_lmpl_over_samples,
     compute_mse_over_samples,
@@ -15,9 +15,7 @@ from src.utils.datasets import MetaLearningDataset
 
 
 def num_pred_eval(
-    names: List[str],
-    models: List[NP],
-    val_loaders: List[DataLoader],
+    model_infos: List[ModelInfo],
     num_samples: int,
     device: torch.device,
     save_dir: str,
@@ -31,12 +29,13 @@ def num_pred_eval(
         figsize=(4 * num_metrics, 3),
     )
 
-    for name, model, val_loader in zip(names, models, val_loaders):
-        assert isinstance(val_loader.dataset.dataset, MetaLearningDataset)
+    for model_info in model_infos:
+        # assert isinstance(model_info.val_loader.dataset.dataset, MetaLearningDataset)
+        # context_sizes = range(1, model_info.val_loader.dataset.dataset.max_context_size + 1)
 
-        context_sizes = range(1, 65)  # val_loader.dataset.dataset.max_context_size + 1)
+        context_sizes = range(1, 17)
 
-        x_data, y_data = next(iter(val_loader))
+        x_data, y_data = next(iter(model_info.val_loader))
 
         x_data = x_data.to(device)
         y_data = y_data.to(device)
@@ -52,10 +51,10 @@ def num_pred_eval(
         mses = []
 
         for context_size in context_sizes:
-            print(f"Evaluating {name} for context size {context_size}")
+            print(f"Evaluating {model_info.name} for context size {context_size}")
 
             lmpl, mse = num_pred_eval_for_fixed_context_size(
-                model, context_size, x_data, y_data
+                model_info.model, context_size, x_data, y_data
             )
 
             # lmpl, mse = num_pred_eval_for_fixed_context_size_mask(
@@ -68,18 +67,21 @@ def num_pred_eval(
         df = pd.DataFrame(
             {"lmpl": lmpls, "mse": mses}, index=[c for c in context_sizes]
         )
-        df.to_csv(f"{save_dir}/pred_metrics_{name}.csv")
+        df.to_csv(f"{save_dir}/pred_metrics_{model_info.name}.csv")
 
-        axs[0].set_title("lmpl", fontsize=8)
+        axs[0].set_title("Log Marginal Predictive Likelihood (LMPL)", fontsize=12)
         axs[0].set_xlabel("context size", fontsize=8)
-        axs[0].plot(context_sizes, lmpls, label=name)
+        axs[0].plot(context_sizes, lmpls, label=model_info.name)
         axs[0].legend(prop={"size": 5})
+        axs[0].grid(True)
 
-        axs[1].set_title("mse", fontsize=8)
+        axs[1].set_title("Mean Squared Error (MSE)", fontsize=12)
         axs[1].set_xlabel("context size", fontsize=8)
-        axs[1].plot(context_sizes, mses, label=name)
+        axs[1].plot(context_sizes, mses, label=model_info.name)
         axs[1].legend(prop={"size": 5})
+        axs[1].grid(True)
 
+    plt.tight_layout()
     plt.savefig(f"{save_dir}/pred_metrics.pdf")
     plt.close()
 
@@ -95,9 +97,9 @@ def num_pred_eval_for_fixed_context_size(
     # (num_val_tasks, num_samples, context_size, x_dim)
     # (num_val_tasks, num_samples, context_size, y_dim)
 
-    with torch.no_grad():
-        y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
-        # (num_val_tasks, num_samples, data_size, y_dim)
+    # with torch.no_grad():
+    y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
+    # (num_val_tasks, num_samples, data_size, y_dim)
 
     lmpl = compute_lmpl_over_samples(y_dist_data, y_data)
     mse = compute_mse_over_samples(y_dist_data, y_data)
@@ -139,9 +141,9 @@ def num_pred_eval_for_fixed_context_size_mask(
     # (batch_size, num_subtasks, data_size, x_dim)
     # (batch_size, num_subtasks, data_size, y_dim)
 
-    with torch.no_grad():
-        y_dist_data, _ = model.inference(x_context, y_context, mask, x_data)
-        # (num_val_tasks, num_samples, data_size, y_dim)
+    # with torch.no_grad():
+    y_dist_data, _ = model.inference(x_context, y_context, mask, x_data)
+    # (num_val_tasks, num_samples, data_size, y_dim)
 
     lmpl = compute_lmpl_over_samples(y_dist_data, y_data)
     mse = compute_mse_over_samples(y_dist_data, y_data)

@@ -21,6 +21,7 @@ from src.evaluation.taskposterior.grid import (
     eval_score_on_grid,
     sample_from_log_probs,
 )
+from src.utils.datasets import hash_tensor
 
 
 def visualize_dvinp_both(
@@ -36,6 +37,7 @@ def visualize_dvinp_both(
     assert dvinp.decoder is not None
 
     x_data, y_data = next(iter(dataloader))
+    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
 
     x_data = x_data.to(device)
     y_data = y_data.to(device)
@@ -55,6 +57,16 @@ def visualize_dvinp_both(
 
     fig = plt.figure(figsize=(15, 3 * max_context_size), constrained_layout=True)
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
+
+    fig.text(
+        0,
+        1,
+        task_hash,
+        fontsize=12,
+        color="blue",
+        ha="left",
+        va="top",
+    )
 
     targets = []
     samples = []
@@ -195,6 +207,7 @@ def visualize_np(
     max_context_size: int,
 ) -> None:
     x_data, y_data = next(iter(dataloader))
+    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
 
     x_data = x_data.to(device)
     y_data = y_data.to(device)
@@ -216,6 +229,16 @@ def visualize_np(
 
     fig = plt.figure(figsize=(6, 3 * max_context_size), constrained_layout=True)
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
+
+    fig.text(
+        0,
+        1,
+        task_hash,
+        fontsize=12,
+        color="blue",
+        ha="left",
+        va="top",
+    )
 
     for row, subfig in enumerate(subfigs):
         subfig.suptitle(f"context size: {row + 1}")

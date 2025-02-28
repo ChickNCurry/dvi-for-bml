@@ -1,25 +1,18 @@
 from dataclasses import dataclass
-from typing import Any, List
+from typing import List
 
 import torch
 from hydra import compose, initialize
-from torch.utils.data import DataLoader
 
 from src.architectures.np import NP
+from src.evaluation.common import ModelInfo, ModelType
 from src.evaluation.predictive.num_pred_eval import num_pred_eval
 from src.utils.helper import download_run
 from src.utils.load_dvinp import load_dvinp
 from src.utils.load_np import load_np
 
 
-@dataclass
-class ModelInfo:
-    name: str
-    project: str
-    type: str
-
-
-def run(infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
+def run(model_infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
     try:
         import torch_directml  # type: ignore
 
@@ -27,40 +20,33 @@ def run(infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
     except ImportError:
         device = torch.device("cpu")
 
-    names: List[str] = []
-    models: List[NP] = []
-    val_loaders: List[DataLoader[Any]] = []
+    for model_info in model_infos:
 
-    for info in infos:
-
-        dir = download_run(info.project, info.name)
+        dir = download_run(model_info.project, model_info.name)
 
         model: NP
 
         with initialize(version_base=None, config_path=f"../../{dir}"):
             cfg = compose(config_name="cfg")
 
-            if info.type == "np":
+            if model_info.type == ModelType.LNP or model_info.type == ModelType.CNP:
                 model, _, _, val_loader = load_np(
                     cfg=cfg,
                     device=device,
                     dir=dir,
                 )
-            elif info.type == "dvinp":
+            elif model_info.type == ModelType.DVINP:
                 model, _, _, val_loader = load_dvinp(
                     cfg=cfg,
                     device=device,
                     dir=dir,
                 )
 
-        names.append(info.name)
-        models.append(model)
-        val_loaders.append(val_loader)
+        model_info.model = model
+        model_info.val_loader = val_loader
 
     num_pred_eval(
-        names=names,
-        models=models,
-        val_loaders=val_loaders,
+        model_infos=model_infos,
         num_samples=num_samples,
         device=device,
         save_dir=save_dir,
@@ -71,17 +57,32 @@ if __name__ == "__main__":
 
     infos = [
         ModelInfo(
-            name="1-mean-lnp-data-None-0",
-            project="cluster-np",
-            type="np",
+            name="16-1-bca-free-dis-True-True-forwardandcontext-1.0-0",
+            project="cluster-dvinp-score2",
+            type=ModelType.DVINP,
         ),
         ModelInfo(
             name="16-1-bca-free-dis-True-False-forwardandcontext-1.0-0",
             project="cluster-dvinp-noscore",
-            type="dvinp",
+            type=ModelType.DVINP,
+        ),
+        ModelInfo(
+            name="16-1-bca-free-dis-True-False-context-1.0-0",
+            project="cluster-dvinp-noscore",
+            type=ModelType.DVINP,
+        ),
+        ModelInfo(
+            name="1-mean-lnp-data-1.0-0",
+            project="cluster-np",
+            type=ModelType.LNP,
+        ),
+        ModelInfo(
+            name="1-mean-cnp-data-None-0",
+            project="cluster-np",
+            type=ModelType.CNP,
         ),
     ]
 
     save_dir = "scripts/evaluation/plots"
 
-    run(infos=infos, num_samples=512, save_dir=save_dir)
+    run(model_infos=infos, num_samples=512, save_dir=save_dir)
