@@ -205,6 +205,7 @@ def visualize_np(
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     num_samples: int,
     max_context_size: int,
+    show_sigma: bool = False,
 ) -> None:
     x_data, y_data = next(iter(dataloader))
     task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
@@ -284,14 +285,15 @@ def visualize_np(
                 c="tab:blue",
                 zorder=1,
             )
-            ax.fill_between(
-                x_data_sorted[k],
-                y_mu_sorted[k] - y_sigma_sorted[k],  # Lower bound
-                y_mu_sorted[k] + y_sigma_sorted[k],  # Upper bound
-                color="tab:purple",
-                alpha=0.2,
-                zorder=0,
-            )
+            if show_sigma:
+                ax.fill_between(
+                    x_data_sorted[k],
+                    y_mu_sorted[k] - y_sigma_sorted[k],  # Lower bound
+                    y_mu_sorted[k] + y_sigma_sorted[k],  # Upper bound
+                    color="tab:purple",
+                    alpha=0.2,
+                    zorder=0,
+                )
 
     plt.show()
 

@@ -99,13 +99,16 @@ def hash_tensor(t: Tensor) -> str:
 
 class Sinusoid1DFreq(ParametricBenchmark):  # type: ignore
     # cf. MAML paper, section "5.1. Regression"
-    d_param = 1
+    d_param = 2
     d_x = 1
     d_y = 1
     is_dynamical_system = False
 
-    freq_bounds = np.array([0.1, 3])
-    param_bounds = np.array([freq_bounds])
+    # amplitude_bounds = np.array([0.1, 5])
+    phase_bounds = np.array([0.0, np.pi])
+    freq_bounds = np.array([0.1, 5])
+    # param_bounds = np.array([amplitude_bounds, phase_bounds, freq_bounds])
+    param_bounds = np.array([phase_bounds, freq_bounds])
     x_bounds = np.array([[-5.0, 5.0]])
 
     def __init__(
@@ -127,6 +130,8 @@ class Sinusoid1DFreq(ParametricBenchmark):  # type: ignore
         )
 
     def __call__(self, x: np.ndarray, param: np.ndarray) -> np.ndarray[Any, Any]:  # type: ignore
-        freq = param
-        y: np.ndarray[Any, Any] = np.sin(freq * x)
+        # amplitude, phase, freq = param
+        # y: np.ndarray[Any, Any] = amplitude * np.sin(freq * x + phase)
+        phase, freq = param
+        y: np.ndarray[Any, Any] = np.sin(freq * x + phase)
         return y
