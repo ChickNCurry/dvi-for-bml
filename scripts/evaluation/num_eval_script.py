@@ -4,6 +4,7 @@ from typing import List
 import torch
 from hydra import compose, initialize
 
+from src.evaluation.taskposterior.num_tp_eval import num_tp_eval
 from src.architectures.np import NP
 from src.evaluation.common import ModelInfo, ModelType
 from src.evaluation.predictive.num_pred_eval import num_pred_eval
@@ -45,9 +46,17 @@ def run(model_infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
         model_info.model = model
         model_info.val_loader = val_loader
 
-    num_pred_eval(
+    # num_pred_eval(
+    #     model_infos=model_infos,
+    #     num_samples=num_samples,
+    #     device=device,
+    #     save_dir=save_dir,
+    # )
+
+    num_tp_eval(
         model_infos=model_infos,
         num_samples=num_samples,
+        ranges=[(-5, 5), (-5, 5)],
         device=device,
         save_dir=save_dir,
     )
@@ -85,4 +94,4 @@ if __name__ == "__main__":
 
     save_dir = "scripts/evaluation/plots"
 
-    run(model_infos=infos, num_samples=512, save_dir=save_dir)
+    run(model_infos=infos, num_samples=400, save_dir=save_dir)

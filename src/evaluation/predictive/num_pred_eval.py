@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from torch import Tensor
 
 from src.architectures.np import NP
-from src.evaluation.common import ModelInfo
+from src.evaluation.common import ModelInfo, ModelType
 from src.evaluation.predictive.pred_metrics import (
     compute_lmpl_over_samples,
     compute_mse_over_samples,
@@ -36,7 +36,6 @@ def num_pred_eval(
         context_sizes = range(1, 17)
 
         x_data, y_data = next(iter(model_info.val_loader))
-
         x_data = x_data.to(device)
         y_data = y_data.to(device)
         # (num_val_tasks, data_size, x_dim)
@@ -54,11 +53,20 @@ def num_pred_eval(
             print(f"Evaluating {model_info.name} for context size {context_size}")
 
             lmpl, mse = num_pred_eval_for_fixed_context_size(
-                model_info.model, context_size, x_data, y_data
+                model_info.model,
+                context_size,
+                x_data,
+                y_data,
+                model_info.type == ModelType.DVINP,
             )
 
-            # lmpl, mse = num_pred_eval_for_fixed_context_size_mask(
-            #     model, context_size, x_data, y_data, device
+            # lmpl, mse = num_pred_eval_for_fixed_context_size_masked(
+            #     model_info.model,
+            #     context_size,
+            #     x_data,
+            #     y_data,
+            #     device,
+            #     model_info.type == ModelType.DVINP,
             # )
 
             lmpls.append(lmpl)
@@ -91,14 +99,18 @@ def num_pred_eval_for_fixed_context_size(
     context_size: int,
     x_data: Tensor,
     y_data: Tensor,
+    enable_grad: bool,
 ) -> Tuple[float, float]:
     x_context = x_data[:, :, :context_size, :]
     y_context = y_data[:, :, :context_size, :]
     # (num_val_tasks, num_samples, context_size, x_dim)
     # (num_val_tasks, num_samples, context_size, y_dim)
 
-    # with torch.no_grad():
-    y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
+    if enable_grad:
+        y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
+    else:
+        with torch.no_grad():
+            y_dist_data, _ = model.inference(x_context, y_context, None, x_data)
     # (num_val_tasks, num_samples, data_size, y_dim)
 
     lmpl = compute_lmpl_over_samples(y_dist_data, y_data)
@@ -109,8 +121,13 @@ def num_pred_eval_for_fixed_context_size(
     return lmpl.item(), mse.item()
 
 
-def num_pred_eval_for_fixed_context_size_mask(
-    model: NP, context_size: int, x_data: Tensor, y_data: Tensor, device: torch.device
+def num_pred_eval_for_fixed_context_size_masked(
+    model: NP,
+    context_size: int,
+    x_data: Tensor,
+    y_data: Tensor,
+    device: torch.device,
+    enable_grad: bool,
 ) -> Tuple[float, float]:
     data = torch.cat([x_data, y_data], dim=-1)
     # (batch_size, data_size, x_dim + y_dim)
@@ -141,8 +158,11 @@ def num_pred_eval_for_fixed_context_size_mask(
     # (batch_size, num_subtasks, data_size, x_dim)
     # (batch_size, num_subtasks, data_size, y_dim)
 
-    # with torch.no_grad():
-    y_dist_data, _ = model.inference(x_context, y_context, mask, x_data)
+    if enable_grad:
+        y_dist_data, _ = model.inference(x_context, y_context, mask, x_data)
+    else:
+        with torch.no_grad():
+            y_dist_data, _ = model.inference(x_context, y_context, mask, x_data)
     # (num_val_tasks, num_samples, data_size, y_dim)
 
     lmpl = compute_lmpl_over_samples(y_dist_data, y_data)

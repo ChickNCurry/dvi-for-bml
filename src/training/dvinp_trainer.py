@@ -145,9 +145,6 @@ class DVINPTrainer(BaseTrainer, ABC):
         tp_samples = zs[-1].detach().cpu().numpy()
         # (batch_size, num_samples, z_dim)
 
-        jsds = []
-        bds = []
-
         sqrt = np.sqrt(self.num_samples)
         assert sqrt.is_integer()
         num_cells = int(sqrt)
@@ -156,6 +153,9 @@ class DVINPTrainer(BaseTrainer, ABC):
         target_log_probs = eval_dist_on_grid(
             grid, target_dist, self.device, batch_size=data.shape[0]
         )
+
+        jsds = []
+        bds = []
 
         for i in range(tp_samples.shape[0]):
 

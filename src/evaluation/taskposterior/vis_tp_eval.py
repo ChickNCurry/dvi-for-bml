@@ -6,8 +6,7 @@ from matplotlib import cm
 from matplotlib import pyplot as plt
 from torch import Tensor
 
-from src.evaluation.common import ModelInfo
-from src.architectures.np import NP
+from src.evaluation.common import ModelInfo, ModelType
 from src.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
@@ -80,8 +79,11 @@ def vis_tp_eval(
 
             target_dist = model_info.model.get_target_dist(x_context, y_context, None)
 
-            # with torch.no_grad():
-            _, z = model_info.model.inference(x_context, y_context, None, x_data)
+            if model_info.type == ModelType.DVINP:
+                _, z = model_info.model.inference(x_context, y_context, None, x_data)
+            else:
+                with torch.no_grad():
+                    z = model_info.model.inference(x_context, y_context, None, x_data)
             # (1, num_samples, z_dim)
 
             log_probs = (

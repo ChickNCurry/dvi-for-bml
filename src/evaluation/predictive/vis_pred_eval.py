@@ -77,10 +77,15 @@ def vis_pred_eval(
 
             ax = axs[row, col]
 
-            # with torch.no_grad():
-            y_dist_data, _ = model_info.model.inference(
-                x_context, y_context, None, x_data
-            )
+            if model_info.type == ModelType.DVINP:
+                y_dist_data, _ = model_info.model.inference(
+                    x_context, y_context, None, x_data
+                )
+            else:
+                with torch.no_grad():
+                    y_dist_data, _ = model_info.model.inference(
+                        x_context, y_context, None, x_data
+                    )
             # (1, num_samples, data_size, y_dim)
 
             y_mu_sorted = (

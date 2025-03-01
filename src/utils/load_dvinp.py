@@ -58,6 +58,8 @@ class NoiseVariant(Enum):
 
 class ModelVariant(Enum):
     DIS = "dis"
+    DIS_SCORE = "dis_score"
+    CMCD = "cmcd"
 
 
 class TrainerVariant(Enum):
@@ -133,7 +135,7 @@ def load_dvinp(
                 num_steps=cfg.model.num_steps,
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
-                use_score=cfg.model.use_score,
+                use_score=model_variant == ModelVariant.DIS_SCORE,
             )
 
             annealing_schedule = AggrAnnealingSchedule(
@@ -180,7 +182,7 @@ def load_dvinp(
                 num_steps=cfg.model.num_steps,
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
-                use_score=cfg.model.use_score,
+                use_score=model_variant == ModelVariant.DIS_SCORE,
             )
 
             annealing_schedule = BCAAnnealingSchedule(
@@ -240,7 +242,7 @@ def load_dvinp(
     )
 
     match model_variant:
-        case ModelVariant.DIS:
+        case ModelVariant.DIS | ModelVariant.DIS_SCORE:
 
             cdvi = DIS(
                 z_dim=cfg.model.z_dim,
@@ -249,7 +251,7 @@ def load_dvinp(
                 step_size_schedule=step_size_schedule,
                 noise_schedule=noise_schedule,
                 annealing_schedule=annealing_schedule,
-                use_score=cfg.model.use_score,
+                use_score=model_variant == ModelVariant.DIS_SCORE,
                 device=device,
             )
 
@@ -295,7 +297,7 @@ def load_dvinp(
         "wandb_logging": cfg.wandb.logging,
         "num_subtasks": cfg.training.num_subtasks,
         "num_samples": cfg.training.num_samples,
-        "val_grad_off": not cfg.model.use_score,
+        "val_grad_off": not model_variant == ModelVariant.DIS_SCORE,
     }
 
     match trainer_variant:
