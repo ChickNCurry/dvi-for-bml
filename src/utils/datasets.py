@@ -1,11 +1,13 @@
 import hashlib
 import random
-from typing import Tuple
+from typing import Any, Tuple
 
+import numpy as np
 import torch
 from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from torch import Tensor
 from torch.utils.data import Dataset
+from metalearning_benchmarks.parametric_benchmark import ParametricBenchmark  # type: ignore
 
 
 class ContextTestDataset(Dataset[Tensor]):
@@ -93,3 +95,38 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
 def hash_tensor(t: Tensor) -> str:
     tensor_bytes = t.numpy().tobytes()
     return hashlib.sha256(tensor_bytes).hexdigest()
+
+
+class Sinusoid1DFreq(ParametricBenchmark):  # type: ignore
+    # cf. MAML paper, section "5.1. Regression"
+    d_param = 1
+    d_x = 1
+    d_y = 1
+    is_dynamical_system = False
+
+    freq_bounds = np.array([0.1, 3])
+    param_bounds = np.array([freq_bounds])
+    x_bounds = np.array([[-5.0, 5.0]])
+
+    def __init__(
+        self,
+        n_task: int,
+        n_datapoints_per_task: int,
+        output_noise: float,
+        seed_task: int,
+        seed_x: int,
+        seed_noise: float,
+    ):
+        super().__init__(
+            n_task=n_task,
+            n_datapoints_per_task=n_datapoints_per_task,
+            output_noise=output_noise,
+            seed_task=seed_task,
+            seed_x=seed_x,
+            seed_noise=seed_noise,
+        )
+
+    def __call__(self, x: np.ndarray, param: np.ndarray) -> np.ndarray[Any, Any]:  # type: ignore
+        freq = param
+        y: np.ndarray[Any, Any] = np.sin(freq * x)
+        return y

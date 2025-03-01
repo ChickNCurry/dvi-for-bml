@@ -42,7 +42,7 @@ from src.training.dvinp_trainer import (
     DVINPTrainerForward,
     DVINPTrainerForwardAndContext,
 )
-from src.utils.datasets import MetaLearningDataset
+from src.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
 
 
 class ContextVariant(Enum):
@@ -83,7 +83,20 @@ def load_dvinp(
 
     g = torch.Generator().manual_seed(cfg.training.seed)
 
-    benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
+    if (
+        cfg.benchmark._target_
+        == "metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1DFreq"
+    ):
+        benchmark = Sinusoid1DFreq(
+            n_task=cfg.benchmark.n_task,
+            n_datapoints_per_task=cfg.benchmark.n_datapoints_per_task,
+            output_noise=cfg.benchmark.output_noise,
+            seed_task=cfg.benchmark.seed_task,
+            seed_x=cfg.benchmark.seed_x,
+            seed_noise=cfg.benchmark.seed_noise,
+        )
+    else:
+        benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
     dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size, g)
 
     train_set, val_set = random_split(
