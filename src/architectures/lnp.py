@@ -7,16 +7,17 @@ from torch.distributions.distribution import Distribution
 from torch.distributions.normal import Normal
 from torch.nn.functional import softplus
 
-from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from components.encoder.base_encoder import BaseEncoder
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
+from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
 class LNP(NP, ABC):
-    def __init__(self) -> None:
-        super(LNP, self).__init__()
+    def __init__(self, encoder: BaseEncoder, decoder: Decoder) -> None:
+        super(LNP, self).__init__(encoder, decoder)
 
     @abstractmethod
     def forward(
@@ -54,12 +55,10 @@ class AggrLNP(LNP):
         encoder: AggrEncoder,
         decoder: Decoder,
     ):
-        super(AggrLNP, self).__init__()
+        super(AggrLNP, self).__init__(encoder, decoder)
 
-        self.encoder = encoder
         self.proj_z_mu = nn.Linear(encoder.h_dim, decoder.z_dim)
         self.proj_z_sigma = nn.Linear(encoder.h_dim, decoder.z_dim)
-        self.decoder = decoder
 
     def encode(self, context: Tensor, mask: Tensor | None) -> Tuple[Normal, Tensor]:
         # (batch_size, num_subtasks, data_size, c_dim)
@@ -96,16 +95,13 @@ class AggrLNP(LNP):
         return y_dist, z_dist, z
 
 
-class BcaLNP(LNP):
+class BCALNP(LNP):
     def __init__(
         self,
         encoder: BCAEncoder,
         decoder: Decoder,
     ):
-        super(BcaLNP, self).__init__()
-
-        self.encoder = encoder
-        self.decoder = decoder
+        super(BCALNP, self).__init__(encoder, decoder)
 
     def encode(self, context: Tensor, mask: Tensor | None) -> Tuple[Normal, Tensor]:
         # (batch_size, num_subtasks, data_size, c_dim)

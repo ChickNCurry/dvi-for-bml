@@ -43,6 +43,7 @@ from src.training.dvinp_trainer import (
     DVINPTrainerForwardAndContext,
 )
 from src.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
+from src.utils.helper import load_state_dicts
 
 
 class ContextVariant(Enum):
@@ -324,39 +325,6 @@ def load_dvinp(
             trainer = DVINPTrainerForwardAndContext(**trainer_params)
 
     if dir is not None:
-
-        model_path = f"{dir}/model.pth"
-        optim_path = f"{dir}/optim.pth"
-
-        if os.path.exists(model_path):
-            dvinp_state_dict = torch.load(
-                model_path, map_location=torch.device("cpu"), weights_only=False
-            )
-
-            if load_decoder_only:
-                model.decoder.load_state_dict(
-                    {
-                        k.split("decoder.")[-1]: v
-                        for k, v in dvinp_state_dict.items()
-                        if "decoder" in k
-                    }
-                )
-                print(f"loaded decoder from {model_path}")
-            else:
-                model.load_state_dict(dvinp_state_dict, strict=False)
-                print(f"loaded model from {model_path}")
-        else:
-            print(f"model not found at {model_path}")
-
-        if os.path.exists(optim_path):
-            optim_state_dict = torch.load(
-                optim_path, map_location=torch.device("cpu"), weights_only=False
-            )
-
-            if not load_decoder_only:
-                trainer.optimizer.load_state_dict(optim_state_dict)
-                print(f"loaded optim from {optim_path}")
-        else:
-            print(f"optim not found at {optim_path}")
+        model, trainer = load_state_dicts(dir, model, trainer, load_decoder_only)
 
     return model, trainer, test_loader, val_loader

@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.architectures.lnp import AggrLNP, BcaLNP
+from src.architectures.lnp import AggrLNP, BCALNP
 from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
@@ -18,7 +18,7 @@ from src.training.base_trainer import BaseTrainer
 class LNPTrainer(BaseTrainer, ABC):
     def __init__(
         self,
-        model: AggrLNP | BcaLNP,
+        model: AggrLNP | BCALNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -53,7 +53,7 @@ class LNPTrainer(BaseTrainer, ABC):
         pass
 
     def val_step(self, batch: Tensor) -> Dict[str, float]:
-        assert isinstance(self.model, AggrLNP | BcaLNP)
+        assert isinstance(self.model, AggrLNP | BCALNP)
 
         data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
@@ -80,7 +80,7 @@ class LNPTrainer(BaseTrainer, ABC):
 class LNPTrainerData(LNPTrainer):
     def __init__(
         self,
-        model: AggrLNP | BcaLNP,
+        model: AggrLNP | BCALNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -162,7 +162,7 @@ class LNPTrainerData(LNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert isinstance(self.model, AggrLNP | BcaLNP)
+        assert isinstance(self.model, AggrLNP | BCALNP)
 
         data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
@@ -225,7 +225,7 @@ class LNPTrainerData(LNPTrainer):
 class LNPTrainerTarget(LNPTrainer):
     def __init__(
         self,
-        model: AggrLNP | BcaLNP,
+        model: AggrLNP | BCALNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -325,7 +325,7 @@ class LNPTrainerTarget(LNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert isinstance(self.model, AggrLNP | BcaLNP)
+        assert isinstance(self.model, AggrLNP | BCALNP)
 
         data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
@@ -366,7 +366,7 @@ class LNPTrainerTarget(LNPTrainer):
 class LNPTrainerContext(LNPTrainer):
     def __init__(
         self,
-        model: AggrLNP | BcaLNP,
+        model: AggrLNP | BCALNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -443,7 +443,7 @@ class LNPTrainerContext(LNPTrainer):
     def train_step(
         self, batch: Tensor, alpha: float | None
     ) -> Tuple[Tensor, Dict[str, float]]:
-        assert isinstance(self.model, AggrLNP | BcaLNP)
+        assert isinstance(self.model, AggrLNP | BCALNP)
 
         data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)

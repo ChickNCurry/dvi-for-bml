@@ -11,8 +11,8 @@ from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split
 
-from src.architectures.cnp import CNP, AggrCNP, BcaCNP
-from src.architectures.lnp import LNP, AggrLNP, BcaLNP
+from src.architectures.cnp import CNP, AggrCNP, BCACNP
+from src.architectures.lnp import LNP, AggrLNP, BCALNP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
@@ -29,6 +29,7 @@ from src.training.lnp_trainer import (
     LNPTrainerTarget,
 )
 from src.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
+from src.utils.helper import load_state_dicts
 
 
 class ContextVariant(Enum):
@@ -141,9 +142,9 @@ def load_np(
             )
             match model_variant:
                 case ModelVariant.CNP:
-                    model = BcaCNP(encoder=encoder, decoder=decoder)
+                    model = BCACNP(encoder=encoder, decoder=decoder)
                 case ModelVariant.LNP:
-                    model = BcaLNP(encoder=encoder, decoder=decoder)
+                    model = BCALNP(encoder=encoder, decoder=decoder)
 
     model = model.to(device)
     optimizer = AdamW(params=model.parameters(), lr=cfg.training.learning_rate)
@@ -181,28 +182,6 @@ def load_np(
                     trainer = LNPTrainerContext(**trainer_params)
 
     if dir is not None:
-
-        model_path = f"{dir}/model.pth"
-        optim_path = f"{dir}/optim.pth"
-
-        if os.path.exists(model_path):
-            model_state_dict = torch.load(
-                model_path, map_location=torch.device("cpu"), weights_only=False
-            )
-
-            model.load_state_dict(model_state_dict, strict=False)
-            print(f"loaded model from {model_path}")
-        else:
-            print(f"model not found at {model_path}")
-
-        if os.path.exists(optim_path):
-            optim_state_dict = torch.load(
-                optim_path, map_location=torch.device("cpu"), weights_only=False
-            )
-
-            trainer.optimizer.load_state_dict(optim_state_dict)
-            print(f"loaded optim from {optim_path}")
-        else:
-            print(f"optim not found at {optim_path}")
+        model, trainer = load_state_dicts(dir, model, trainer, False)
 
     return model, trainer, test_loader, val_loader

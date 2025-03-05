@@ -5,10 +5,16 @@ from torch import Tensor, nn
 from torch.distributions.distribution import Distribution
 from torch.distributions.normal import Normal
 
+from src.components.decoder.decoder import Decoder
+from src.components.encoder.base_encoder import BaseEncoder
+
 
 class NP(nn.Module, ABC):
-    def __init__(self) -> None:
+    def __init__(self, encoder: BaseEncoder, decoder: Decoder) -> None:
         super(NP, self).__init__()
+
+        self.encoder = encoder
+        self.decoder = decoder
 
     @abstractmethod
     def inference(

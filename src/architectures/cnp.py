@@ -9,12 +9,13 @@ from torch.distributions.normal import Normal
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
+from src.components.encoder.base_encoder import BaseEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
 class CNP(NP, ABC):
-    def __init__(self) -> None:
-        super(CNP, self).__init__()
+    def __init__(self, encoder: BaseEncoder, decoder: Decoder) -> None:
+        super(CNP, self).__init__(encoder, decoder)
 
     @abstractmethod
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
@@ -41,11 +42,9 @@ class AggrCNP(CNP):
         encoder: AggrEncoder,
         decoder: Decoder,
     ):
-        super(AggrCNP, self).__init__()
+        super(AggrCNP, self).__init__(encoder, decoder)
 
-        self.encoder = encoder
         self.proj_r = nn.Linear(encoder.h_dim, decoder.z_dim)
-        self.decoder = decoder
 
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
         # (batch_size, num_subtasks, data_size, c_dim)
@@ -64,17 +63,15 @@ class AggrCNP(CNP):
         return y_dist
 
 
-class BcaCNP(CNP):
+class BCACNP(CNP):
     def __init__(
         self,
         encoder: BCAEncoder,
         decoder: Decoder,
     ):
-        super(BcaCNP, self).__init__()
+        super(BCACNP, self).__init__(encoder, decoder)
 
-        self.encoder = encoder
         self.proj_r = nn.Linear(encoder.z_dim * 2, decoder.z_dim)
-        self.decoder = decoder
 
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
         # (batch_size, num_subtasks, data_size, c_dim)

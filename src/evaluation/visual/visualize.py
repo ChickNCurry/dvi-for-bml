@@ -10,9 +10,9 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.architectures.cnp import AggrCNP, BcaCNP
+from src.architectures.cnp import AggrCNP, BCACNP
 from src.architectures.dvinp import DVINP
-from src.architectures.lnp import AggrLNP, BcaLNP
+from src.architectures.lnp import AggrLNP, BCALNP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.evaluation.taskposterior.grid import (
     create_grid,
@@ -200,7 +200,7 @@ def visualize_dvinp_both(
 
 
 def visualize_np(
-    model: AggrLNP | BcaLNP | AggrCNP | BcaCNP,
+    model: AggrLNP | BCALNP | AggrCNP | BCACNP,
     device: torch.device,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
     num_samples: int,

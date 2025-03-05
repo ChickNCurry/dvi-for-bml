@@ -1,11 +1,9 @@
-import os
-
 import hydra
 import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-from src.utils.helper import get_name_dvinp
+from src.utils.helper import get_name_dvinp, upload_run
 from src.utils.load_dvinp import load_dvinp
 
 
@@ -31,25 +29,7 @@ def run(cfg: DictConfig) -> None:
     )
 
     if cfg.wandb.logging and wandb.run is not None:
-
-        if not os.path.exists("models"):
-            os.mkdir("models")
-
-        dir = os.path.join("models", wandb.run.name)
-        os.mkdir(dir)
-
-        model_path = os.path.join(dir, "model.pth")
-        optim_path = os.path.join(dir, "optim.pth")
-        cfg_path = os.path.join(dir, "cfg.yaml")
-
-        torch.save(model.state_dict(), model_path)
-        torch.save(trainer.optimizer.state_dict(), optim_path)
-        with open(cfg_path, "w") as f:
-            OmegaConf.save(cfg, f)
-
-        wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
-        wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
-        wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+        upload_run(cfg, model, trainer)
 
 
 if __name__ == "__main__":

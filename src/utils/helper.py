@@ -1,20 +1,12 @@
 import os
+from typing import Tuple
 
+import torch
 import wandb
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-
-def download_run(project: str, name: str) -> str:
-    dir = f"models/{project}/{name}"
-
-    if not os.path.exists(dir):
-        api = wandb.Api()
-
-        for type in ["model.pth:v0", "optim.pth:v0", "cfg.yaml:v0"]:
-            artifact = api.artifact(f"{project}/{name}_{type}")
-            artifact.download(root=f"models/{project}/{name}")
-
-    return dir
+from src.architectures.np import NP
+from src.training.base_trainer import BaseTrainer
 
 
 def get_name_np(cfg: DictConfig) -> str:
@@ -43,3 +35,81 @@ def get_name_dvinp(cfg: DictConfig) -> str:
     training_values = [f"{v}" for k, v in cfg.training.items() if k in training_keys]
 
     return "-".join(model_values + training_values)
+
+
+def upload_run(cfg: DictConfig, model: NP, trainer: BaseTrainer) -> None:
+    assert wandb.run is not None
+
+    if not os.path.exists("models"):
+        os.mkdir("models")
+
+    dir = os.path.join("models", wandb.run.name)
+    os.mkdir(dir)
+
+    model_path = os.path.join(dir, "model.pth")
+    decoder_path = os.path.join(dir, "decoder.pth")
+    optim_path = os.path.join(dir, "optim.pth")
+    cfg_path = os.path.join(dir, "cfg.yaml")
+
+    torch.save(model.state_dict(), model_path)
+    torch.save(model.decoder.state_dict(), decoder_path)
+    torch.save(trainer.optimizer.state_dict(), optim_path)
+
+    with open(cfg_path, "w") as f:
+        OmegaConf.save(cfg, f)
+
+    wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
+    wandb.run.log_model(path=decoder_path, name=f"{wandb.run.name}_decoder.pth")
+    wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
+    wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+
+
+def download_run(project: str, name: str) -> str:
+    dir = f"models/{project}/{name}"
+
+    if not os.path.exists(dir):
+        api = wandb.Api()
+
+        for type in ["model.pth:v0", "decoder.pth:v0", "optim.pth:v0", "cfg.yaml:v0"]:
+            artifact = api.artifact(f"{project}/{name}_{type}")
+            artifact.download(root=f"models/{project}/{name}")
+
+    return dir
+
+
+def load_state_dicts(
+    dir: str, model: NP, trainer: BaseTrainer, load_decoder_only: bool
+) -> Tuple[NP, BaseTrainer]:
+    model_path = f"{dir}/model.pth"
+    decoder_path = f"{dir}/decoder.pth"
+    optim_path = f"{dir}/optim.pth"
+
+    if load_decoder_only:
+        assert os.path.exists(decoder_path)
+
+        decoder_state_dict = torch.load(
+            decoder_path, map_location=torch.device("cpu"), weights_only=False
+        )
+
+        model.decoder.load_state_dict(decoder_state_dict)
+        print(f"loaded decoder from {decoder_path}")
+    else:
+        assert os.path.exists(model_path)
+
+        dvinp_state_dict = torch.load(
+            model_path, map_location=torch.device("cpu"), weights_only=False
+        )
+
+        model.load_state_dict(dvinp_state_dict, strict=False)
+        print(f"loaded model from {model_path}")
+
+        assert os.path.exists(optim_path)
+
+        optim_state_dict = torch.load(
+            optim_path, map_location=torch.device("cpu"), weights_only=False
+        )
+
+        trainer.optimizer.load_state_dict(optim_state_dict)
+        print(f"loaded optim from {optim_path}")
+
+    return model, trainer

@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.architectures.cnp import AggrCNP, BcaCNP
+from src.architectures.cnp import AggrCNP, BCACNP
 from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
 from src.training.base_trainer import BaseTrainer
 
@@ -16,7 +16,7 @@ from src.training.base_trainer import BaseTrainer
 class CNPTrainer(BaseTrainer, ABC):
     def __init__(
         self,
-        model: AggrCNP | BcaCNP,
+        model: AggrCNP | BCACNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -51,7 +51,7 @@ class CNPTrainer(BaseTrainer, ABC):
         pass
 
     def val_step(self, batch: Tensor) -> Dict[str, float]:
-        assert isinstance(self.model, AggrCNP | BcaCNP)
+        assert isinstance(self.model, AggrCNP | BCACNP)
 
         data, x_data, y_data = self.get_data_subtasks(batch)
         # (batch_size, num_subtasks, data_size, x_dim + y_dim)
@@ -78,7 +78,7 @@ class CNPTrainer(BaseTrainer, ABC):
 class CNPTrainerData(CNPTrainer):
     def __init__(
         self,
-        model: AggrCNP | BcaCNP,
+        model: AggrCNP | BCACNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -145,7 +145,7 @@ class CNPTrainerData(CNPTrainer):
 class CNPTrainerTarget(CNPTrainer):
     def __init__(
         self,
-        model: AggrCNP | BcaCNP,
+        model: AggrCNP | BCACNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],
@@ -227,7 +227,7 @@ class CNPTrainerTarget(CNPTrainer):
 class CNPTrainerContext(CNPTrainer):
     def __init__(
         self,
-        model: AggrCNP | BcaCNP,
+        model: AggrCNP | BCACNP,
         device: torch.device,
         dataset: Dataset[Any],
         train_loader: DataLoader[Any],

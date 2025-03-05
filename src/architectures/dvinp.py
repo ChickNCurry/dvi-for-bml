@@ -19,11 +19,9 @@ class DVINP(NP):
         cdvi: CDVI,
         decoder: Decoder,
     ) -> None:
-        super(DVINP, self).__init__()
+        super(DVINP, self).__init__(encoder, decoder)
 
-        self.encoder = encoder
         self.cdvi = cdvi
-        self.decoder = decoder
 
     def inference(
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
