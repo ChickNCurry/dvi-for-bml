@@ -13,17 +13,18 @@ class AggrControl(BaseControl):
         num_layers: int,
         non_linearity: str,
         use_score: bool,
+        use_error: bool,
     ) -> None:
         super(AggrControl, self).__init__()
 
         self.non_linearity = non_linearity
         self.use_score = use_score
+        self.use_error = use_error
 
         self.proj_n = nn.Embedding(num_steps + 1, h_dim)
-        # self.proj_z = nn.Linear(z_dim, h_dim)
 
         self.mlp = nn.Sequential(
-            nn.Linear(z_dim + 2 * h_dim, h_dim),
+            nn.Linear(z_dim + 2 * h_dim + (1 if self.use_error else 0), h_dim),
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
@@ -52,17 +53,27 @@ class AggrControl(BaseControl):
         r: Tensor,
         mask: Tensor | None,
         score: Tensor | None,
+        error: Tensor | None,
     ) -> Tensor:
-        # (batch_size, num_subtasks, z_dim),
+        # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, data_size)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks)
 
         if self.use_score:
             assert score is not None
 
-        n_emb = self.proj_n(torch.tensor([n], device=z.device))
-        n_emb = n_emb.repeat(z.shape[0], z.shape[1], 1)
+        n_emb = self.proj_n(torch.tensor([n], device=z.device)).repeat(
+            z.shape[0], z.shape[1], 1
+        )  # (batch_size, num_subtasks, h_dim)
+
         input = torch.cat([z, r, n_emb], dim=-1)
         # (batch_size, num_subtasks, z_dim + 2 * h_dim)
+
+        if self.use_error and error is not None:
+            input = torch.cat([input, error], dim=-1)
+            # (batch_size, num_subtasks, z_dim + 2 * h_dim + 1)
 
         h = self.mlp(input)
         # (batch_size, num_subtasks, h_dim)

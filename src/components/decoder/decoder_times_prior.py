@@ -38,19 +38,17 @@ class DecoderTimesPrior(Distribution):
     def log_prob(self, z: Tensor) -> Tensor:
         # (batch_size, num_subtasks, z_dim)
 
-        log_like: Tensor = self.decoder(z, self.x).log_prob(self.y)
-        # (batch_size, num_subtasks, data_size, y_dim)
+        log_like: Tensor = self.decoder(z, self.x).log_prob(self.y).sum(-1)
+        # (batch_size, num_subtasks, data_size)
 
         if self.mask is not None:
-            mask = self.mask.unsqueeze(-1).expand(-1, -1, -1, log_like.shape[-1])
-            log_like = log_like * mask
-            # (batch_size, num_subtasks, data_size, y_dim)
+            log_like = log_like * self.mask
+            # (batch_size, num_subtasks, data_size)
 
-        log_like = log_like.sum(dim=2).sum(dim=-1, keepdim=True)
+        log_like = log_like.sum(-1, keepdim=True)
         # (batch_size, num_subtasks, 1)
 
-        log_prior: Tensor = self.prior.log_prob(z)  # type: ignore
-        log_prior = log_prior.sum(dim=2, keepdim=True)
+        log_prior: Tensor = self.prior.log_prob(z).sum(-1, keepdim=True)  # type: ignore
         # (batch_size, num_subtasks, 1)
 
         return log_like + log_prior

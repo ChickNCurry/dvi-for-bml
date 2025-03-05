@@ -1,4 +1,3 @@
-import os
 import random
 from enum import Enum
 from typing import Tuple
@@ -150,6 +149,7 @@ def load_dvinp(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
+                use_error=cfg.model.use_error,
             )
 
             annealing_schedule = AggrAnnealingSchedule(
@@ -197,6 +197,7 @@ def load_dvinp(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
+                use_error=cfg.model.use_error,
             )
 
             annealing_schedule = BCAAnnealingSchedule(
@@ -266,6 +267,7 @@ def load_dvinp(
                 noise_schedule=noise_schedule,
                 annealing_schedule=annealing_schedule,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
+                use_error=cfg.model.use_error,
                 device=device,
             )
 

@@ -16,5 +16,6 @@ class BaseControl(nn.Module, ABC):
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
         score: Tensor | None,
+        error: Tensor | None,
     ) -> Tensor:
         pass

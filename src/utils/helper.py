@@ -85,31 +85,34 @@ def load_state_dicts(
     optim_path = f"{dir}/optim.pth"
 
     if load_decoder_only:
-        assert os.path.exists(decoder_path)
 
-        decoder_state_dict = torch.load(
-            decoder_path, map_location=torch.device("cpu"), weights_only=False
-        )
+        if os.path.exists(decoder_path):
+            decoder_state_dict = torch.load(
+                decoder_path, map_location=torch.device("cpu"), weights_only=False
+            )
+            model.decoder.load_state_dict(decoder_state_dict)
+            print(f"loaded decoder from {decoder_path}")
+        else:
+            print(f"decoder not found at {decoder_path}")
 
-        model.decoder.load_state_dict(decoder_state_dict)
-        print(f"loaded decoder from {decoder_path}")
     else:
-        assert os.path.exists(model_path)
 
-        dvinp_state_dict = torch.load(
-            model_path, map_location=torch.device("cpu"), weights_only=False
-        )
+        if os.path.exists(model_path):
+            dvinp_state_dict = torch.load(
+                model_path, map_location=torch.device("cpu"), weights_only=False
+            )
+            model.load_state_dict(dvinp_state_dict, strict=False)
+            print(f"loaded model from {model_path}")
+        else:
+            print(f"model not found at {model_path}")
 
-        model.load_state_dict(dvinp_state_dict, strict=False)
-        print(f"loaded model from {model_path}")
-
-        assert os.path.exists(optim_path)
-
-        optim_state_dict = torch.load(
-            optim_path, map_location=torch.device("cpu"), weights_only=False
-        )
-
-        trainer.optimizer.load_state_dict(optim_state_dict)
-        print(f"loaded optim from {optim_path}")
+        if os.path.exists(optim_path):
+            optim_state_dict = torch.load(
+                optim_path, map_location=torch.device("cpu"), weights_only=False
+            )
+            trainer.optimizer.load_state_dict(optim_state_dict)
+            print(f"loaded optim from {optim_path}")
+        else:
+            print(f"optim not found at {optim_path}")
 
     return model, trainer

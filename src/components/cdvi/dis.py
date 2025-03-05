@@ -19,6 +19,7 @@ class DIS(CDVI):
         noise_schedule: BaseSchedule,
         annealing_schedule: BaseSchedule,
         use_score: bool,
+        use_error: bool,
         device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
@@ -32,6 +33,7 @@ class DIS(CDVI):
         self.noise_schedule = noise_schedule
         self.annealing_schedule = annealing_schedule
         self.use_score = use_score
+        self.use_error = use_error
 
     def contextualize(
         self,
@@ -51,10 +53,14 @@ class DIS(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
+
         score_n = (
             torch.sqrt(var_n) * self.compute_score(n, z) if self.use_score else None
         )
-        control_n = self.control(n, z, self.r, self.mask, score_n)
+
+        error_n = self.target.log_prob(z).detach() if self.use_error else None
+
+        control_n = self.control(n, z, self.r, self.mask, score_n, error_n)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z + (-var_n * z + torch.sqrt(var_n) * control_n) * delta_t_n
