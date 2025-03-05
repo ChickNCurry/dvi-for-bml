@@ -39,7 +39,7 @@ class DualPathDecoder(nn.Module):
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
-                for _ in range(num_layers - 2)
+                for _ in range(num_layers)
             ],
             getattr(nn, non_linearity)(),
         )
