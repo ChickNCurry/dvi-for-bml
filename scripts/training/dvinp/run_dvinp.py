@@ -47,10 +47,9 @@ def run(cfg: DictConfig) -> None:
         with open(cfg_path, "w") as f:
             OmegaConf.save(cfg, f)
 
-        if cfg.wandb.logging and wandb.run is not None:
-            wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
-            wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
-            wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+        wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
+        wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
+        wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
 
 
 if __name__ == "__main__":

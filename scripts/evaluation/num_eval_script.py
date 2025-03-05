@@ -46,12 +46,12 @@ def run(model_infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
         model_info.model = model
         model_info.val_loader = val_loader
 
-    # num_pred_eval(
-    #     model_infos=model_infos,
-    #     num_samples=num_samples,
-    #     device=device,
-    #     save_dir=save_dir,
-    # )
+    num_pred_eval(
+        model_infos=model_infos,
+        num_samples=num_samples,
+        device=device,
+        save_dir=save_dir,
+    )
 
     num_tp_eval(
         model_infos=model_infos,
@@ -66,29 +66,24 @@ if __name__ == "__main__":
 
     infos = [
         ModelInfo(
-            name="16-1-bca-free-dis-True-True-forwardandcontext-1.0-0",
-            project="cluster-dvinp-score2",
+            name="1-bca-free-dis-True-cntxt",
+            project="cluster-dvinp-sine",
             type=ModelType.DVINP,
         ),
         ModelInfo(
-            name="16-1-bca-free-dis-True-False-forwardandcontext-1.0-0",
-            project="cluster-dvinp-noscore",
+            name="1-bca-free-dis_score-True-cntxt",
+            project="cluster-dvinp-sine",
             type=ModelType.DVINP,
         ),
         ModelInfo(
-            name="16-1-bca-free-dis-True-False-context-1.0-0",
-            project="cluster-dvinp-noscore",
+            name="1-bca-free-dis_score-True-fwdcntxt",
+            project="cluster-dvinp-sine-2",
             type=ModelType.DVINP,
         ),
         ModelInfo(
-            name="1-mean-lnp-data-1.0-0",
-            project="cluster-np",
-            type=ModelType.LNP,
-        ),
-        ModelInfo(
-            name="1-mean-cnp-data-None-0",
-            project="cluster-np",
-            type=ModelType.CNP,
+            name="1-bca-free-dis-True-fwdcntxt",
+            project="cluster-dvinp-sine-2",
+            type=ModelType.DVINP,
         ),
     ]
 

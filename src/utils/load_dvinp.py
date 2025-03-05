@@ -64,9 +64,9 @@ class ModelVariant(Enum):
 
 class TrainerVariant(Enum):
     DATA = "data"
-    CONTEXT = "context"
-    FORWARD = "forward"
-    FORWARDANDCONTEXT = "forwardandcontext"
+    CONTEXT = "cntxt"
+    FORWARD = "fwd"
+    FORWARDANDCONTEXT = "fwdcntxt"
 
 
 def load_dvinp(

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 
+import numpy as np
 import torch
 from torch import Generator, Tensor
 from torch.distributions.kl import kl_divergence
@@ -190,6 +191,35 @@ class LNPTrainerData(LNPTrainer):
         mse = compute_mse(y_dist_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
+
+    # def train_step_noisy(
+    #     self, batch: Tensor, alpha: float | None
+    # ) -> Tuple[Tensor, Dict[str, float]]:
+    #     assert isinstance(self.model, AggrLNP | BcaLNP)
+
+    #     data, x_data, y_data = self.get_data_subtasks(batch)
+    #     # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+    #     # (batch_size, num_subtasks, data_size, x_dim)
+    #     # (batch_size, num_subtasks, data_size, y_dim)
+
+    #     context_size: int = np.random.randint(1, data.shape[1] + 1)
+    #     context = data[:, :, 0:context_size, :]
+    #     # (batch_size, num_subtasks, data_size, x_dim + y_dim)
+
+    #     y_dist_data, z_dist_data, z_data = self.model(data, None, x_data)
+    #     # (batch_size, num_subtasks, data_size, y_dim)
+
+    #     z_dist_context, _ = self.model.encode(context, None)
+    #     # (batch_size, num_subtasks, z_dim)
+
+    #     loss = self.lnp_loss_data_kl(
+    #         y_dist_data, y_data, z_dist_data, z_data, z_dist_context
+    #     )
+
+    #     lmpl = compute_lmpl(y_dist_data, y_data)
+    #     mse = compute_mse(y_dist_data, y_data)
+
+    #     return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
 
 
 class LNPTrainerTarget(LNPTrainer):
@@ -445,66 +475,3 @@ class LNPTrainerContext(LNPTrainer):
         mse = compute_mse(y_dist_data, y_data)
 
         return loss, {"lmpl": lmpl.item(), "mse": mse.item()}
-
-
-# class NoisyCNPTrainer(BaseTrainer):
-#     def __init__(
-#         self,
-#         model: AggrCNP | BcaCNP,
-#         device: torch.device,
-#         dataset: Dataset[Any],
-#         train_loader: DataLoader[Any],
-#         val_loader: DataLoader[Any],
-#         optimizer: Optimizer,
-#         scheduler: LRScheduler | None,
-#         wandb_logging: bool,
-#         num_subtasks: int,
-#         num_samples: int,
-#         val_grad_off: bool,
-#     ) -> None:
-#         super().__init__(
-#             device,
-#             model,
-#             dataset,
-#             train_loader,
-#             val_loader,
-#             optimizer,
-#             scheduler,
-#             wandb_logging,
-#             num_subtasks,
-#             num_samples,
-#             val_grad_off,
-#         )
-
-#     def train_step(
-#         self, batch: Tensor, alpha: float | None
-#     ) -> Tuple[Tensor, Dict[str, float]]:
-#         x_data, y_data = batch
-#         x_data = x_data.to(self.device)
-#         y_data = y_data.to(self.device)
-#         # (batch_size, data_size, x_dim)
-#         # (batch_size, data_size, y_dim)
-
-#         x_data = x_data.unsqueeze(1)
-#         y_data = y_data.unsqueeze(1)
-#         # (batch_size, 1, data_size, x_dim)
-#         # (batch_size, 1, data_size, y_dim)
-
-#         context_size: int = np.random.randint(1, x_data.shape[1] + 1)
-#         x_context = x_data[:, :, 0:context_size, :]
-#         y_context = y_data[:, :, 0:context_size, :]
-#         # (batch_size, 1, context_size, x_dim)
-#         # (batch_size, 1, context_size, y_dim)
-
-#         context = torch.cat([x_context, y_context], dim=-1)
-#         # (batch_size, 1, context_size, x_dim + y_dim)
-
-#         output = self.model(context, None, x_context)
-#         loss = self.model.loss(*output, y_target=y_context, mask=None)
-
-#         return loss, {}
-
-#     def val_step(
-#         self, batch: Tensor, ranges: List[Tuple[float, float]]
-#     ) -> Dict[str, float]:
-#         raise NotImplementedError
