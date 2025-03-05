@@ -79,7 +79,8 @@ class BCAControl(AbstractControl):
         input = torch.cat([z, z_mu, z_var, n_emb], dim=-1)
         # (batch_size, num_subtasks, z_dim + 3 * h_dim)
 
-        if self.use_error and error is not None:
+        if self.use_error:
+            assert error is not None
             input = torch.cat([input, error], dim=-1)
             # (batch_size, num_subtasks, z_dim + 3 * h_dim + 1)
 

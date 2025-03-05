@@ -8,8 +8,8 @@ from torch.distributions.normal import Normal
 
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
-from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.abstract_encoder import AbstractEncoder
+from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 

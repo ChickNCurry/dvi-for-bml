@@ -5,14 +5,13 @@ import torch
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
-from omegaconf import DictConfig
 from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.architectures.cnp import AggrCNP, BCACNP
+from src.architectures.cnp import BCACNP, AggrCNP
 from src.architectures.dvinp import DVINP
-from src.architectures.lnp import AggrLNP, BCALNP
+from src.architectures.lnp import BCALNP, AggrLNP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.evaluation.taskposterior.grid import (
     create_grid,
@@ -24,7 +23,7 @@ from src.evaluation.taskposterior.grid import (
 from src.utils.datasets import hash_tensor
 
 
-def visualize_dvinp_both(
+def visualize_dvinp(
     device: torch.device,
     dvinp: DVINP,
     dataloader: DataLoader[Tuple[Tensor, Tensor]],
@@ -85,23 +84,15 @@ def visualize_dvinp_both(
         context = torch.cat([x_context, y_context], dim=-1)
         # (1, num_samples, context_size, x_dim + y_dim)
 
-        r = dvinp.encoder(context, None)
+        y_dist, z = dvinp.inference(x_context, y_context, None, x_data)
+        target_dist = dvinp.get_target_dist(x_context, y_context, None)
 
-        target = DecoderTimesPrior(
-            decoder=dvinp.decoder,
-            x=x_context,
-            y=y_context,
-            mask=None,
-        )
+        tp_samples = z.cpu().detach().numpy()
 
-        _, z_samples = dvinp.cdvi.run_both_processes(target, r, None)
-
-        tp_samples = z_samples[-1].cpu().detach().numpy()
-
-        targets.append(target)
+        targets.append(target_dist)
         samples.append(tp_samples)
 
-        y_dist: Distribution = dvinp.decoder(z_samples[-1], x_data)
+        # y_dist: Distribution = dvinp.decoder(z_samples[-1], x_data)
 
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
@@ -111,15 +102,17 @@ def visualize_dvinp_both(
 
         # dvi_vals = eval_kde_on_grid(grid, z_samples[-1].cpu().detach().numpy())
         dvi_log_probs = eval_hist_on_grid(
-            z_samples[-1].reshape(-1, z_samples[-1].shape[-1]).cpu().detach().numpy(),
+            z.reshape(-1, z.shape[-1]).cpu().detach().numpy(),
             ranges,
             num_cells,
         )
 
-        target_log_probs = eval_dist_on_grid(grid, target, device=device).squeeze(0)
+        target_log_probs = eval_dist_on_grid(grid, target_dist, device=device).squeeze(
+            0
+        )
 
         if show_score:
-            score_vals = eval_score_on_grid(grid, target, device=device)
+            score_vals = eval_score_on_grid(grid, target_dist, device=device)
 
         target_samples_np = sample_from_log_probs(grid, target_log_probs, num_samples)
         target_samples = torch.from_numpy(target_samples_np).unsqueeze(0).to(device)
@@ -294,6 +287,27 @@ def visualize_np(
                     alpha=0.2,
                     zorder=0,
                 )
+
+    plt.show()
+
+
+def visualize_task(dataloader: DataLoader[Tuple[Tensor, Tensor]]) -> None:
+    plt.figure(figsize=(8, 4))
+
+    for batch in dataloader:
+        x_data, y_data = batch
+        # (batch_size, data_size, x_dim)
+        # (batch_size, data_size, y_dim)
+
+        x_data_sorted, indices = x_data.sort(dim=1)
+        y_data_sorted = y_data.gather(1, indices)
+
+        x_data, y_data = x_data.numpy(), y_data.numpy()
+
+        for i in range(x_data.shape[0]):
+            plt.plot(x_data_sorted[i, :, 0], y_data_sorted[i, :, 0])
+
+        # plt.scatter(x_data[:, :, 0], y_data[:, :, 0])
 
     plt.show()
 

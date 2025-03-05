@@ -75,7 +75,6 @@ class BCAEncoder(AbstractEncoder):
 
         r = self.proj_r(h)
         r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e2))
-        # r_var = torch.exp(self.proj_r_logvar(h))
         # (batch_size, num_subtasks, context_size, h_dim)
 
         z_var_0 = torch.ones((batch_size, num_subtasks, self.z_dim), device=h.device)

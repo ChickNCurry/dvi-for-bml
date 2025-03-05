@@ -51,7 +51,7 @@ class CDVI(nn.Module, ABC):
         n: int,
         z: Tensor,
     ) -> Distribution:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def backward_kernel(
@@ -59,7 +59,7 @@ class CDVI(nn.Module, ABC):
         n: int,
         z: Tensor,
     ) -> Distribution:
-        pass
+        raise NotImplementedError
 
     def run_forward_process(
         self,

@@ -1,4 +1,5 @@
 from typing import Tuple
+
 import torch
 from torch import Tensor
 from torch.distributions import Distribution, Normal
@@ -37,20 +38,16 @@ class ULA(CDVI):
     ) -> None:
         super(ULA, self).contextualize(target, r, mask)
 
-        self.step_size_schedule.update(r, mask)
-        self.noise_schedule.update(r, mask)
-        self.annealing_schedule.update(r, mask)
-
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score = self.compute_score(n, z)
+        score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z + (var_n * score) * delta_t_n
+        z_mu = z + (var_n * score_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -62,10 +59,10 @@ class ULA(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score = self.compute_score(n, z)
+        score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z - (var_n * score) * delta_t_n
+        z_mu = z - (var_n * score_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -88,6 +85,6 @@ class ULA(CDVI):
             retain_graph=True,
         )[0]
 
-        score = torch.nan_to_num(score)
+        # score = torch.nan_to_num(score)
 
         return score

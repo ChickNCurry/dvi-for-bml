@@ -3,12 +3,12 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
+import wandb
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-import wandb
 from src.architectures.dvinp import DVINP
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.evaluation.grid import (

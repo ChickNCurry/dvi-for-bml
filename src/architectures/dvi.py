@@ -12,7 +12,7 @@ class DVI(nn.Module):
         self,
         encoder: AbstractEncoder,
         cdvi: CDVI,
-        contextual_target: Callable[[Tensor, Tensor | None], Distribution] | None,
+        contextual_target: Callable[[Tensor, Tensor | None], Distribution],
     ) -> None:
         super().__init__()
 

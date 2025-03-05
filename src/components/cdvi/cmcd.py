@@ -49,11 +49,11 @@ class CMCD(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
-        score = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, None)
+        score_n = self.compute_score(n, z)
+        control_n = self.control(n, z, self.r, self.mask, None, None)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z + (var_n * score + torch.sqrt(var_n) * control_n) * delta_t_n
+        z_mu = z + (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
@@ -66,7 +66,7 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, None)
+        control_n = self.control(n, z, self.r, self.mask, None, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z - (var_n * score + torch.sqrt(var_n) * control_n) * delta_t_n
@@ -92,7 +92,7 @@ class CMCD(CDVI):
             retain_graph=True,
         )[0]
 
-        score_n = torch.nan_to_num(score_n)
+        # score_n = torch.nan_to_num(score_n)
 
         # grad_norm = score_n.norm(p=2)
         # if grad_norm > 1:

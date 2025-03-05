@@ -18,4 +18,4 @@ class AbstractControl(nn.Module, ABC):
         score: Tensor | None,
         error: Tensor | None,
     ) -> Tensor:
-        pass
+        raise NotImplementedError

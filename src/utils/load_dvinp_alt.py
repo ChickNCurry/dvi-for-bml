@@ -16,7 +16,7 @@ from src.components.control.aggr_control import AggrControl
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from src.training.abstract_trainer import AbstractTrainer
-from src.training.alt_dvinp_trainer import AlternatingDVINPTrainer
+from src.training.dvinp_alt_trainer import AlternatingDVINPTrainer
 from src.training.dvinp_trainer import DVINPTrainer
 from src.utils.datasets import MetaLearningDataset
 

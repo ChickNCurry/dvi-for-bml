@@ -57,7 +57,6 @@ class DIS(CDVI):
         score_n = (
             torch.sqrt(var_n) * self.compute_score(n, z) if self.use_score else None
         )
-
         error_n = self.target.log_prob(z).detach() if self.use_error else None
 
         control_n = self.control(n, z, self.r, self.mask, score_n, error_n)
@@ -101,7 +100,7 @@ class DIS(CDVI):
         )[0]
 
         score_n = score_n.detach()
-        score_n = torch.nan_to_num(score_n)
+        # score_n = torch.nan_to_num(score_n)
 
         grad_norm = score_n.norm(p=2)
         if grad_norm > 1:

@@ -54,43 +54,43 @@ class Decoder(nn.Module):
 
         return Normal(y_mu, y_sigma)  # type: ignore
 
-    def get_mse(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
-        # (batch_size, num_subtasks, z_dim)
-        # (batch_size, num_subtasks, data_size, x_dim)
-        # (batch_size, num_subtasks, data_size, y_dim)
-        # (batch_size, num_subtasks, data_size)
+    # def get_mse(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
+    #     # (batch_size, num_subtasks, z_dim)
+    #     # (batch_size, num_subtasks, data_size, x_dim)
+    #     # (batch_size, num_subtasks, data_size, y_dim)
+    #     # (batch_size, num_subtasks, data_size)
 
-        y_dist: Normal = self(z, x)
-        y_pred: Tensor = y_dist.mean
-        # (batch_size, num_subtasks, data_size, y_dim)
+    #     y_dist: Normal = self(z, x)
+    #     y_pred: Tensor = y_dist.mean
+    #     # (batch_size, num_subtasks, data_size, y_dim)
 
-        mse: Tensor = ((y_pred - y) ** 2).sum(3)
-        # (batch_size, num_subtasks, data_size)
+    #     mse: Tensor = ((y_pred - y) ** 2).sum(3)
+    #     # (batch_size, num_subtasks, data_size)
 
-        if mask is not None:
-            mse = mse * mask
+    #     if mask is not None:
+    #         mse = mse * mask
 
-        mse = mse.mean(2, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+    #     mse = mse.mean(2, keepdim=True)
+    #     # (batch_size, num_subtasks, 1)
 
-        return mse
+    #     return mse
 
-    def get_log_like(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
-        # (batch_size, num_subtasks, z_dim)
-        # (batch_size, num_subtasks, data_size, x_dim)
-        # (batch_size, num_subtasks, data_size, y_dim)
-        # (batch_size, num_subtasks, data_size)
+    # def get_log_like(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
+    #     # (batch_size, num_subtasks, z_dim)
+    #     # (batch_size, num_subtasks, data_size, x_dim)
+    #     # (batch_size, num_subtasks, data_size, y_dim)
+    #     # (batch_size, num_subtasks, data_size)
 
-        y_dist: Normal = self(z, x)
-        # (batch_size, num_subtasks, data_size, y_dim)
+    #     y_dist: Normal = self(z, x)
+    #     # (batch_size, num_subtasks, data_size, y_dim)
 
-        log_like: Tensor = y_dist.log_prob(y).sum(3)  # type: ignore
-        # (batch_size, num_subtasks, data_size)
+    #     log_like: Tensor = y_dist.log_prob(y).sum(3)  # type: ignore
+    #     # (batch_size, num_subtasks, data_size)
 
-        if mask is not None:
-            log_like = log_like * mask
+    #     if mask is not None:
+    #         log_like = log_like * mask
 
-        log_like = log_like.sum(2, keepdim=True)
-        # (batch_size, num_subtasks, 1)
+    #     log_like = log_like.sum(2, keepdim=True)
+    #     # (batch_size, num_subtasks, 1)
 
-        return log_like
+    #     return log_like

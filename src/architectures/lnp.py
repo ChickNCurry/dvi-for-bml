@@ -67,9 +67,6 @@ class AggrLNP(LNP):
         r = self.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
 
-        # z_mu, z_log_var = self.proj_z_mu(r), self.proj_z_logvar(r)
-        # z_dist = Normal(z_mu, torch.exp(0.5 * z_log_var))
-
         z_mu = self.proj_z_mu(r)
         z_sigma = softplus(torch.clamp(self.proj_z_sigma(r), min=1e-6, max=1e2))
         z_dist = Normal(z_mu, z_sigma)
