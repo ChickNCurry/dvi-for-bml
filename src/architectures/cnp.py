@@ -9,12 +9,12 @@ from torch.distributions.normal import Normal
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.encoder.aggr_encoder import AggrEncoder
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
 class CNP(NP, ABC):
-    def __init__(self, encoder: BaseEncoder, decoder: Decoder) -> None:
+    def __init__(self, encoder: AbstractEncoder, decoder: Decoder) -> None:
         super(CNP, self).__init__(encoder, decoder)
 
     @abstractmethod

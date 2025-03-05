@@ -5,8 +5,8 @@ from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from src.components.cdvi.cdvi import CDVI
-from src.components.control.base_control import BaseControl
-from src.components.schedule.base_schedule import BaseSchedule
+from src.components.control.abstract_control import AbstractControl
+from src.components.schedule.abstract_schedule import AbstractSchedule
 
 
 class DIS(CDVI):
@@ -14,10 +14,10 @@ class DIS(CDVI):
         self,
         z_dim: int,
         num_steps: int,
-        control: BaseControl,
-        step_size_schedule: BaseSchedule,
-        noise_schedule: BaseSchedule,
-        annealing_schedule: BaseSchedule,
+        control: AbstractControl,
+        step_size_schedule: AbstractSchedule,
+        noise_schedule: AbstractSchedule,
+        annealing_schedule: AbstractSchedule,
         use_score: bool,
         use_error: bool,
         device: torch.device,

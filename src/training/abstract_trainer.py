@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 
-class BaseTrainer(ABC):
+class AbstractTrainer(ABC):
     def __init__(
         self,
         model: nn.Module,

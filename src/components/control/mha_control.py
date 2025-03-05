@@ -3,10 +3,10 @@ from typing import Tuple
 import torch
 from torch import Tensor, nn
 
-from src.components.control.base_control import BaseControl
+from src.components.control.abstract_control import AbstractControl
 
 
-class MHAControl(BaseControl):
+class MHAControl(AbstractControl):
     def __init__(
         self,
         h_dim: int,

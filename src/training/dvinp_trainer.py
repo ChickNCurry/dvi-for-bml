@@ -17,10 +17,10 @@ from src.evaluation.taskposterior.grid import (
     eval_hist_on_grid,
 )
 from src.evaluation.taskposterior.tp_metrics import compute_bd, compute_jsd
-from src.training.base_trainer import BaseTrainer
+from src.training.abstract_trainer import AbstractTrainer
 
 
-class DVINPTrainer(BaseTrainer, ABC):
+class DVINPTrainer(AbstractTrainer, ABC):
     def __init__(
         self,
         model: DVINP,

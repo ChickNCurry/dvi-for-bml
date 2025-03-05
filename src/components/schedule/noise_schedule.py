@@ -2,10 +2,10 @@ import torch
 from torch import Tensor, nn
 from torch.nn.functional import softplus
 
-from src.components.schedule.base_schedule import BaseSchedule
+from src.components.schedule.abstract_schedule import AbstractSchedule
 
 
-class NoiseSchedule(BaseSchedule):
+class NoiseSchedule(AbstractSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -32,7 +32,7 @@ class NoiseSchedule(BaseSchedule):
         return var_n
 
 
-class AggrNoiseSchedule(BaseSchedule):
+class AggrNoiseSchedule(AbstractSchedule):
     def __init__(
         self,
         z_dim: int,
@@ -84,7 +84,7 @@ class AggrNoiseSchedule(BaseSchedule):
         return var_n
 
 
-class BCANoiseSchedule(BaseSchedule):
+class BCANoiseSchedule(AbstractSchedule):
     def __init__(
         self,
         z_dim: int,

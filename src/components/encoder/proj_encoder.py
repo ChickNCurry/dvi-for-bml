@@ -1,9 +1,9 @@
 from torch import Tensor, nn
 
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 
 
-class ProjEncoder(BaseEncoder):
+class ProjEncoder(AbstractEncoder):
     def __init__(self, c_dim: int, h_dim: int) -> None:
         super(ProjEncoder, self).__init__()
 

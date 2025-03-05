@@ -18,7 +18,7 @@ from src.evaluation.grid import (
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.training.base_trainer import AbstractTrainer
+from training.abstract_trainer import AbstractTrainer
 
 # class AbstractTrainer(ABC):
 #     def __init__(

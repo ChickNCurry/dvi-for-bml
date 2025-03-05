@@ -10,12 +10,12 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.architectures.lnp import AggrLNP, BCALNP
+from src.architectures.lnp import BCALNP, AggrLNP
 from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
-from src.training.base_trainer import BaseTrainer
+from src.training.abstract_trainer import AbstractTrainer
 
 
-class LNPTrainer(BaseTrainer, ABC):
+class LNPTrainer(AbstractTrainer, ABC):
     def __init__(
         self,
         model: AggrLNP | BCALNP,

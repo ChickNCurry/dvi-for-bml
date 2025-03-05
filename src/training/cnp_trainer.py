@@ -8,12 +8,12 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
-from src.architectures.cnp import AggrCNP, BCACNP
+from src.architectures.cnp import BCACNP, AggrCNP
 from src.evaluation.predictive.pred_metrics import compute_lmpl, compute_mse
-from src.training.base_trainer import BaseTrainer
+from src.training.abstract_trainer import AbstractTrainer
 
 
-class CNPTrainer(BaseTrainer, ABC):
+class CNPTrainer(AbstractTrainer, ABC):
     def __init__(
         self,
         model: AggrCNP | BCACNP,

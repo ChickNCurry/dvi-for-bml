@@ -1,9 +1,9 @@
 from torch import Tensor, nn
 
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 
 
-class MHAEncoder(BaseEncoder):
+class MHAEncoder(AbstractEncoder):
     def __init__(
         self,
         c_dim: int,

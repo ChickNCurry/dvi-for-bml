@@ -6,7 +6,7 @@ import wandb
 from omegaconf import DictConfig, OmegaConf
 
 from src.architectures.np import NP
-from src.training.base_trainer import BaseTrainer
+from src.training.abstract_trainer import AbstractTrainer
 
 
 def get_name_np(cfg: DictConfig) -> str:
@@ -37,7 +37,7 @@ def get_name_dvinp(cfg: DictConfig) -> str:
     return "-".join(model_values + training_values)
 
 
-def upload_run(cfg: DictConfig, model: NP, trainer: BaseTrainer) -> None:
+def upload_run(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
     assert wandb.run is not None
 
     if not os.path.exists("models"):
@@ -78,8 +78,8 @@ def download_run(project: str, name: str) -> str:
 
 
 def load_state_dicts(
-    dir: str, model: NP, trainer: BaseTrainer, load_decoder_only: bool
-) -> Tuple[NP, BaseTrainer]:
+    dir: str, model: NP, trainer: AbstractTrainer, load_decoder_only: bool
+) -> Tuple[NP, AbstractTrainer]:
     model_path = f"{dir}/model.pth"
     decoder_path = f"{dir}/decoder.pth"
     optim_path = f"{dir}/optim.pth"

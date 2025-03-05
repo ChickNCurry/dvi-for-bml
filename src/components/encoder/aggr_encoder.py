@@ -3,7 +3,7 @@ from enum import Enum
 import torch
 from torch import Tensor, nn
 
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 
 
 class Aggr(Enum):
@@ -11,7 +11,7 @@ class Aggr(Enum):
     MAX = "max"
 
 
-class AggrEncoder(BaseEncoder):
+class AggrEncoder(AbstractEncoder):
     def __init__(
         self,
         c_dim: int,

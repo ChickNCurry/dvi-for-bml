@@ -4,9 +4,9 @@ from typing import Tuple
 from torch import Tensor, nn
 
 
-class BaseControl(nn.Module, ABC):
+class AbstractControl(nn.Module, ABC):
     def __init__(self) -> None:
-        super(BaseControl, self).__init__()
+        super(AbstractControl, self).__init__()
 
     @abstractmethod
     def forward(

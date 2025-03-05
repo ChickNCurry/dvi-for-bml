@@ -5,10 +5,10 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from src.components.schedule.base_schedule import BaseSchedule
+from src.components.schedule.abstract_schedule import AbstractSchedule
 
 
-class StepSizeSchedule(BaseSchedule):
+class StepSizeSchedule(AbstractSchedule):
     def __init__(self, num_steps: int, device: torch.device) -> None:
         super(StepSizeSchedule, self).__init__()
 

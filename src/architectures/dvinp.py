@@ -9,13 +9,13 @@ from src.architectures.np import NP
 from src.components.cdvi.cdvi import CDVI
 from src.components.decoder.decoder import Decoder
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 
 
 class DVINP(NP):
     def __init__(
         self,
-        encoder: BaseEncoder,
+        encoder: AbstractEncoder,
         cdvi: CDVI,
         decoder: Decoder,
     ) -> None:

@@ -13,11 +13,11 @@ from src.architectures.dvi import DVI
 from src.components.cdvi.cmcd import CMCD
 from src.components.cdvi.dis import DIS
 from src.components.control.aggr_control import AggrControl
-from src.components.control.base_control import BaseControl
+from src.components.control.abstract_control import AbstractControl
 from src.components.control.bca_control import BCAControl
 from src.components.control.mha_control import MHAControl
 from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
-from src.components.encoder.base_encoder import BaseEncoder
+from src.components.encoder.abstract_encoder import AbstractEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 from src.components.encoder.mha_encoder import MHAEncoder
 from src.components.schedule.annealing_schedule import (
@@ -25,7 +25,7 @@ from src.components.schedule.annealing_schedule import (
     AnnealingSchedule,
     BCAAnnealingSchedule,
 )
-from src.components.schedule.base_schedule import BaseSchedule
+from src.components.schedule.abstract_schedule import AbstractSchedule
 from src.components.schedule.cos_noise_schedule import (
     AggrCosineNoiseSchedule,
     BCACosineNoiseSchedule,
@@ -300,7 +300,9 @@ def run() -> None:
 
     step_size_schedule = StepSizeSchedule(num_steps=config.num_steps, device=device)
 
-    variations: List[Tuple[BaseControl, BaseSchedule, BaseSchedule, BaseEncoder]] = [
+    variations: List[
+        Tuple[AbstractControl, AbstractSchedule, AbstractSchedule, AbstractEncoder]
+    ] = [
         (aggr_control, noise_schedule, ann_schedule, aggr_enc_mean),
         (aggr_control, noise_schedule, ann_schedule, aggr_enc_max),
         (aggr_control, noise_schedule, ann_schedule, aggr_enc_mean_cse),

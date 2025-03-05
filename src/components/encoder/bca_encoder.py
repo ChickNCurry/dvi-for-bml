@@ -2,12 +2,12 @@ from typing import Tuple
 
 import torch
 from torch import Tensor, nn
-
-from src.components.encoder.base_encoder import BaseEncoder
 from torch.nn.functional import softplus
 
+from src.components.encoder.abstract_encoder import AbstractEncoder
 
-class BCAEncoder(BaseEncoder):
+
+class BCAEncoder(AbstractEncoder):
     def __init__(
         self,
         c_dim: int,

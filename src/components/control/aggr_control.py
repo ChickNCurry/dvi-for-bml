@@ -1,10 +1,10 @@
 import torch
 from torch import Tensor, nn
 
-from src.components.control.base_control import BaseControl
+from src.components.control.abstract_control import AbstractControl
 
 
-class AggrControl(BaseControl):
+class AggrControl(AbstractControl):
     def __init__(
         self,
         h_dim: int,

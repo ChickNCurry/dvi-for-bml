@@ -2,10 +2,10 @@ import torch
 from torch import Tensor, nn
 from torch.nn.functional import softplus
 
-from src.components.schedule.base_schedule import BaseSchedule
+from src.components.schedule.abstract_schedule import AbstractSchedule
 
 
-class AnnealingSchedule(BaseSchedule, nn.Module):
+class AnnealingSchedule(AbstractSchedule, nn.Module):
     def __init__(
         self,
         num_steps: int,
@@ -31,7 +31,7 @@ class AnnealingSchedule(BaseSchedule, nn.Module):
         return beta_n
 
 
-class AggrAnnealingSchedule(BaseSchedule, nn.Module):
+class AggrAnnealingSchedule(AbstractSchedule, nn.Module):
     def __init__(
         self,
         h_dim: int,
@@ -76,7 +76,7 @@ class AggrAnnealingSchedule(BaseSchedule, nn.Module):
         return beta_n
 
 
-class BCAAnnealingSchedule(BaseSchedule, nn.Module):
+class BCAAnnealingSchedule(AbstractSchedule, nn.Module):
     def __init__(
         self,
         h_dim: int,

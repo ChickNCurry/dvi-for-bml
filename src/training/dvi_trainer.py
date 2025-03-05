@@ -8,10 +8,10 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
 from src.architectures.dvi import DVI
-from src.training.base_trainer import BaseTrainer
+from src.training.abstract_trainer import AbstractTrainer
 
 
-class DVITrainer(BaseTrainer, ABC):
+class DVITrainer(AbstractTrainer, ABC):
     def __init__(
         self,
         model: DVI,

@@ -7,16 +7,16 @@ from torch.distributions.distribution import Distribution
 from torch.distributions.normal import Normal
 from torch.nn.functional import softplus
 
-from src.components.encoder.base_encoder import BaseEncoder
 from src.architectures.np import NP
 from src.components.decoder.decoder import Decoder
 from src.components.decoder.decoder_times_prior import DecoderTimesPrior
+from src.components.encoder.abstract_encoder import AbstractEncoder
 from src.components.encoder.aggr_encoder import AggrEncoder
 from src.components.encoder.bca_encoder import BCAEncoder
 
 
 class LNP(NP, ABC):
-    def __init__(self, encoder: BaseEncoder, decoder: Decoder) -> None:
+    def __init__(self, encoder: AbstractEncoder, decoder: Decoder) -> None:
         super(LNP, self).__init__(encoder, decoder)
 
     @abstractmethod

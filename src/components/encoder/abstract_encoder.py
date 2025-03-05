@@ -4,11 +4,11 @@ from typing import Tuple
 from torch import Tensor, nn
 
 
-class BaseEncoder(nn.Module, ABC):
+class AbstractEncoder(nn.Module, ABC):
     def __init__(
         self,
     ) -> None:
-        super(BaseEncoder, self).__init__()
+        super(AbstractEncoder, self).__init__()
 
     @abstractmethod
     def forward(
