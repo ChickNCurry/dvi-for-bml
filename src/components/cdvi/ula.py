@@ -89,6 +89,4 @@ class ULA(CDVI):
             retain_graph=True,
         )[0]
 
-        # score = torch.nan_to_num(score)
-
         return score
