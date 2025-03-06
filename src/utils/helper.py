@@ -27,9 +27,8 @@ def get_name_dvinp(cfg: DictConfig) -> str:
         "noise_variant",
         "self_attn_num_heads",
         "contextual_schedules",
-        "use_score",
     ]
-    training_keys = ["trainer_variant", "max_clip_norm", "seed"]
+    training_keys = ["trainer_variant"]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
     training_values = [f"{v}" for k, v in cfg.training.items() if k in training_keys]
