@@ -89,13 +89,13 @@ class DVITrainerContext(DVITrainer):
         assert isinstance(self.model, DVI)
 
         data = batch.to(self.device).unsqueeze(1).expand(-1, self.num_subtasks, -1, -1)
-        # (batch_size, num_subtasks, context_size, c_dim)
+        # (batch_size, num_subtasks, data_size, c_dim)
 
         mask = self.get_mask(alpha, data)
-        # (batch_size, num_subtasks, context_size)
+        # (batch_size, num_subtasks, data_size)
 
         context = batch * mask.unsqueeze(-1).expand(-1, -1, -1, data.shape[-1])
-        # (batch_size, num_subtasks, context_size, c_dim)
+        # (batch_size, num_subtasks, data_size, c_dim)
 
         target_dist = self.model.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)

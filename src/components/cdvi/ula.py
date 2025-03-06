@@ -38,6 +38,10 @@ class ULA(CDVI):
     ) -> None:
         super(ULA, self).contextualize(target, r, mask)
 
+        self.step_size_schedule.update(r, mask)
+        self.noise_schedule.update(r, mask)
+        self.annealing_schedule.update(r, mask)
+
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
