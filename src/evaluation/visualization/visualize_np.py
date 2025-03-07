@@ -1,12 +1,8 @@
-from typing import List, Tuple
+from typing import Tuple
 
-import numpy as np
 import torch
-from matplotlib import cm
 from matplotlib import pyplot as plt
-from numpy.typing import NDArray
 from torch import Tensor
-from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
 from src.architectures.cnp import CNP

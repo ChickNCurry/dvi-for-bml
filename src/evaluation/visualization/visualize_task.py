@@ -1,7 +1,4 @@
-from typing import List, Tuple
-
-import numpy as np
-import torch
+from typing import Tuple
 from matplotlib import pyplot as plt
 from torch import Tensor
 from torch.utils.data import DataLoader

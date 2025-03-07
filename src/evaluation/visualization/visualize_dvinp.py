@@ -9,10 +9,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.utils.data import DataLoader
 
-from src.architectures.cnp import BCACNP, AggrCNP
 from src.architectures.dvinp import DVINP
-from src.architectures.lnp import BCALNP, AggrLNP
-from src.components.decoder.decoder_times_prior import DecoderTimesPrior
 from src.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
@@ -37,7 +34,7 @@ def visualize_dvinp(
     assert dvinp.decoder is not None
 
     x_data, y_data = next(iter(dataloader))
-    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
+    task_hash = hash_tensor(x_data)
 
     x_data = x_data.to(device)
     y_data = y_data.to(device)

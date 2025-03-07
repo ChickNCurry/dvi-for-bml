@@ -3,13 +3,8 @@ from typing import List, Tuple
 import numpy as np
 import seaborn as sns
 import torch
-from matplotlib import cm
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
-from omegaconf import DictConfig
-from torch import Tensor
-from torch.distributions import Distribution
-from torch.utils.data import DataLoader
 
 from src.architectures.dvi import DVI
 from src.utils.datasets import ContextSetDataset, ContextTestDataset
