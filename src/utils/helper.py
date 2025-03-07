@@ -64,14 +64,14 @@ def upload_run(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
 
 
 def download_run(project: str, name: str) -> str:
-    dir = f"models/{project}/{name}"
+    dir = f"../models/{project}/{name}"
 
     if not os.path.exists(dir):
         api = wandb.Api()
 
-        for type in ["model.pth:v0", "decoder.pth:v0", "optim.pth:v0", "cfg.yaml:v0"]:
+        for type in ["model.pth:v0", "optim.pth:v0", "cfg.yaml:v0", "decoder.pth:v0"]:
             artifact = api.artifact(f"{project}/{name}_{type}")
-            artifact.download(root=f"models/{project}/{name}")
+            artifact.download(root=dir)
 
     return dir
 
@@ -100,7 +100,7 @@ def load_state_dicts(
             dvinp_state_dict = torch.load(
                 model_path, map_location=torch.device("cpu"), weights_only=False
             )
-            model.load_state_dict(dvinp_state_dict, strict=False)
+            model.load_state_dict(dvinp_state_dict)
             print(f"loaded model from {model_path}")
         else:
             print(f"model not found at {model_path}")

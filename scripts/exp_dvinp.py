@@ -28,13 +28,13 @@ def main() -> None:
     # name = "32-None-bca-cos-dis-True-cntxt"
     # dir = download_run(project, name)
 
-    dir = f"../models/dvinp"
+    dir = "models/dvinp"
 
-    with initialize(version_base=None, config_path=dir):
+    with initialize(version_base=None, config_path=f"../{dir}"):
         cfg = compose(config_name="cfg")
 
         model, trainer, test_loader, _ = load_dvinp(
-            cfg=cfg, device=device, dir=dir, load_decoder_only=False, train_decoder=True
+            cfg=cfg, device=device, dir=dir, load_decoder_only=True, train_decoder=False
         )
 
     # visualize_task(test_loader)
@@ -56,7 +56,7 @@ def main() -> None:
             validate=True,
         )
 
-        # torch.save(dvinp.state_dict(), f"{dir}/dvinp.pth")
+        # torch.save(model.state_dict(), f"{dir}/model.pth")
 
     max_context_size = 9
     num_samples = 900  # num_cells will be root
@@ -69,6 +69,7 @@ def main() -> None:
         num_samples=num_samples,
         max_context_size=max_context_size,
         ranges=ranges,
+        save_dir=dir,
     )
 
 

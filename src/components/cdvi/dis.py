@@ -62,7 +62,7 @@ class DIS(CDVI):
         control_n = self.control(n, z, self.r, self.mask, score_n, error_n)
         # (batch_size, num_subtasks, z_dim)
 
-        z_mu = z + (var_n * z + torch.sqrt(var_n) * control_n) * delta_t_n
+        z_mu = z + (-var_n * z + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 

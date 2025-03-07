@@ -31,6 +31,7 @@ def visualize_dvinp(
     max_context_size: int,
     ranges: List[Tuple[int, int]],
     show_score: bool = True,
+    save_dir: str | None = None,
 ) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
 
     assert dvinp.decoder is not None
@@ -187,6 +188,9 @@ def visualize_dvinp(
             a.set_xticks([])
             a.set_yticks([])
 
-    plt.show()
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/dvinp.png")
+    else:
+        plt.show()
 
     return targets, tp_samples  # type: ignore

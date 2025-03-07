@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader, random_split
 
 from src.architectures.dvinp import DVINP
 from src.components.cdvi.dis import DIS
+from src.components.cdvi.ula import ULA
+from src.components.cdvi.cmcd import CMCD
 from src.components.control.aggr_control import AggrControl
 from src.components.control.bca_control import BCAControl
 from src.components.decoder.decoder import Decoder
@@ -60,6 +62,7 @@ class ModelVariant(Enum):
     DIS = "dis"
     DIS_SCORE = "dis_score"
     CMCD = "cmcd"
+    ULA = "ula"
 
 
 class TrainerVariant(Enum):
@@ -271,12 +274,35 @@ def load_dvinp(
                 device=device,
             )
 
+        case ModelVariant.CMCD:
+
+            cdvi = CMCD(
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                control=control,
+                step_size_schedule=step_size_schedule,
+                noise_schedule=noise_schedule,
+                annealing_schedule=annealing_schedule,
+                device=device,
+            )
+
+        case ModelVariant.ULA:
+
+            cdvi = ULA(
+                z_dim=cfg.model.z_dim,
+                num_steps=cfg.model.num_steps,
+                step_size_schedule=step_size_schedule,
+                noise_schedule=noise_schedule,
+                annealing_schedule=annealing_schedule,
+                device=device,
+            )
+
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
         z_dim=cfg.model.z_dim,
-        h_dim=cfg.model.h_dim,
+        h_dim=32,  # cfg.model.h_dim,
         y_dim=cfg.model.y_dim,
-        num_layers=cfg.model.num_layers,
+        num_layers=3,  # cfg.model.num_layers,
         non_linearity=cfg.model.non_linearity,
     )
 
