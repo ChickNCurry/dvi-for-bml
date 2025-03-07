@@ -21,6 +21,7 @@ torch-directml = "^0.2.5.dev240914"
 urllib3 = "^2.2.3"
 scipy = "^1.14.1"
 nbconvert = "^7.16.4"
+types-seaborn = "^0.13.2.20250111"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
