@@ -1,0 +1,41 @@
+benchmark:
+    _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
+    n_datapoints_per_task: 64
+    n_task: 4096
+    output_noise: 0.1
+    seed_noise: 1237
+    seed_task: 1237
+    seed_x: 123
+model:
+    num_steps: 16
+    x_dim: 1
+    y_dim: 1
+    c_dim: 2
+    z_dim: 2
+    h_dim: 64
+    num_layers: 6
+    non_linearity: GELU
+    self_attn_num_heads: null
+    cross_attn_num_heads: null
+    max_context_size: null
+    context_variant: mean
+    noise_variant: free
+    model_variant: cmcd
+    contextual_schedules: true
+    use_error: false
+training:
+    trainer_variant: cntxt
+    batch_size: 128
+    num_subtasks: 32
+    num_val_tasks: 32
+    num_samples: 100
+    max_context_size: 16
+    learning_rate: 0.0003
+    num_epochs: 500
+    alternating_ratio: null
+    max_clip_norm: null
+    alpha: null
+    seed: 0
+wandb:
+    logging: true
+    project: local
