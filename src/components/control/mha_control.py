@@ -37,7 +37,7 @@ class MHAControl(AbstractControl):
                 )
                 for _ in range(num_layers)
             ],
-            getattr(nn, non_linearity)()
+            getattr(nn, non_linearity)(),
         )
 
         if self.use_score:
@@ -65,7 +65,7 @@ class MHAControl(AbstractControl):
         # (batch_size, num_subtasks, context_size, h_dim)
         # (batch_size, num_subtasks, context_size)
 
-        assert type(r) == Tensor
+        assert isinstance(r, Tensor)
 
         if self.use_score:
             assert score is not None

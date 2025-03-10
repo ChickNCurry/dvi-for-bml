@@ -30,7 +30,6 @@ def visualize_dvinp(
     show_score: bool = True,
     save_dir: str | None = None,
 ) -> Tuple[List[Distribution], List[NDArray[np.float32]]]:
-
     assert dvinp.decoder is not None
 
     x_data, y_data = next(iter(dataloader))
@@ -78,9 +77,6 @@ def visualize_dvinp(
         y_context = y_data[:, :, :context_size, :]
         # (1, num_samples, context_size, x_dim)
         # (1, num_samples, context_size, y_dim)
-
-        context = torch.cat([x_context, y_context], dim=-1)
-        # (1, num_samples, context_size, x_dim + y_dim)
 
         y_dist, z = dvinp.inference(x_context, y_context, None, x_data)
         target_dist = dvinp.get_target_dist(x_context, y_context, None)
@@ -141,10 +137,14 @@ def visualize_dvinp(
             )
 
         ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
-        ax[1].contourf(grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm)  # type: ignore
+        ax[1].contourf(
+            grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm
+        )  # type: ignore
 
         ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
-        ax[2].contourf(grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm)  # type: ignore
+        ax[2].contourf(
+            grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
+        )  # type: ignore
 
         if show_score:
             ax[1].quiver(

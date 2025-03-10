@@ -158,7 +158,6 @@ class DVINPTrainer(AbstractTrainer, ABC):
         bds = []
 
         for i in range(tp_samples.shape[0]):
-
             tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
 
             jsd = compute_jsd(target_log_probs[i], tp_log_probs)

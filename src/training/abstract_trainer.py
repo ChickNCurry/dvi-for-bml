@@ -55,7 +55,6 @@ class AbstractTrainer(ABC):
         loop = tqdm(self.val_loader, total=len(self.val_loader))
 
         for batch in loop:
-
             metrics = self.val_step(batch)
 
             loop.set_postfix(
@@ -81,16 +80,13 @@ class AbstractTrainer(ABC):
         alpha: float | None = None,
         validate: bool = False,
     ) -> None:
-
         debug = False
 
         if debug:
             torch.autograd.set_detect_anomaly(True)
 
         for epoch in range(num_epochs):
-
             if validate:
-
                 self.model.eval()
 
                 if self.val_grad_off:
@@ -104,7 +100,6 @@ class AbstractTrainer(ABC):
             loop = tqdm(self.train_loader, total=len(self.train_loader))
 
             for batch in loop:
-
                 self.optimizer.zero_grad()
 
                 loss, metrics = self.train_step(batch, alpha)

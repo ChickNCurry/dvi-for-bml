@@ -28,7 +28,6 @@ class CDVI(nn.Module, ABC):
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
     ) -> None:
-
         self.target = target
         self.r = r
         self.mask = mask
@@ -77,7 +76,6 @@ class CDVI(nn.Module, ABC):
         # (batch_size, num_subtasks, z_dim)
 
         for n in range(0, self.num_steps):
-
             fwd_kernel = self.forward_kernel(n, zs[n])
 
             if other_zs is None:
@@ -104,7 +102,6 @@ class CDVI(nn.Module, ABC):
         # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
-
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])
             log_prob += bwd_kernel.log_prob(zs[n]).sum(-1)
             # (batch_size, num_subtasks)
@@ -129,7 +126,6 @@ class CDVI(nn.Module, ABC):
         # (batch_size, num_subtasks, z_dim)
 
         for n in range(0, self.num_steps):
-
             fwd_kernel_data = self.forward_kernel(n, zs[n])
             z_dists_data.append(fwd_kernel_data)
             zs.append(fwd_kernel_data.rsample())
@@ -169,7 +165,6 @@ class CDVI(nn.Module, ABC):
         # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
-
             fwd_kernel = self.forward_kernel(n, zs[n])
             zs.append(fwd_kernel.rsample())
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])

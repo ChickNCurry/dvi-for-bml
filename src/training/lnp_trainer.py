@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 
-import numpy as np
 import torch
 from torch import Generator, Tensor
 from torch.distributions.kl import kl_divergence

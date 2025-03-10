@@ -53,7 +53,6 @@ def load_np(
     device: torch.device,
     dir: str | None = None,
 ) -> Tuple[LNP | CNP, LNPTrainer | CNPTrainer, DataLoader, DataLoader]:
-
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
     np.random.seed(cfg.training.seed)

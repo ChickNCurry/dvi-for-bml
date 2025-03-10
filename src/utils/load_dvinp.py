@@ -8,7 +8,8 @@ from hydra.utils import instantiate
 from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
 from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
+
+
 from torch.utils.data import DataLoader, random_split
 
 from src.architectures.dvinp import DVINP
@@ -46,6 +47,8 @@ from src.training.dvinp_trainer import (
 from src.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
 from src.utils.helper import load_state_dicts
 
+# from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
+
 
 class ContextVariant(Enum):
     MEAN = "mean"
@@ -79,7 +82,6 @@ def load_dvinp(
     load_decoder_only: bool = False,
     train_decoder: bool = True,
 ) -> Tuple[DVINP, DVINPTrainer, DataLoader, DataLoader]:
-
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
     np.random.seed(cfg.training.seed)
@@ -134,7 +136,6 @@ def load_dvinp(
 
     match context_variant:
         case ContextVariant.MEAN | ContextVariant.MAX:
-
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
@@ -164,7 +165,6 @@ def load_dvinp(
 
             match noise_variant:
                 case NoiseVariant.FREE:
-
                     noise_schedule = AggrNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
@@ -174,7 +174,6 @@ def load_dvinp(
                     )
 
                 case NoiseVariant.COS:
-
                     noise_schedule = AggrCosineNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
@@ -183,7 +182,6 @@ def load_dvinp(
                     )
 
         case ContextVariant.BCA:
-
             encoder = BCAEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
@@ -212,7 +210,6 @@ def load_dvinp(
 
             match noise_variant:
                 case NoiseVariant.FREE:
-
                     noise_schedule = BCANoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
@@ -222,7 +219,6 @@ def load_dvinp(
                     )
 
                 case NoiseVariant.COS:
-
                     noise_schedule = BCACosineNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
@@ -231,7 +227,6 @@ def load_dvinp(
                     )
 
     if not cfg.model.contextual_schedules:
-
         annealing_schedule = AnnealingSchedule(
             num_steps=cfg.model.num_steps,
             device=device,
@@ -239,7 +234,6 @@ def load_dvinp(
 
         match noise_variant:
             case NoiseVariant.FREE:
-
                 noise_schedule = NoiseSchedule(
                     z_dim=cfg.model.z_dim,
                     num_steps=cfg.model.num_steps,
@@ -247,7 +241,6 @@ def load_dvinp(
                 )
 
             case NoiseVariant.COS:
-
                 noise_schedule = CosineNoiseSchedule(
                     z_dim=cfg.model.z_dim,
                     num_steps=cfg.model.num_steps,
@@ -261,7 +254,6 @@ def load_dvinp(
 
     match model_variant:
         case ModelVariant.DIS | ModelVariant.DIS_SCORE:
-
             cdvi = DIS(
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,
@@ -275,7 +267,6 @@ def load_dvinp(
             )
 
         case ModelVariant.CMCD:
-
             cdvi = CMCD(
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,
@@ -287,7 +278,6 @@ def load_dvinp(
             )
 
         case ModelVariant.ULA:
-
             cdvi = ULA(
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,

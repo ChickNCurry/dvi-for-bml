@@ -84,7 +84,6 @@ def load_state_dicts(
     optim_path = f"{dir}/optim.pth"
 
     if load_decoder_only:
-
         if os.path.exists(decoder_path):
             decoder_state_dict = torch.load(
                 decoder_path, map_location=torch.device("cpu"), weights_only=False
@@ -95,7 +94,6 @@ def load_state_dicts(
             print(f"decoder not found at {decoder_path}")
 
     else:
-
         if os.path.exists(model_path):
             dvinp_state_dict = torch.load(
                 model_path, map_location=torch.device("cpu"), weights_only=False

@@ -86,7 +86,6 @@ def visualize_dvi_2d(
     bins: int = 40,
     plot_range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
 ) -> None:
-
     nrows = dataset.max_context_size - 1
 
     context = dataset.sampling_factor * torch.rand(
@@ -101,7 +100,6 @@ def visualize_dvi_2d(
     # jsds = []
 
     for row, subfig in enumerate(subfigs):
-
         subfig.suptitle(f"context size: {row + 1}")
         ax = subfig.subplots(nrows=1, ncols=3, width_ratios=[1, 1, 1])
 
@@ -117,10 +115,10 @@ def visualize_dvi_2d(
 
         z_0_samples = z_samples[0].detach().cpu().numpy()
         z_T_samples = z_samples[-1].detach().cpu().numpy()
-        z_trajectories = [
-            [z[0, i, :].detach().cpu().numpy() for z in z_samples]
-            for i in range(num_samples)
-        ]
+        # z_trajectories = [
+        #     [z[0, i, :].detach().cpu().numpy() for z in z_samples]
+        #     for i in range(num_samples)
+        # ]
         z_target_samples = target_dist.sample().detach().cpu().numpy()
 
         z_0_samples = z_0_samples.reshape(-1, z_0_samples.shape[-1])

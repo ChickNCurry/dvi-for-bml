@@ -11,7 +11,6 @@ from src.evaluation.predictive.pred_metrics import (
     compute_lmpl_over_samples,
     compute_mse_over_samples,
 )
-from src.utils.datasets import MetaLearningDataset
 
 
 def num_pred_eval(
@@ -20,7 +19,6 @@ def num_pred_eval(
     device: torch.device,
     save_dir: str,
 ) -> None:
-
     num_metrics = 2
 
     _, axs = plt.subplots(

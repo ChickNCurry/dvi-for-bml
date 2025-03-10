@@ -153,7 +153,6 @@ class TaskPosteriorGMM(Distribution):
         components = []
 
         for permutation in list(itertools.product([1, -1], repeat=self.z_dim)):
-
             modified_mu = self.mu.clone()
 
             for dim in range(self.z_dim):

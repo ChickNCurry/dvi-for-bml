@@ -14,7 +14,6 @@ from src.evaluation.taskposterior.grid import (
     eval_hist_on_grid,
 )
 from src.evaluation.taskposterior.tp_metrics import compute_bd, compute_jsd
-from src.utils.datasets import MetaLearningDataset
 
 
 def num_tp_eval(
@@ -24,7 +23,6 @@ def num_tp_eval(
     device: torch.device,
     save_dir: str,
 ) -> None:
-
     num_metrics = 2
 
     _, axs = plt.subplots(
@@ -130,7 +128,6 @@ def num_tp_eval_for_fixed_context_size(
     bds = []
 
     for i in range(tp_samples.shape[0]):
-
         tp_log_probs = eval_hist_on_grid(tp_samples[i], ranges, num_cells)
 
         jsd = compute_jsd(target_log_probs[i], tp_log_probs)

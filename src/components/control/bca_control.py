@@ -35,7 +35,7 @@ class BCAControl(AbstractControl):
                 )
                 for _ in range(num_layers)
             ],
-            getattr(nn, non_linearity)()
+            getattr(nn, non_linearity)(),
         )
 
         if self.use_score:

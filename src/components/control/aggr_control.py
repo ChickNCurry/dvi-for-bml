@@ -30,7 +30,7 @@ class AggrControl(AbstractControl):
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
             ],
-            getattr(nn, non_linearity)()
+            getattr(nn, non_linearity)(),
         )
 
         if self.use_score:
