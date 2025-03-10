@@ -300,9 +300,9 @@ def load_dvinp(
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
         z_dim=cfg.model.z_dim,
-        h_dim=32,  # cfg.model.h_dim,
+        h_dim=cfg.model.h_dim,  # 32
         y_dim=cfg.model.y_dim,
-        num_layers=3,  # cfg.model.num_layers,
+        num_layers=cfg.model.num_layers,  # 3
         non_linearity=cfg.model.non_linearity,
     )
 
