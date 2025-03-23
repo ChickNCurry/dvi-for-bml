@@ -9,48 +9,47 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 
 import wandb
-from src.architectures.dvi import DVI
-from src.components.cdvi.cmcd import CMCD
-from src.components.cdvi.dis import DIS
-from src.components.control.aggr_control import AggrControl
-from src.components.control.abstract_control import AbstractControl
-from src.components.control.bca_control import BCAControl
-from src.components.control.mha_control import MHAControl
-from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
-from src.components.encoder.abstract_encoder import AbstractEncoder
-from src.components.encoder.bca_encoder import BCAEncoder
-from src.components.encoder.mha_encoder import MHAEncoder
-from src.components.schedule.annealing_schedule import (
+from dviforbml.architectures.dvi import DVI
+from dviforbml.components.cdvi.cmcd import CMCD
+from dviforbml.components.cdvi.dis import DIS
+from dviforbml.components.control.aggr_control import AggrControl
+from dviforbml.components.control.abstract_control import AbstractControl
+from dviforbml.components.control.bca_control import BCAControl
+from dviforbml.components.control.mha_control import MHAControl
+from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
+from dviforbml.components.encoder.abstract_encoder import AbstractEncoder
+from dviforbml.components.encoder.bca_encoder import BCAEncoder
+from dviforbml.components.encoder.mha_encoder import MHAEncoder
+from dviforbml.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
 )
-from src.components.schedule.abstract_schedule import AbstractSchedule
-from src.components.schedule.cos_noise_schedule import (
+from dviforbml.components.schedule.abstract_schedule import AbstractSchedule
+from dviforbml.components.schedule.cos_noise_schedule import (
     AggrCosineNoiseSchedule,
     BCACosineNoiseSchedule,
     CosineNoiseSchedule,
 )
-from src.components.schedule.noise_schedule import (
+from dviforbml.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
     NoiseSchedule,
 )
-from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.evaluation.grid import (
+from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
+from dviforbml.evaluation.grid import (
     compute_jsd,
     create_grid,
     eval_dist_on_grid,
     eval_hist_on_grid,
 )
-from src.training.dvi_trainer import DVITrainer, DVITrainerContext
-from src.utils.datasets import ContextSetDataset
-from src.utils.distros import TaskPosteriorGMM
-from src.utils.hash import get_object_hash, get_var_name
+from dviforbml.training.dvi_trainer import DVITrainer, DVITrainerContext
+from dviforbml.utils.datasets import ContextSetDataset
+from dviforbml.utils.distros import TaskPosteriorGMM
+from dviforbml.utils.hash import get_object_hash, get_var_name
 
 
 def run() -> None:
-
     device = torch.device("cpu")
 
     @dataclass
@@ -326,7 +325,6 @@ def run() -> None:
     ]
 
     for comps in variations:
-
         for c in comps:
             c.load_state_dict(
                 torch.load(f"scripts/dvi/state_dicts/{get_object_hash(c)}.pth")
@@ -399,7 +397,6 @@ def run() -> None:
         trainer.train(num_epochs=num_epochs, max_clip_norm=None, alpha=None)
 
         for entry in [(1, 1), (-1, 1), (1, -1), (-1, -1)]:
-
             name = f"{id}-({str(entry)})"
 
             num_samples = 1600  # 8192
@@ -421,7 +418,6 @@ def run() -> None:
             jsds = []
 
             for row, subfig in enumerate(subfigs):
-
                 subfig.suptitle(f"context size: {row + 1}")
                 ax = subfig.subplots(nrows=1, ncols=3, width_ratios=[1, 1, 1])
 

@@ -2,14 +2,13 @@ import torch
 import wandb
 from hydra import compose, initialize
 
-from src.evaluation.visualization.visualize_np import visualize_np
-from src.evaluation.visualization.visualize_task import visualize_task
-from src.utils.helper import download_run
-from src.utils.load_np import load_np
+from dviforbml.evaluation.visualization.visualize_np import visualize_np
+from dviforbml.evaluation.visualization.visualize_task import visualize_task
+from dviforbml.utils.helper import download_run
+from dviforbml.utils.load_np import load_np
 
 
 def main() -> None:
-
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -24,7 +23,7 @@ def main() -> None:
     # name = "1-mean-cnp-data-None-0"
     # dir = download_run(project, name)
 
-    dir = f"../models/lnp"
+    dir = "../models/lnp"
 
     with initialize(version_base=None, config_path=dir):
         cfg = compose(config_name="cfg")
@@ -44,7 +43,7 @@ def main() -> None:
     train = False
     if train:
         num_epochs = 200
-        losses = trainer.train(
+        trainer.train(
             num_epochs=num_epochs,
             max_clip_norm=cfg.training.max_clip_norm,
             alpha=cfg.training.alpha,

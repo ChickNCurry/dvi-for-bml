@@ -3,13 +3,12 @@ import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-from src.utils.helper import get_name_dvinp, upload_run
-from src.utils.load_dvinp import load_dvinp
+from dviforbml.utils.helper import get_name_dvinp, upload_run
+from dviforbml.utils.load_dvinp import load_dvinp
 
 
 @hydra.main(version_base=None, config_name="cfg", config_path="config")
 def run(cfg: DictConfig) -> None:
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model, trainer, _, _ = load_dvinp(cfg=cfg, device=device)

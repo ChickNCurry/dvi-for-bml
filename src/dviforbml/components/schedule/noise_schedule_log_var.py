@@ -1,0 +1,221 @@
+import torch
+from torch import Tensor, nn
+
+from dviforbml.components.schedule.abstract_schedule import AbstractSchedule
+
+
+class NoiseSchedule(AbstractSchedule):
+    def __init__(
+        self,
+        z_dim: int,
+        num_steps: int,
+        device: torch.device,
+        min: float = 0.01,
+        max: float = 1,
+        requires_grad: bool = True,
+    ) -> None:
+        super(NoiseSchedule, self).__init__()
+
+        self.num_entries = num_steps + 1
+
+        self.log_vars = nn.Parameter(
+            torch.linspace(max, min, self.num_entries, device=device)
+            .unsqueeze(1)
+            .expand(self.num_entries, z_dim)
+            .pow(2)
+            .log(),
+            requires_grad=requires_grad,
+        )  # (num_entries, z_dim)
+
+    def get(self, n: int) -> Tensor:
+        var_n = self.log_vars[n, :].exp()
+        return var_n
+
+
+class AggrNoiseSchedule(AbstractSchedule):
+    def __init__(
+        self,
+        z_dim: int,
+        h_dim: int,
+        non_linearity: str,
+        num_steps: int,
+        device: torch.device,
+        min: float = 0.01,
+        max: float = 1,
+    ) -> None:
+        super(AggrNoiseSchedule, self).__init__()
+
+        self.z_dim = z_dim
+        self.num_entries = num_steps + 1
+
+        self.noise_mlp = nn.Sequential(
+            nn.Linear(h_dim, h_dim),
+            getattr(nn, non_linearity)(),
+            nn.Linear(h_dim, z_dim * self.num_entries),
+        )
+
+        nn.init.constant_(self.noise_mlp[-1].weight, 0)
+        nn.init.constant_(self.noise_mlp[-1].bias, 0)
+
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
+
+    def update(self, r: Tensor, mask: Tensor | None) -> None:
+        # (batch_size, num_subtasks, h_dim)
+
+        batch_size = r.shape[0]
+        num_subtasks = r.shape[1]
+
+        log_vars_pred: Tensor = self.noise_mlp(r)
+        # (batch_size, num_subtasks, z_dim * num_entries)
+
+        log_vars_pred = log_vars_pred.view(
+            batch_size, num_subtasks, self.z_dim, self.num_entries
+        )  # (batch_size, num_subtasks, z_dim, num_entries)
+
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
+        # (batch_size, num_subtasks, z_dim, num_entries)
+
+    def get(self, n: int) -> Tensor:
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
+        # (batch_size, num_subtasks, z_dim)
+
+        return var_n
+
+
+class BCANoiseSchedule(AbstractSchedule):
+    def __init__(
+        self,
+        z_dim: int,
+        h_dim: int,
+        non_linearity: str,
+        num_steps: int,
+        device: torch.device,
+        min: float = 0.01,
+        max: float = 1,
+    ) -> None:
+        super(BCANoiseSchedule, self).__init__()
+
+        self.z_dim = z_dim
+        self.num_entries = num_steps + 1
+
+        self.proj_z_mu = nn.Linear(h_dim, h_dim)
+        self.proj_z_var = nn.Linear(h_dim, h_dim)
+
+        self.noise_mlp = nn.Sequential(
+            nn.Linear(h_dim, h_dim),
+            getattr(nn, non_linearity)(),
+            nn.Linear(h_dim, z_dim * self.num_entries),
+        )
+
+        nn.init.constant_(self.noise_mlp[-1].weight, 0)
+        nn.init.constant_(self.noise_mlp[-1].bias, 0)
+
+        self.log_vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device).pow(2).log()
+        )
+
+    def update(self, r: Tensor, mask: Tensor | None) -> None:
+        # (batch_size, num_subtasks, h_dim)
+
+        batch_size = r[0].shape[0]
+        num_subtasks = r[0].shape[1]
+
+        z_mu, z_var = r
+        z_mu, z_var = self.proj_z_mu(z_mu), self.proj_z_var(z_var)
+        # (batch_size, num_subtasks, h_dim)
+
+        log_vars_pred: Tensor = self.noise_mlp(z_mu + z_var)
+        # (batch_size, num_subtasks, z_dim * num_entries)
+
+        log_vars_pred = log_vars_pred.view(
+            batch_size, num_subtasks, self.z_dim, self.num_entries
+        )  # (batch_size, num_subtasks, z_dim, num_entries)
+
+        self.log_vars = self.log_vars_init[None, None, None, :] + log_vars_pred
+        # (batch_size, num_subtasks, z_dim, num_entries)
+
+    def get(self, n: int) -> Tensor:
+        var_n: Tensor = self.log_vars[:, :, :, n].exp()
+        # (batch_size, num_subtasks, z_dim)
+
+        return var_n
+
+
+# class MHANoiseSchedule(BaseSchedule):
+#     def __init__(
+#         self,
+#         z_dim: int,
+#         h_dim: int,
+#         non_linearity: str,
+#         num_steps: int,
+#         device: torch.device,
+#         num_heads: int,
+#         min: float = 0.01,
+#         max: float = 1,
+#     ) -> None:
+#         super(MHANoiseSchedule, self).__init__()
+
+#         self.z_dim = z_dim
+#         self.num_entries = num_steps + 1
+
+#         self.proj_in = nn.Linear(1, h_dim)
+#         self.cross_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
+#         self.noise_mlp = nn.Sequential(
+#             nn.Linear(h_dim, h_dim),
+#             getattr(nn, non_linearity)(),
+#             nn.Linear(h_dim, z_dim),
+#         )
+
+#         nn.init.constant_(self.noise_mlp[-1].weight, 0)
+#         nn.init.constant_(self.noise_mlp[-1].bias, 0)
+
+#         self.noise_init = torch.linspace(max, min, self.num_entries, device=device)
+
+#     def update(self, r: Tensor, mask: Tensor | None) -> None:
+#         # (batch_size, num_subtasks, context_size, h_dim)
+#         # (batch_size, num_subtasks, context_size)
+
+#         batch_size = r.shape[0]
+#         num_subtasks = r.shape[1]
+#         context_size = r.shape[2]
+
+#         r = r.view(batch_size * num_subtasks, context_size, -1)
+#         # (batch_size * num_subtasks, context_size, h_dim)
+
+#         h: Tensor = self.proj_in(self.noise_init.unsqueeze(1))
+#         # (num_entries, h_dim)
+
+#         h = h.unsqueeze(0).expand(batch_size * num_subtasks, -1, -1)
+#         # (batch_size * num_subtasks, num_entries, h_dim)
+
+#         key_padding_mask = (
+#             mask.view(batch_size * num_subtasks, -1).bool().logical_not()
+#             if mask is not None
+#             else None
+#         )  # (batch_size * num_subtasks, context_size)
+
+#         h, _ = self.cross_attn(
+#             query=h,
+#             key=r,
+#             value=r,
+#             key_padding_mask=key_padding_mask,
+#             need_weights=False,
+#         )  # (batch_size * num_subtasks, num_entries, h_dim)
+
+#         h = h.view(batch_size, num_subtasks, self.num_entries, -1)
+#         # (batch_size, num_subtasks, num_entries, h_dim)
+
+#         noise = self.noise_mlp(h).transpose(2, 3)
+#         # (batch_size, num_subtasks, z_dim, num_entries)
+
+#         self.noise_schedule = nn.functional.softplus(
+#             noise + self.noise_init[None, None, None, :]
+#         )  # (batch_size, num_subtasks, z_dim, num_entries)
+
+#     def get(self, n: int) -> Tensor:
+#         var_n: Tensor = self.noise_schedule[:, :, :, n]
+#         # (batch_size, num_subtasks, z_dim)
+
+#         return var_n

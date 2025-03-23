@@ -6,20 +6,20 @@ from matplotlib import pyplot as plt
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 
-from src.architectures.dvi import DVI
-from src.components.cdvi.cmcd import CMCD
-from src.components.cdvi.dis import DIS
-from src.components.cdvi.ula import ULA
-from src.components.control.aggr_control import AggrControl
-from src.components.encoder.proj_encoder import ProjEncoder
-from src.components.schedule.annealing_schedule import AnnealingSchedule
-from src.components.schedule.cos_noise_schedule import CosineNoiseSchedule
-from src.components.schedule.noise_schedule import NoiseSchedule
-from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.evaluation.visualization.visualize_dvi import visualize_dvi_1d
-from src.training.dvi_trainer import DVITrainerContext
-from src.utils.datasets import ContextTestDataset
-from src.utils.distros import ContextualGMM
+from dviforbml.architectures.dvi import DVI
+from dviforbml.components.cdvi.cmcd import CMCD
+from dviforbml.components.cdvi.dis import DIS
+from dviforbml.components.cdvi.ula import ULA
+from dviforbml.components.control.aggr_control import AggrControl
+from dviforbml.components.encoder.proj_encoder import ProjEncoder
+from dviforbml.components.schedule.annealing_schedule import AnnealingSchedule
+from dviforbml.components.schedule.cos_noise_schedule import CosineNoiseSchedule
+from dviforbml.components.schedule.noise_schedule import NoiseSchedule
+from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
+from dviforbml.evaluation.visualization.visualize_dvi import visualize_dvi_1d
+from dviforbml.training.dvi_trainer import DVITrainerContext
+from dviforbml.utils.datasets import ContextTestDataset
+from dviforbml.utils.distros import ContextualGMM
 
 
 def main() -> None:

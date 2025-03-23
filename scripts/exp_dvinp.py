@@ -4,14 +4,13 @@ import torch
 import wandb
 from hydra import compose, initialize
 
-from src.evaluation.visualization.visualize_dvinp import visualize_dvinp
-from src.evaluation.visualization.visualize_task import visualize_task
-from src.utils.helper import download_run, get_name_dvinp
-from src.utils.load_dvinp import load_dvinp
+from dviforbml.evaluation.visualization.visualize_dvinp import visualize_dvinp
+from dviforbml.evaluation.visualization.visualize_task import visualize_task
+from dviforbml.utils.helper import download_run, get_name_dvinp
+from dviforbml.utils.load_dvinp import load_dvinp
 
 
 def main() -> None:
-
     # warnings.filterwarnings("ignore")
 
     if torch.cuda.is_available():
@@ -62,7 +61,7 @@ def main() -> None:
     num_samples = 900  # num_cells will be root
     ranges = [(-5, 5), (-5, 5)]
 
-    targets, samples = visualize_dvinp(
+    visualize_dvinp(
         device=device,
         dvinp=model,
         dataloader=test_loader,

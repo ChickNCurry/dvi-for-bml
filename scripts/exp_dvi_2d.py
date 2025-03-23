@@ -7,35 +7,35 @@ from matplotlib import pyplot as plt
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 
-from src.architectures.dvi import DVI
-from src.components.cdvi.cmcd import CMCD
-from src.components.cdvi.dis import DIS
-from src.components.control.aggr_control import AggrControl
-from src.components.control.bca_control import BCAControl
-from src.components.control.mha_control import MHAControl
-from src.components.encoder.aggr_encoder import Aggr, AggrEncoder
-from src.components.encoder.bca_encoder import BCAEncoder
-from src.components.encoder.mha_encoder import MHAEncoder
-from src.components.schedule.annealing_schedule import (
+from dviforbml.architectures.dvi import DVI
+from dviforbml.components.cdvi.cmcd import CMCD
+from dviforbml.components.cdvi.dis import DIS
+from dviforbml.components.control.aggr_control import AggrControl
+from dviforbml.components.control.bca_control import BCAControl
+from dviforbml.components.control.mha_control import MHAControl
+from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
+from dviforbml.components.encoder.bca_encoder import BCAEncoder
+from dviforbml.components.encoder.mha_encoder import MHAEncoder
+from dviforbml.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
 )
-from src.components.schedule.cos_noise_schedule import (
+from dviforbml.components.schedule.cos_noise_schedule import (
     AggrCosineNoiseSchedule,
     BCACosineNoiseSchedule,
     CosineNoiseSchedule,
 )
-from src.components.schedule.noise_schedule import (
+from dviforbml.components.schedule.noise_schedule import (
     AggrNoiseSchedule,
     BCANoiseSchedule,
     NoiseSchedule,
 )
-from src.components.schedule.step_size_schedule import StepSizeSchedule
-from src.evaluation.visualization.visualize_dvi import visualize_dvi_2d
-from src.training.dvi_trainer import DVITrainerContext
-from src.utils.datasets import ContextSetDataset
-from src.utils.distros import TaskPosteriorGMM
+from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
+from dviforbml.evaluation.visualization.visualize_dvi import visualize_dvi_2d
+from dviforbml.training.dvi_trainer import DVITrainerContext
+from dviforbml.utils.datasets import ContextSetDataset
+from dviforbml.utils.distros import TaskPosteriorGMM
 
 
 def main() -> None:
