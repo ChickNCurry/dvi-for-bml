@@ -6,7 +6,7 @@ from torch.distributions import Distribution, Normal
 
 from dviforbml.components.cdvi.cdvi import CDVI
 from dviforbml.components.schedule.annealing_schedule import AnnealingSchedule
-from dviforbml.components.schedule.noise_schedule import NoiseSchedule
+from dviforbml.components.schedule.free_noise_schedule import FreeNoiseSchedule
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
 
 
@@ -16,7 +16,7 @@ class ULA(CDVI):
         z_dim: int,
         num_steps: int,
         step_size_schedule: StepSizeSchedule,
-        noise_schedule: NoiseSchedule,
+        noise_schedule: FreeNoiseSchedule,
         annealing_schedule: AnnealingSchedule,
         device: torch.device,
     ) -> None:
@@ -35,12 +35,13 @@ class ULA(CDVI):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
     ) -> None:
-        super(ULA, self).contextualize(target, r, mask)
+        super(ULA, self).contextualize(target, r, mask, s)
 
-        self.step_size_schedule.update(r, mask)
-        self.noise_schedule.update(r, mask)
-        self.annealing_schedule.update(r, mask)
+        self.step_size_schedule.update(r, mask, s)
+        self.noise_schedule.update(r, mask, s)
+        self.annealing_schedule.update(r, mask, s)
 
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -55,7 +56,7 @@ class ULA(CDVI):
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def backward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -70,7 +71,7 @@ class ULA(CDVI):
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def compute_score(self, n: int, z: Tensor) -> Tensor:
         z = z.requires_grad_(True)

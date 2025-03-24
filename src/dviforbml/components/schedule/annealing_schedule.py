@@ -5,21 +5,18 @@ from torch.nn.functional import softplus
 from dviforbml.components.schedule.abstract_schedule import AbstractSchedule
 
 
-class AnnealingSchedule(AbstractSchedule, nn.Module):
+class AnnealingSchedule(AbstractSchedule):
     def __init__(
         self,
         num_steps: int,
         device: torch.device,
-        requires_grad: bool = True,
     ) -> None:
         super(AnnealingSchedule, self).__init__()
 
         self.num_entries = num_steps + 1
 
-        self.increments = nn.Parameter(
-            torch.ones((self.num_entries), device=device),
-            requires_grad=requires_grad,
-        )  # (num_entries)
+        self.increments = nn.Parameter(torch.ones((self.num_entries), device=device))
+        # (num_entries)
 
     def update(self, r: Tensor, mask: Tensor | None) -> None:
         params = softplus(self.increments)
@@ -31,95 +28,106 @@ class AnnealingSchedule(AbstractSchedule, nn.Module):
         return beta_n
 
 
-class AggrAnnealingSchedule(AbstractSchedule, nn.Module):
+class AggrAnnealingSchedule(AbstractSchedule):
     def __init__(
         self,
+        z_dim: int,
         h_dim: int,
         non_linearity: str,
         num_steps: int,
+        max_context_size: int | None,
         device: torch.device,
     ) -> None:
         super(AggrAnnealingSchedule, self).__init__()
 
         self.num_entries = num_steps + 1
 
-        self.increments_mlp = nn.Sequential(
-            nn.Linear(h_dim, h_dim),
+        input_size = h_dim + (z_dim if max_context_size is not None else 0)
+
+        self.incr_mlp = nn.Sequential(
+            nn.Linear(input_size, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, self.num_entries),
         )
 
-        nn.init.constant_(self.increments_mlp[-1].weight, 0)
-        nn.init.constant_(self.increments_mlp[-1].bias, 0)
+        nn.init.constant_(self.incr_mlp[-1].weight, 0)
+        nn.init.constant_(self.incr_mlp[-1].bias, 0)
 
-        self.increments_init = (
-            torch.ones((self.num_entries), device=device) / self.num_entries
-        )  # (num_entries)
+        self.incr_init = torch.ones((self.num_entries), device=device)
+        # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks)
 
-        increments: Tensor = softplus(
-            self.increments_mlp(r) + self.increments_init[None, None, :]
+        input = torch.cat([r, s], dim=-1) if s is not None else r
+        incr_pred: Tensor = softplus(
+            self.incr_init[None, None, :] + self.incr_mlp(input)
         )  # (batch_size, num_subtasks, num_entries)
 
-        increments = increments / torch.sum(increments, dim=-1, keepdim=True)
+        incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)
         # (batch_size, num_subtasks, num_entries)
 
-        self.betas = torch.cumsum(increments, dim=-1)
+        self.betas = torch.cumsum(incr_pred, dim=-1)
         # (batch_size, num_subtasks, num_entries)
 
     def get(self, n: int) -> Tensor:
-        beta_n = self.betas[:, :, n][:, :, None]
+        beta_n = self.betas[:, :, n].unsqueeze(-1)
         # (batch_size, num_subtasks, 1)
 
         return beta_n
 
 
-class BCAAnnealingSchedule(AbstractSchedule, nn.Module):
+class BCAAnnealingSchedule(AbstractSchedule):
     def __init__(
         self,
+        z_dim: int,
         h_dim: int,
         non_linearity: str,
         num_steps: int,
+        max_context_size: int | None,
         device: torch.device,
     ) -> None:
         super(BCAAnnealingSchedule, self).__init__()
 
         self.num_entries = num_steps + 1
 
-        self.increments_mlp = nn.Sequential(
-            nn.Linear(2 * h_dim, h_dim),
+        input_size = 2 * h_dim + (z_dim if max_context_size is not None else 0)
+
+        self.incr_mlp = nn.Sequential(
+            nn.Linear(input_size, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, self.num_entries),
         )
 
-        nn.init.constant_(self.increments_mlp[-1].weight, 0)
-        nn.init.constant_(self.increments_mlp[-1].bias, 0)
+        nn.init.constant_(self.incr_mlp[-1].weight, 0)
+        nn.init.constant_(self.incr_mlp[-1].bias, 0)
 
-        self.increments_init = (
+        self.incr_init = (
             torch.ones((self.num_entries), device=device) / self.num_entries
         )
 
-    def update(self, r: Tensor, mask: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks)
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
+        input = torch.cat([input, s], dim=-1) if s is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
-        increments: Tensor = softplus(
-            self.increments_mlp(input) + self.increments_init[None, None, :]
+        incr_pred: Tensor = softplus(
+            self.incr_init[None, None, :] + self.incr_mlp(input)
         )  # (batch_size, num_subtasks, num_entries)
 
-        increments = increments / torch.sum(increments, dim=-1, keepdim=True)
+        incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)
         # (batch_size, num_subtasks, num_entries)
 
-        self.betas = torch.cumsum(increments, dim=-1)
+        self.betas = torch.cumsum(incr_pred, dim=-1)
         # (batch_size, num_subtasks, num_entries)
 
     def get(self, n: int) -> Tensor:
-        beta_n = self.betas[:, :, n][:, :, None]
+        beta_n = self.betas[:, :, n].unsqueeze(-1)
         # (batch_size, num_subtasks, 1)
 
         return beta_n

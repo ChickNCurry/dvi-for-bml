@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 import torch
 from hydra.utils import instantiate
-from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
+from metalearning_benchmarks import MetaLearningBenchmark
 from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, random_split

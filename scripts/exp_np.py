@@ -13,7 +13,7 @@ def main() -> None:
         device = torch.device("cuda")
     else:
         try:
-            import torch_directml  # type: ignore
+            import torch_directml
 
             device = torch_directml.device()
         except ImportError:

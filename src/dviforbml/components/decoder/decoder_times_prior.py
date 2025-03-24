@@ -30,7 +30,7 @@ class DecoderTimesPrior(Distribution):
         device = x.device
         z_dim = decoder.z_dim
 
-        self.prior = Normal(  # type: ignore
+        self.prior = Normal(
             torch.zeros((batch_size, num_subtasks, z_dim), device=device),
             torch.ones((batch_size, num_subtasks, z_dim), device=device),
         )
@@ -48,7 +48,7 @@ class DecoderTimesPrior(Distribution):
         log_like = log_like.sum(-1, keepdim=True)
         # (batch_size, num_subtasks, 1)
 
-        log_prior: Tensor = self.prior.log_prob(z).sum(-1, keepdim=True)  # type: ignore
+        log_prior: Tensor = self.prior.log_prob(z).sum(-1, keepdim=True)
         # (batch_size, num_subtasks, 1)
 
         return log_like + log_prior

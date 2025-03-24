@@ -51,10 +51,10 @@ def visualize_vals_on_grid_2d(
     fig = plt.figure(figsize=(8, 4))
 
     ax1 = fig.add_subplot(121)
-    ax1.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+    ax1.contourf(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)
 
     ax2 = fig.add_subplot(122, projection="3d")
-    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)  # type: ignore
+    ax2.plot_surface(grid[:, :, 0], grid[:, :, 1], vals, cmap=cm.coolwarm)
 
     plt.tight_layout()
     plt.show()

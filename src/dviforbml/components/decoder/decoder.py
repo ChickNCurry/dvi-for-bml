@@ -52,45 +52,4 @@ class Decoder(nn.Module):
         y_sigma = softplus(torch.clamp(self.proj_y_sigma(h), min=1e-6, max=1e2))
         # (batch_size, num_subtasks, data_size, y_dim)
 
-        return Normal(y_mu, y_sigma)  # type: ignore
-
-    # def get_mse(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
-    #     # (batch_size, num_subtasks, z_dim)
-    #     # (batch_size, num_subtasks, data_size, x_dim)
-    #     # (batch_size, num_subtasks, data_size, y_dim)
-    #     # (batch_size, num_subtasks, data_size)
-
-    #     y_dist: Normal = self(z, x)
-    #     y_pred: Tensor = y_dist.mean
-    #     # (batch_size, num_subtasks, data_size, y_dim)
-
-    #     mse: Tensor = ((y_pred - y) ** 2).sum(3)
-    #     # (batch_size, num_subtasks, data_size)
-
-    #     if mask is not None:
-    #         mse = mse * mask
-
-    #     mse = mse.mean(2, keepdim=True)
-    #     # (batch_size, num_subtasks, 1)
-
-    #     return mse
-
-    # def get_log_like(self, z: Tensor, x: Tensor, y: Tensor, mask: Tensor) -> Tensor:
-    #     # (batch_size, num_subtasks, z_dim)
-    #     # (batch_size, num_subtasks, data_size, x_dim)
-    #     # (batch_size, num_subtasks, data_size, y_dim)
-    #     # (batch_size, num_subtasks, data_size)
-
-    #     y_dist: Normal = self(z, x)
-    #     # (batch_size, num_subtasks, data_size, y_dim)
-
-    #     log_like: Tensor = y_dist.log_prob(y).sum(3)  # type: ignore
-    #     # (batch_size, num_subtasks, data_size)
-
-    #     if mask is not None:
-    #         log_like = log_like * mask
-
-    #     log_like = log_like.sum(2, keepdim=True)
-    #     # (batch_size, num_subtasks, 1)
-
-    #     return log_like
+        return Normal(y_mu, y_sigma)

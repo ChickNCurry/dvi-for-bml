@@ -27,10 +27,12 @@ class DVINP(NP):
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None, x_data: Tensor
     ) -> Tuple[Normal, Tensor | None]:
         context = torch.cat([x_context, y_context], dim=-1)
-        r_context = self.encoder(context, mask)
+        r_context, s_context = self.encoder(context, mask)
 
         target_dist = self.get_target_dist(x_context, y_context, mask)
-        _, zs = self.cdvi.run_forward_process(target_dist, r_context, mask, None)
+        _, zs = self.cdvi.run_forward_process(
+            target_dist, r_context, mask, s_context, None
+        )
 
         assert zs is not None
 

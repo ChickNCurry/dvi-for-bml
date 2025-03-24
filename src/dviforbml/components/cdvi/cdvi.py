@@ -27,10 +27,12 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
     ) -> None:
         self.target = target
         self.r = r
         self.mask = mask
+        self.s = s
 
         device = r[0].device if isinstance(r, tuple) else r.device
         batch_size = r[0].shape[0] if isinstance(r, tuple) else r.shape[0]
@@ -39,7 +41,7 @@ class CDVI(nn.Module, ABC):
         self.device = device
         self.size = (batch_size, num_subtasks)
 
-        self.prior: Distribution = Normal(  # type: ignore
+        self.prior: Distribution = Normal(
             torch.zeros((batch_size, num_subtasks, self.z_dim), device=device),
             torch.ones((batch_size, num_subtasks, self.z_dim), device=device),
         )  # (batch_size, num_subtasks, z_dim)
@@ -65,9 +67,10 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor,
         mask: Tensor | None,
+        s: Tensor | None,
         other_zs: List[Tensor] | None,
     ) -> Tuple[Tensor, List[Tensor] | None]:
-        self.contextualize(target, r, mask)
+        self.contextualize(target, r, mask, s)
 
         zs = [self.prior.sample()] if other_zs is None else other_zs
         # (batch_size, num_subtasks, z_dim)
@@ -94,9 +97,10 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor,
         mask: Tensor | None,
+        s: Tensor | None,
         zs: List[Tensor],
     ) -> Tensor:
-        self.contextualize(target, r, mask)
+        self.contextualize(target, r, mask, s)
 
         log_prob = self.target.log_prob(zs[-1]).sum(-1)
         # (batch_size, num_subtasks)
@@ -117,8 +121,10 @@ class CDVI(nn.Module, ABC):
         r_data: Tensor | Tuple[Tensor, Tensor],
         r_context: Tensor | Tuple[Tensor, Tensor],
         mask_context: Tensor | None,
+        s_data: Tensor | None,
+        s_context: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
-        self.contextualize(target, r_data, None)
+        self.contextualize(target, r_data, None, s_data)
 
         z_dists_data = []
         z_dists_context = []
@@ -130,7 +136,7 @@ class CDVI(nn.Module, ABC):
             z_dists_data.append(fwd_kernel_data)
             zs.append(fwd_kernel_data.rsample())
 
-        self.contextualize(target, r_context, mask_context)
+        self.contextualize(target, r_context, mask_context, s_context)
 
         for n in range(0, self.num_steps):
             fwd_kernel_context = self.forward_kernel(n, zs[n])
@@ -155,8 +161,9 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
     ) -> Tuple[Tensor, List[Tensor]]:
-        self.contextualize(target, r, mask)
+        self.contextualize(target, r, mask, s)
 
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)

@@ -1,17 +1,10 @@
-from enum import Enum
 from typing import Tuple
-
 from torch import Tensor, nn
 
 from dviforbml.components.encoder.abstract_encoder import AbstractEncoder
 
 
-class Aggr(Enum):
-    MEAN = "mean"
-    MAX = "max"
-
-
-class AggrEncoder(AbstractEncoder):
+class MHCAEncoder(AbstractEncoder):
     def __init__(
         self,
         c_dim: int,
@@ -19,19 +12,17 @@ class AggrEncoder(AbstractEncoder):
         num_layers: int,
         non_linearity: str,
         num_heads: int | None,
-        aggregation: Aggr | None,
         max_context_size: int | None,
     ) -> None:
-        super(AggrEncoder, self).__init__()
+        super(MHCAEncoder, self).__init__()
 
         self.h_dim = h_dim
         self.num_heads = num_heads
-        self.aggregation = aggregation
         self.max_context_size = max_context_size
 
         self.proj_in = nn.Linear(c_dim, h_dim)
 
-        if num_heads is not None:
+        if self.num_heads is not None:
             self.self_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
         self.mlp = nn.Sequential(
@@ -46,20 +37,8 @@ class AggrEncoder(AbstractEncoder):
         h = self.compute_h(context, mask)
         # (batch_size, num_subtasks, context_size, h_dim)
 
-        match self.aggregation:
-            case Aggr.MEAN:
-                if mask is None:
-                    r = h.mean(dim=2)
-                else:
-                    r = (h * mask.unsqueeze(-1)).sum(dim=2) / mask.sum(
-                        dim=2, keepdim=True
-                    )
-            case Aggr.MAX:
-                if mask is None:
-                    r = h.max(dim=2)[0]
-                else:
-                    r = (h * mask.unsqueeze(-1)).max(dim=2)[0]
-            # (batch_size, num_subtasks, h_dim)
+        r = h if mask is None else h * mask.unsqueeze(-1)
+        # (batch_size, num_subtasks, context_size, h_dim)
 
         s = self.compute_s(context, mask) if self.max_context_size is not None else None
         # (batch_size, num_subtasks)

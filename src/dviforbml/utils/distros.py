@@ -18,13 +18,13 @@ class ContextualGaussian(Distribution):
         sigma = torch.ones_like(mu, device=mu.device) * scale
         # (batch_size, num_subtasks, z_dim)
 
-        self.gaussian = Normal(mu, sigma)  # type: ignore
+        self.gaussian = Normal(mu, sigma)
 
     def sample(self, sample_shape: Size | None = None) -> Tensor:
-        return self.gaussian.sample()  # type: ignore
+        return self.gaussian.sample()
 
     def log_prob(self, x: Tensor) -> Tensor:
-        log_prob: Tensor = self.gaussian.log_prob(x)  # type: ignore
+        log_prob: Tensor = self.gaussian.log_prob(x)
         # (batch_size, num_subtasks, z_dim)
 
         return log_prob
@@ -51,8 +51,8 @@ class ContextualGMM(Distribution):
         sigma = torch.ones_like(mu, device=mu.device)
         # (batch_size, num_subtasks, z_dim)
 
-        self.component_a = Normal(mu + offsets[0], sigma * scales[0])  # type: ignore
-        self.component_b = Normal(mu + offsets[1], sigma * scales[1])  # type: ignore
+        self.component_a = Normal(mu + offsets[0], sigma * scales[0])
+        self.component_b = Normal(mu + offsets[1], sigma * scales[1])
         self.weights = torch.tensor([weights[0], weights[1]])
 
     def sample(self, sample_shape: Size | None = None) -> Tensor:
@@ -63,8 +63,8 @@ class ContextualGMM(Distribution):
             self.batch_size, self.num_subtasks
         )  # (batch_size, num_subtasks)
 
-        samples_a = self.component_a.sample()  # type: ignore
-        samples_b = self.component_b.sample()  # type: ignore
+        samples_a = self.component_a.sample()
+        samples_b = self.component_b.sample()
         # (batch_size, num_subtasks, z_dim)
 
         samples = torch.stack(
@@ -89,8 +89,8 @@ class ContextualGMM(Distribution):
         log_prob = torch.logsumexp(
             torch.stack(
                 [
-                    torch.log(self.weights[0]) + self.component_a.log_prob(x),  # type: ignore
-                    torch.log(self.weights[1]) + self.component_b.log_prob(x),  # type: ignore
+                    torch.log(self.weights[0]) + self.component_a.log_prob(x),
+                    torch.log(self.weights[1]) + self.component_b.log_prob(x),
                 ]
             ),
             dim=0,
@@ -158,7 +158,7 @@ class TaskPosteriorGMM(Distribution):
             for dim in range(self.z_dim):
                 modified_mu[:, :, dim] = modified_mu[:, :, dim] * permutation[dim]
 
-            modified_component = Normal(modified_mu, self.sigma)  # type: ignore
+            modified_component = Normal(modified_mu, self.sigma)
 
             components.append(modified_component)
 
@@ -199,7 +199,7 @@ class TaskPosteriorGMM(Distribution):
         return torch.exp(-a * x) + calibration - torch.exp(-a * torch.ones_like(x))
 
     def sample(self, sample_shape: Size | None = None) -> Tensor:
-        possible_samples = torch.stack([c.sample() for c in self.components])  # type: ignore
+        possible_samples = torch.stack([c.sample() for c in self.components])
         # (num_components, batch_size, num_subtasks, z_dim)
 
         component_indices = torch.multinomial(
@@ -227,7 +227,7 @@ class TaskPosteriorGMM(Distribution):
         log_prob = torch.logsumexp(
             torch.stack(
                 [
-                    torch.log(self.weights[i]) + self.components[i].log_prob(x)  # type: ignore
+                    torch.log(self.weights[i]) + self.components[i].log_prob(x)
                     for i in range(len(self.components))
                 ],
             ),

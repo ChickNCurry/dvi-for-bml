@@ -3,8 +3,8 @@ from typing import List, Tuple
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from scipy.special import logsumexp  # type: ignore
-from scipy.stats import gaussian_kde  # type: ignore
+from scipy.special import logsumexp
+from scipy.stats import gaussian_kde
 from torch.distributions import Distribution
 
 

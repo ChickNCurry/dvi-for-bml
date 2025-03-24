@@ -6,7 +6,7 @@ from torch import Tensor, nn
 from dviforbml.components.control.abstract_control import AbstractControl
 
 
-class MHAControl(AbstractControl):
+class MHCAControl(AbstractControl):
     def __init__(
         self,
         h_dim: int,
@@ -14,27 +14,32 @@ class MHAControl(AbstractControl):
         num_steps: int,
         num_layers: int,
         non_linearity: str,
+        max_context_size: int | None,
         use_score: bool,
         num_heads: int,
     ) -> None:
-        super(MHAControl, self).__init__()
+        super(MHCAControl, self).__init__()
 
-        self.non_linearity = non_linearity
+        self.z_dim = z_dim
+        self.h_dim = h_dim
+        self.max_context_size = max_context_size
         self.use_score = use_score
-        self.num_heads = num_heads
 
-        self.proj_n = nn.Embedding(num_steps + 1, h_dim)
+        self.proj_n = nn.Embedding(num_steps + 1, z_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
+
+        if max_context_size is not None:
+            self.proj_s = nn.Embedding(max_context_size, z_dim)
 
         self.cross_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
+        input_dim = h_dim + z_dim + (z_dim if max_context_size is not None else 0)
+
         self.mlp = nn.Sequential(
+            nn.Linear(input_dim, h_dim),
             *[
                 layer
-                for layer in (
-                    getattr(nn, non_linearity)(),
-                    nn.Linear(h_dim, h_dim),
-                )
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
             ],
             getattr(nn, non_linearity)(),
@@ -59,45 +64,58 @@ class MHAControl(AbstractControl):
         z: Tensor,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
         score: Tensor | None,
+        error: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
-        # (batch_size, num_subtasks, context_size, h_dim)
-        # (batch_size, num_subtasks, context_size)
-
-        assert isinstance(r, Tensor)
+        # (batch_size, num_subtasks, data_size, h_dim)
+        # (batch_size, num_subtasks, data_size)
+        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         if self.use_score:
             assert score is not None
 
         batch_size = r.shape[0]
         num_subtasks = r.shape[1]
-        context_size = r.shape[2]
+        data_size = r.shape[2]
 
-        r = r.view(batch_size * num_subtasks, context_size, -1)
-        # (batch_size * num_subtasks, context_size, h_dim)
+        r = r.view(batch_size * num_subtasks, data_size, self.h_dim)
+        # (batch_size * num_subtasks, data_size, h_dim)
 
-        h: Tensor = self.proj_n(torch.tensor([n], device=z.device)) + self.proj_z(z)
-        # (batch_size, num_subtasks, h_dim)
-
-        h = h.view(batch_size * num_subtasks, -1).unsqueeze(1)
+        z = self.proj_z(z).view(batch_size * num_subtasks, -1).unsqueeze(1)
         # (batch_size * num_subtasks, 1, h_dim)
 
         key_padding_mask = (
-            mask.view(batch_size * num_subtasks, context_size).bool().logical_not()
+            mask.view(batch_size * num_subtasks, data_size).bool().logical_not()
             if mask is not None
             else None
-        )
-        # (batch_size * num_subtasks, context_size)
+        )  # (batch_size * num_subtasks, data_size)
 
-        h, _ = self.cross_attn(
-            query=h, key=r, value=r, key_padding_mask=key_padding_mask
+        z, _ = self.cross_attn(
+            query=z, key=r, value=r, key_padding_mask=key_padding_mask
         )  # (batch_size * num_subtasks, 1, h_dim)
 
-        h = h.squeeze(1).view(batch_size, num_subtasks, -1)
+        z = z.reshape(batch_size, num_subtasks, self.h_dim)
         # (batch_size, num_subtasks, h_dim)
 
-        h = self.mlp(h)
+        n_emb = self.proj_n(torch.tensor([n], device=z.device)).repeat(
+            batch_size, num_subtasks, 1
+        )  # (batch_size, num_subtasks, z_dim)
+
+        input = torch.cat([z, n_emb], dim=-1)
+        # (batch_size, num_subtasks, h_dim + z_dim)
+
+        if self.max_context_size is not None:
+            assert s is not None
+            s_emb = self.proj_s(s)
+            # (batch_size, num_subtasks, z_dim)
+
+            input = torch.cat([input, s_emb], dim=-1)
+            # (batch_size, num_subtasks, h_dim + 2 * z_dim)
+
+        h = self.mlp(input)
         # (batch_size, num_subtasks, h_dim)
 
         if self.use_score:

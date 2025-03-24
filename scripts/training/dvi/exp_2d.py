@@ -2,7 +2,7 @@ from dataclasses import asdict, dataclass
 from typing import List, Tuple
 
 import numpy as np
-import pandas as pd  # type: ignore
+import pandas as pd
 import torch
 from matplotlib import pyplot as plt
 from torch.optim.adamw import AdamW
@@ -15,26 +15,26 @@ from dviforbml.components.cdvi.dis import DIS
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.control.abstract_control import AbstractControl
 from dviforbml.components.control.bca_control import BCAControl
-from dviforbml.components.control.mha_control import MHAControl
+from dviforbml.components.control.mhca_control import MHCAControl
 from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from dviforbml.components.encoder.abstract_encoder import AbstractEncoder
 from dviforbml.components.encoder.bca_encoder import BCAEncoder
-from dviforbml.components.encoder.mha_encoder import MHAEncoder
+from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
 from dviforbml.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
 )
 from dviforbml.components.schedule.abstract_schedule import AbstractSchedule
-from dviforbml.components.schedule.cos_noise_schedule import (
-    AggrCosineNoiseSchedule,
-    BCACosineNoiseSchedule,
-    CosineNoiseSchedule,
+from dviforbml.components.schedule.constr_noise_schedule import (
+    AggrConstrNoiseSchedule,
+    BCAConstrNoiseSchedule,
+    ConstrNoiseSchedule,
 )
-from dviforbml.components.schedule.noise_schedule import (
-    AggrNoiseSchedule,
-    BCANoiseSchedule,
-    NoiseSchedule,
+from dviforbml.components.schedule.free_noise_schedule import (
+    AggrFreeNoiseSchedule,
+    BCAFreeNoiseSchedule,
+    FreeNoiseSchedule,
 )
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
 from dviforbml.evaluation.grid import (
@@ -190,7 +190,7 @@ def run() -> None:
 
     # Noise Schedules
 
-    noise_schedule = NoiseSchedule(
+    noise_schedule = FreeNoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,
@@ -201,7 +201,7 @@ def run() -> None:
         f"scripts/dvi/state_dicts/{get_object_hash(noise_schedule)}.pth",
     )
 
-    cos_noise_schedule = CosineNoiseSchedule(
+    cos_noise_schedule = ConstrNoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,
@@ -212,7 +212,7 @@ def run() -> None:
         f"scripts/dvi/state_dicts/{get_object_hash(cos_noise_schedule)}.pth",
     )
 
-    aggr_noise_schedule = AggrNoiseSchedule(
+    aggr_noise_schedule = AggrFreeNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
@@ -225,7 +225,7 @@ def run() -> None:
         f"scripts/dvi/state_dicts/{get_object_hash(aggr_noise_schedule)}.pth",
     )
 
-    aggr_cos_noise_schedule = AggrCosineNoiseSchedule(
+    aggr_cos_noise_schedule = AggrConstrNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
@@ -237,7 +237,7 @@ def run() -> None:
         f"scripts/dvi/state_dicts/{get_object_hash(aggr_cos_noise_schedule)}.pth",
     )
 
-    bca_noise_schedule = BCANoiseSchedule(
+    bca_noise_schedule = BCAFreeNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
@@ -250,7 +250,7 @@ def run() -> None:
         f"scripts/dvi/state_dicts/{get_object_hash(bca_noise_schedule)}.pth",
     )
 
-    bca_cos_noise_schedule = BCACosineNoiseSchedule(
+    bca_cos_noise_schedule = BCAConstrNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,

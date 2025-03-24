@@ -12,15 +12,15 @@ model:
     y_dim: 1
     c_dim: 2
     z_dim: 2
-    h_dim: 64
-    num_layers: 6
+    h_dim: 32
+    num_layers: 3
     non_linearity: GELU
     self_attn_num_heads: null
-    cross_attn_num_heads: null
+    cross_attn_num_heads: 2
     max_context_size: null
-    context_variant: mean
-    noise_variant: free
-    model_variant: cmcd
+    context_variant: mhca
+    noise_variant: constr
+    model_variant: dis
     contextual_schedules: true
     use_error: false
 training:

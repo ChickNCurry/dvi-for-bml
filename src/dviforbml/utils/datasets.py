@@ -4,10 +4,10 @@ from typing import Any, Tuple
 
 import numpy as np
 import torch
-from metalearning_benchmarks import MetaLearningBenchmark  # type: ignore
+from metalearning_benchmarks import MetaLearningBenchmark
 from torch import Tensor
 from torch.utils.data import Dataset
-from metalearning_benchmarks.parametric_benchmark import ParametricBenchmark  # type: ignore
+from metalearning_benchmarks.parametric_benchmark import ParametricBenchmark
 
 
 class ContextTestDataset(Dataset[Tensor]):
@@ -73,7 +73,7 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
         assert self.max_context_size <= self.benchmark.n_datapoints_per_task
 
     def __len__(self) -> int:
-        return self.benchmark.n_task  # type: ignore
+        return self.benchmark.n_task
 
     def __getitem__(self, task_idx: int) -> Tuple[Tensor, Tensor]:
         task = self.benchmark.get_task_by_index(task_index=task_idx)
@@ -97,7 +97,7 @@ def hash_tensor(t: Tensor) -> str:
     return hashlib.sha256(tensor_bytes).hexdigest()
 
 
-class Sinusoid1DFreq(ParametricBenchmark):  # type: ignore
+class Sinusoid1DFreq(ParametricBenchmark):
     # cf. MAML paper, section "5.1. Regression"
     d_param = 2
     d_x = 1
@@ -129,7 +129,7 @@ class Sinusoid1DFreq(ParametricBenchmark):  # type: ignore
             seed_noise=seed_noise,
         )
 
-    def __call__(self, x: np.ndarray, param: np.ndarray) -> np.ndarray[Any, Any]:  # type: ignore
+    def __call__(self, x: np.ndarray, param: np.ndarray) -> np.ndarray[Any, Any]:
         # amplitude, phase, freq = param
         # y: np.ndarray[Any, Any] = amplitude * np.sin(freq * x + phase)
         phase, freq = param

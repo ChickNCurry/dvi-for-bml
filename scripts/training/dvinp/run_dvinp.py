@@ -17,7 +17,7 @@ def run(cfg: DictConfig) -> None:
         wandb.init(
             name=get_name_dvinp(cfg),
             project=cfg.wandb.project,
-            config=OmegaConf.to_container(cfg),  # type: ignore
+            config=OmegaConf.to_container(cfg),
         )
 
     trainer.train(

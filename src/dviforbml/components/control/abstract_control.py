@@ -15,6 +15,7 @@ class AbstractControl(nn.Module, ABC):
         z: Tensor,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
         score: Tensor | None,
         error: Tensor | None,
     ) -> Tensor:

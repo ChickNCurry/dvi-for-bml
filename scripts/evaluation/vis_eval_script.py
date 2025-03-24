@@ -19,7 +19,7 @@ def run(
     max_context_size: int,
 ) -> None:
     try:
-        import torch_directml  # type: ignore
+        import torch_directml
 
         device = torch_directml.device()
     except ImportError:

@@ -13,8 +13,8 @@ from dviforbml.components.cdvi.ula import ULA
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.encoder.proj_encoder import ProjEncoder
 from dviforbml.components.schedule.annealing_schedule import AnnealingSchedule
-from dviforbml.components.schedule.cos_noise_schedule import CosineNoiseSchedule
-from dviforbml.components.schedule.noise_schedule import NoiseSchedule
+from dviforbml.components.schedule.constr_noise_schedule import ConstrNoiseSchedule
+from dviforbml.components.schedule.free_noise_schedule import FreeNoiseSchedule
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
 from dviforbml.evaluation.visualization.visualize_dvi import visualize_dvi_1d
 from dviforbml.training.dvi_trainer import DVITrainerContext
@@ -61,7 +61,7 @@ def main() -> None:
         use_error=False,
     )
 
-    noise_schedule = NoiseSchedule(
+    noise_schedule = FreeNoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,

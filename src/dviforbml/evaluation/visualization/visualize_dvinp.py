@@ -139,12 +139,12 @@ def visualize_dvinp(
         ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
         ax[1].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm
-        )  # type: ignore
+        )
 
         ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
         ax[2].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
-        )  # type: ignore
+        )
 
         if show_score:
             ax[1].quiver(
@@ -190,4 +190,4 @@ def visualize_dvinp(
     else:
         plt.show()
 
-    return targets, tp_samples  # type: ignore
+    return targets, tp_samples

@@ -100,10 +100,11 @@ class DVITrainerContext(DVITrainer):
         target_dist = self.model.contextual_target(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        r = self.model.encoder(context, mask)
+        r, s = self.model.encoder(context, mask)
         # (batch_size, num_subtasks, c_dim)
+        # (batch_size, num_subtasks)
 
-        elbo, _ = self.model.cdvi.run_both_processes(target_dist, r, mask)
+        elbo, _ = self.model.cdvi.run_both_processes(target_dist, r, mask, s)
 
         loss = -elbo
 

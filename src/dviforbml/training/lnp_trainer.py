@@ -424,12 +424,12 @@ class LNPTrainerContext(LNPTrainer):
         log_like = log_like.sum(dim=-1).sum(dim=-1)
         # (batch_size, num_subtasks)
 
-        prior_dist = Normal(  # type: ignore
+        prior_dist = Normal(
             torch.zeros((batch_size, num_subtasks, z_dim), device=device),
             torch.ones((batch_size, num_subtasks, z_dim), device=device),
         )  # (batch_size, num_subtasks, z_dim)
 
-        log_prior: Tensor = prior_dist.log_prob(z_context)  # type: ignore
+        log_prior: Tensor = prior_dist.log_prob(z_context)
         log_prior = log_prior.sum(dim=-1)
         # (batch_size, num_subtasks)
 

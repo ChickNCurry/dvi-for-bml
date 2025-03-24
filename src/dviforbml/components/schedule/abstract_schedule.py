@@ -4,7 +4,7 @@ from torch import Tensor, nn
 
 
 class AbstractSchedule(ABC, nn.Module):
-    def update(self, r: Tensor, mask: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         pass
 
     @abstractmethod

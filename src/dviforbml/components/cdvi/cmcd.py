@@ -36,12 +36,13 @@ class CMCD(CDVI):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
     ) -> None:
-        super(CMCD, self).contextualize(target, r, mask)
+        super(CMCD, self).contextualize(target, r, mask, s)
 
-        self.step_size_schedule.update(r, mask)
-        self.noise_schedule.update(r, mask)
-        self.annealing_schedule.update(r, mask)
+        self.step_size_schedule.update(r, mask, s)
+        self.noise_schedule.update(r, mask, s)
+        self.annealing_schedule.update(r, mask, s)
 
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -50,14 +51,14 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, None, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s, None, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z + (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def backward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -66,14 +67,14 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, None, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s, None, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z - (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def compute_score(self, n: int, z: Tensor) -> Tensor:
         z = z.requires_grad_(True)

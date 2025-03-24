@@ -12,24 +12,24 @@ from dviforbml.components.cdvi.cmcd import CMCD
 from dviforbml.components.cdvi.dis import DIS
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.control.bca_control import BCAControl
-from dviforbml.components.control.mha_control import MHAControl
+from dviforbml.components.control.mhca_control import MHCAControl
 from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from dviforbml.components.encoder.bca_encoder import BCAEncoder
-from dviforbml.components.encoder.mha_encoder import MHAEncoder
+from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
 from dviforbml.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
     BCAAnnealingSchedule,
 )
-from dviforbml.components.schedule.cos_noise_schedule import (
-    AggrCosineNoiseSchedule,
-    BCACosineNoiseSchedule,
-    CosineNoiseSchedule,
+from dviforbml.components.schedule.constr_noise_schedule import (
+    AggrConstrNoiseSchedule,
+    BCAConstrNoiseSchedule,
+    ConstrNoiseSchedule,
 )
-from dviforbml.components.schedule.noise_schedule import (
-    AggrNoiseSchedule,
-    BCANoiseSchedule,
-    NoiseSchedule,
+from dviforbml.components.schedule.free_noise_schedule import (
+    AggrFreeNoiseSchedule,
+    BCAFreeNoiseSchedule,
+    FreeNoiseSchedule,
 )
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
 from dviforbml.evaluation.visualization.visualize_dvi import visualize_dvi_2d
@@ -43,7 +43,7 @@ def main() -> None:
     #     device = torch.device("cuda")
     # else:
     #     try:
-    #         import torch_directml  # type: ignore
+    #         import torch_directml
 
     #         device = torch_directml.device()
     #     except ImportError:
@@ -92,7 +92,7 @@ def main() -> None:
         num_heads=None,
     )
 
-    mha_encoder = MHAEncoder(
+    mha_encoder = MHCAEncoder(
         c_dim=config.c_dim,
         h_dim=config.h_dim,
         num_layers=config.num_layers,
@@ -120,7 +120,7 @@ def main() -> None:
         use_error=False,
     )
 
-    mha_control = MHAControl(
+    mha_control = MHCAControl(
         h_dim=config.h_dim,
         z_dim=config.z_dim,
         num_steps=config.num_steps,
@@ -132,13 +132,13 @@ def main() -> None:
 
     step_size_schedule = StepSizeSchedule(num_steps=config.num_steps, device=device)
 
-    noise_schedule = NoiseSchedule(
+    noise_schedule = FreeNoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,
     )
 
-    aggr_noise_schedule = AggrNoiseSchedule(
+    aggr_noise_schedule = AggrFreeNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
@@ -146,7 +146,7 @@ def main() -> None:
         device=device,
     )
 
-    bca_noise_schedule = BCANoiseSchedule(
+    bca_noise_schedule = BCAFreeNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
@@ -187,20 +187,20 @@ def main() -> None:
     #     num_heads=1
     # )
 
-    cos_noise_schedule = CosineNoiseSchedule(
+    cos_noise_schedule = ConstrNoiseSchedule(
         z_dim=config.z_dim,
         num_steps=config.num_steps,
         device=device,
     )
 
-    aggr_cos_noise_schedule = AggrCosineNoiseSchedule(
+    aggr_cos_noise_schedule = AggrConstrNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,
         num_steps=config.num_steps,
     )
 
-    bca_cos_noise_schedule = BCACosineNoiseSchedule(
+    bca_cos_noise_schedule = BCAConstrNoiseSchedule(
         z_dim=config.z_dim,
         h_dim=config.h_dim,
         non_linearity=config.non_linearity,

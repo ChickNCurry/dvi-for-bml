@@ -15,7 +15,7 @@ from dviforbml.utils.load_np import load_np
 
 def run(model_infos: List[ModelInfo], num_samples: int, save_dir: str) -> None:
     try:
-        import torch_directml  # type: ignore
+        import torch_directml
 
         device = torch_directml.device()
     except ImportError:

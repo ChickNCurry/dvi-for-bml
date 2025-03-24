@@ -107,7 +107,7 @@ class AbstractTrainer(ABC):
                 if debug and torch.isnan(loss) or torch.isinf(loss):
                     print("loss is nan or inf")
 
-                loss.backward()  # type: ignore
+                loss.backward()
 
                 if debug and (
                     torch.stack(

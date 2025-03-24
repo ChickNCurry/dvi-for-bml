@@ -17,7 +17,7 @@ class DIS(CDVI):
         control: AbstractControl,
         step_size_schedule: AbstractSchedule,
         noise_schedule: AbstractSchedule,
-        annealing_schedule: AbstractSchedule,
+        annealing_schedule: AbstractSchedule | None,
         use_score: bool,
         use_error: bool,
         device: torch.device,
@@ -40,12 +40,15 @@ class DIS(CDVI):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
+        s: Tensor | None,
     ):
-        super(DIS, self).contextualize(target, r, mask)
+        super(DIS, self).contextualize(target, r, mask, s)
 
-        self.step_size_schedule.update(r, mask)
-        self.noise_schedule.update(r, mask)
-        self.annealing_schedule.update(r, mask)
+        self.step_size_schedule.update(r, mask, s)
+        self.noise_schedule.update(r, mask, s)
+
+        if self.annealing_schedule is not None:
+            self.annealing_schedule.update(r, mask, s)
 
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -59,7 +62,7 @@ class DIS(CDVI):
         )
         error_n = self.target.log_prob(z).detach() if self.use_error else None
 
-        control_n = self.control(n, z, self.r, self.mask, score_n, error_n)
+        control_n = self.control(n, z, self.r, self.mask, self.s, score_n, error_n)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = (
@@ -68,7 +71,7 @@ class DIS(CDVI):
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def backward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -82,9 +85,11 @@ class DIS(CDVI):
         z_sigma = torch.sqrt(var_n * 2 * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
 
-        return Normal(z_mu, z_sigma)  # type: ignore
+        return Normal(z_mu, z_sigma)
 
     def compute_score(self, n: int, z: Tensor) -> Tensor:
+        assert self.annealing_schedule is not None
+
         z = z.requires_grad_(True)
 
         beta_n = self.annealing_schedule.get(n)
