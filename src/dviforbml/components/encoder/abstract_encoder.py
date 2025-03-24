@@ -59,12 +59,11 @@ class AbstractEncoder(nn.Module, ABC):
         # (batch_size, num_subtasks, data_size)
 
         if mask is None:
-            return (
-                torch.tensor([context.shape[2]], device=context.device)
-                .unsqueeze(0)
-                .unsqueeze(0)
-                .expand(context.shape[0], context.shape[1])
-            )  # (batch_size, num_subtasks)
-        else:
-            return mask.sum(dim=-1)
+            s = torch.tensor([context.shape[2]], device=context.device, dtype=torch.int)
+            s = s.repeat(context.shape[0], context.shape[1])
             # (batch_size, num_subtasks)
+        else:
+            s = mask.sum(dim=-1).int()
+            # (batch_size, num_subtasks)
+
+        return s

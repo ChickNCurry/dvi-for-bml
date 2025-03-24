@@ -85,14 +85,15 @@ def visualize_dvi_2d(
     num_samples: int = 1600,  # 8192
     bins: int = 40,
     plot_range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
+    multipliers: Tuple[float, float] = (1, 1),
 ) -> None:
     nrows = dataset.max_context_size - 1
 
     context = dataset.sampling_factor * torch.rand(
         (1, num_samples, nrows, 2), device=device
     )
-    context[:, :, :, 0] = context[:, :, :, 0] * 1
-    context[:, :, :, 1] = context[:, :, :, 1] * 1
+    context[:, :, :, 0] = context[:, :, :, 0] * multipliers[0]
+    context[:, :, :, 1] = context[:, :, :, 1] * multipliers[1]
 
     fig = plt.figure(figsize=(9, 3 * nrows), constrained_layout=True)
     subfigs = fig.subfigures(nrows=nrows, ncols=1)
@@ -108,8 +109,8 @@ def visualize_dvi_2d(
 
         target_dist = model.contextual_target(sub_context, None)
 
-        r = model.encoder(sub_context.to(device), None)
-        _, z_samples = model.cdvi.run_forward_process(target_dist, r, None, None)
+        r, s = model.encoder(sub_context.to(device), None)
+        _, z_samples = model.cdvi.run_forward_process(target_dist, r, None, s, None)
 
         assert z_samples is not None
 

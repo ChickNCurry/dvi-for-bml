@@ -37,10 +37,7 @@ class MHCAEncoder(AbstractEncoder):
         h = self.compute_h(context, mask)
         # (batch_size, num_subtasks, context_size, h_dim)
 
-        r = h if mask is None else h * mask.unsqueeze(-1)
-        # (batch_size, num_subtasks, context_size, h_dim)
-
         s = self.compute_s(context, mask) if self.max_context_size is not None else None
         # (batch_size, num_subtasks)
 
-        return r, s
+        return h, s

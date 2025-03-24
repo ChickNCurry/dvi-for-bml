@@ -29,11 +29,11 @@ class MHCAControl(AbstractControl):
         self.proj_z = nn.Linear(z_dim, h_dim)
 
         if max_context_size is not None:
-            self.proj_s = nn.Embedding(max_context_size, z_dim)
+            self.proj_s = nn.Embedding(max_context_size + 1, z_dim)
 
         self.cross_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
-        input_dim = h_dim + z_dim + (z_dim if max_context_size is not None else 0)
+        input_dim = z_dim + z_dim + (z_dim if max_context_size is not None else 0)
 
         self.mlp = nn.Sequential(
             nn.Linear(input_dim, h_dim),
@@ -81,25 +81,6 @@ class MHCAControl(AbstractControl):
         num_subtasks = r.shape[1]
         data_size = r.shape[2]
 
-        r = r.view(batch_size * num_subtasks, data_size, self.h_dim)
-        # (batch_size * num_subtasks, data_size, h_dim)
-
-        z = self.proj_z(z).view(batch_size * num_subtasks, -1).unsqueeze(1)
-        # (batch_size * num_subtasks, 1, h_dim)
-
-        key_padding_mask = (
-            mask.view(batch_size * num_subtasks, data_size).bool().logical_not()
-            if mask is not None
-            else None
-        )  # (batch_size * num_subtasks, data_size)
-
-        z, _ = self.cross_attn(
-            query=z, key=r, value=r, key_padding_mask=key_padding_mask
-        )  # (batch_size * num_subtasks, 1, h_dim)
-
-        z = z.reshape(batch_size, num_subtasks, self.h_dim)
-        # (batch_size, num_subtasks, h_dim)
-
         n_emb = self.proj_n(torch.tensor([n], device=z.device)).repeat(
             batch_size, num_subtasks, 1
         )  # (batch_size, num_subtasks, z_dim)
@@ -116,6 +97,28 @@ class MHCAControl(AbstractControl):
             # (batch_size, num_subtasks, h_dim + 2 * z_dim)
 
         h = self.mlp(input)
+        # (batch_size, num_subtasks, h_dim)
+
+        r = r.view(batch_size * num_subtasks, data_size, self.h_dim)
+        # (batch_size * num_subtasks, data_size, h_dim)
+
+        # z = self.proj_z(z).view(batch_size * num_subtasks, -1).unsqueeze(1)
+        # # (batch_size * num_subtasks, 1, h_dim)
+
+        h = h.view(batch_size * num_subtasks, self.h_dim).unsqueeze(1)
+        # (batch_size * num_subtasks, 1, h_dim)
+
+        key_padding_mask = (
+            mask.view(batch_size * num_subtasks, data_size).bool().logical_not()
+            if mask is not None
+            else None
+        )  # (batch_size * num_subtasks, data_size)
+
+        h, _ = self.cross_attn(
+            query=h, key=r, value=r, key_padding_mask=key_padding_mask
+        )  # (batch_size * num_subtasks, 1, h_dim)
+
+        h = h.reshape(batch_size, num_subtasks, self.h_dim)
         # (batch_size, num_subtasks, h_dim)
 
         if self.use_score:

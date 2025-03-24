@@ -28,7 +28,7 @@ class BCAControl(AbstractControl):
         self.proj_n = nn.Embedding(num_steps + 1, z_dim)
 
         if self.max_context_size is not None:
-            self.proj_s = nn.Embedding(self.max_context_size, z_dim)
+            self.proj_s = nn.Embedding(self.max_context_size + 1, z_dim)
 
         input_dim = (
             2 * z_dim
