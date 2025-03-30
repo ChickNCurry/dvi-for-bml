@@ -140,11 +140,13 @@ def visualize_dvinp(
         ax[1].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm
         )
+        ax[1].grid(True)
 
         ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
         ax[2].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
         )
+        ax[2].grid(True)
 
         if show_score:
             ax[1].quiver(
@@ -181,9 +183,9 @@ def visualize_dvinp(
                 zorder=0,
             )
 
-        for a in ax:
-            a.set_xticks([])
-            a.set_yticks([])
+        # for a in ax:
+        #     a.set_xticks([])
+        #     a.set_yticks([])
 
     if save_dir is not None:
         plt.savefig(f"{save_dir}/dvinp.png")

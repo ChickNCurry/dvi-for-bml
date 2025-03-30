@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Tuple
 
-from torch import Tensor, nn
+from torch import Tensor
 
 from dviforbml.components.encoder.abstract_encoder import AbstractEncoder
 
@@ -16,33 +16,31 @@ class AggrEncoder(AbstractEncoder):
         self,
         c_dim: int,
         h_dim: int,
+        z_dim: int,
         num_layers: int,
         non_linearity: str,
         num_heads: int | None,
-        aggregation: Aggr | None,
+        num_blocks: int,
         max_context_size: int | None,
+        aggregation: Aggr,
     ) -> None:
-        super(AggrEncoder, self).__init__()
-
-        self.h_dim = h_dim
-        self.num_heads = num_heads
-        self.aggregation = aggregation
-        self.max_context_size = max_context_size
-
-        self.proj_in = nn.Linear(c_dim, h_dim)
-
-        if num_heads is not None:
-            self.self_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
-
-        self.mlp = nn.Sequential(
-            *[
-                layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
-                for _ in range(num_layers)
-            ],
+        super(AggrEncoder, self).__init__(
+            c_dim,
+            h_dim,
+            z_dim,
+            num_layers,
+            non_linearity,
+            num_heads,
+            num_blocks,
+            max_context_size,
         )
 
+        self.aggregation = aggregation
+
     def forward(self, context: Tensor, mask: Tensor | None) -> Tuple[Tensor, Tensor]:
+        # (batch_size, num_subtasks, data_size, c_dim)
+        # (batch_size, num_subtasks, data_size)
+
         h = self.compute_h(context, mask)
         # (batch_size, num_subtasks, context_size, h_dim)
 
@@ -62,6 +60,6 @@ class AggrEncoder(AbstractEncoder):
             # (batch_size, num_subtasks, h_dim)
 
         s = self.compute_s(context, mask) if self.max_context_size is not None else None
-        # (batch_size, num_subtasks)
+        # (batch_size, num_subtasks, z_dim)
 
         return r, s

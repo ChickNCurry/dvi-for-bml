@@ -19,7 +19,6 @@ class DIS(CDVI):
         noise_schedule: AbstractSchedule,
         annealing_schedule: AbstractSchedule | None,
         use_score: bool,
-        use_error: bool,
         device: torch.device,
     ) -> None:
         super(DIS, self).__init__(
@@ -33,7 +32,6 @@ class DIS(CDVI):
         self.noise_schedule = noise_schedule
         self.annealing_schedule = annealing_schedule
         self.use_score = use_score
-        self.use_error = use_error
 
     def contextualize(
         self,
@@ -60,9 +58,8 @@ class DIS(CDVI):
         score_n = (
             torch.sqrt(var_n) * self.compute_score(n, z) if self.use_score else None
         )
-        error_n = self.target.log_prob(z).detach() if self.use_error else None
 
-        control_n = self.control(n, z, self.r, self.mask, self.s, score_n, error_n)
+        control_n = self.control(n, z, self.r, self.mask, self.s, score_n)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = (
@@ -109,8 +106,8 @@ class DIS(CDVI):
         score_n = score_n.detach()
         # score_n = torch.nan_to_num(score_n)
 
-        # grad_norm = score_n.norm(p=2)
-        # if grad_norm > 1:
-        #     score_n = score_n * (1 / grad_norm)
+        grad_norm = score_n.norm(p=2)
+        if grad_norm > 10:
+            score_n = score_n * (10 / grad_norm)
 
         return score_n

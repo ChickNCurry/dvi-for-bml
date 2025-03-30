@@ -1,10 +1,8 @@
 from typing import Tuple
 from torch import Tensor, nn
 
-from dviforbml.components.encoder.abstract_encoder import AbstractEncoder
 
-
-class ProjEncoder(AbstractEncoder):
+class ProjEncoder(nn.Module):
     def __init__(self, c_dim: int, h_dim: int) -> None:
         super(ProjEncoder, self).__init__()
 
@@ -21,7 +19,4 @@ class ProjEncoder(AbstractEncoder):
         r: Tensor = self.proj_c(context)
         # (batch_size, num_subtasks, h_dim)
 
-        s = self.compute_s(context, mask)
-        # (batch_size, num_subtasks)
-
-        return r, s
+        return r, None

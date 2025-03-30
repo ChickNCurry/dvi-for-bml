@@ -4,7 +4,7 @@ benchmark:
     n_task: 4096
     output_noise: 0.1
     seed_noise: 1237
-    seed_task: 1237
+    seed_task: 5 # 1237
     seed_x: 123
 model:
     num_steps: 16
@@ -12,25 +12,27 @@ model:
     y_dim: 1
     c_dim: 2
     z_dim: 2
-    h_dim: 32
-    num_layers: 3
+    h_dim: 64
+    num_layers_enc: 6
+    num_layers_ctrl: 6
+    num_layers_dec: 6
+    num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: null
-    cross_attn_num_heads: 2
-    max_context_size: null
-    context_variant: mhca
-    noise_variant: constr
+    self_attn_num_heads: 8
+    cross_attn_num_heads: 8
+    max_context_size: null # 64
+    context_variant: mean
     model_variant: dis
-    contextual_schedules: true
-    use_error: false
+    noise_variant: constr
+    contextual_schedules: false
 training:
     trainer_variant: cntxt
     batch_size: 128
     num_subtasks: 32
     num_val_tasks: 32
     num_samples: 100
-    max_context_size: 16
-    learning_rate: 0.0003
+    max_context_size: 64
+    learning_rate: 0.001
     num_epochs: 500
     alternating_ratio: null
     max_clip_norm: null

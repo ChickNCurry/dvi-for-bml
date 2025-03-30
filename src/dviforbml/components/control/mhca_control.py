@@ -28,9 +28,6 @@ class MHCAControl(AbstractControl):
         self.proj_n = nn.Embedding(num_steps + 1, z_dim)
         self.proj_z = nn.Linear(z_dim, h_dim)
 
-        if max_context_size is not None:
-            self.proj_s = nn.Embedding(max_context_size + 1, z_dim)
-
         self.cross_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
         input_dim = z_dim + z_dim + (z_dim if max_context_size is not None else 0)
@@ -66,7 +63,6 @@ class MHCAControl(AbstractControl):
         mask: Tensor | None,
         s: Tensor | None,
         score: Tensor | None,
-        error: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, data_size, h_dim)
@@ -90,10 +86,7 @@ class MHCAControl(AbstractControl):
 
         if self.max_context_size is not None:
             assert s is not None
-            s_emb = self.proj_s(s)
-            # (batch_size, num_subtasks, z_dim)
-
-            input = torch.cat([input, s_emb], dim=-1)
+            input = torch.cat([input, s], dim=-1)
             # (batch_size, num_subtasks, h_dim + 2 * z_dim)
 
         h = self.mlp(input)

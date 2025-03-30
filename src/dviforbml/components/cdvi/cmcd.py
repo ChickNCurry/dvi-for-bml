@@ -51,7 +51,7 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, self.s, None, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z + (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
@@ -67,7 +67,7 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, self.s, None, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z - (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n

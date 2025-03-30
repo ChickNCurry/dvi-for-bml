@@ -14,25 +14,17 @@ class AggrControl(AbstractControl):
         non_linearity: str,
         max_context_size: int | None,
         use_score: bool,
-        use_error: bool,
     ) -> None:
         super(AggrControl, self).__init__()
 
         self.non_linearity = non_linearity
         self.max_context_size = max_context_size
         self.use_score = use_score
-        self.use_error = use_error
 
         self.proj_n = nn.Embedding(num_steps + 1, z_dim)
 
-        if self.max_context_size is not None:
-            self.proj_s = nn.Embedding(self.max_context_size + 1, z_dim)
-
         input_dim = (
-            2 * z_dim
-            + h_dim
-            + (z_dim if self.max_context_size is not None else 0)
-            + (1 if self.use_error else 0)
+            2 * z_dim + h_dim + (z_dim if self.max_context_size is not None else 0)
         )
 
         self.mlp = nn.Sequential(
@@ -66,7 +58,6 @@ class AggrControl(AbstractControl):
         mask: Tensor | None,
         s: Tensor | None,
         score: Tensor | None,
-        error: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, h_dim)
@@ -87,16 +78,8 @@ class AggrControl(AbstractControl):
 
         if self.max_context_size is not None:
             assert s is not None
-            s_emb = self.proj_s(s)
-            # (batch_size, num_subtasks, z_dim)
-
-            input = torch.cat([input, s_emb], dim=-1)
+            input = torch.cat([input, s], dim=-1)
             # (batch_size, num_subtasks, 3 * z_dim + h_dim)
-
-        if self.use_error:
-            assert error is not None
-            input = torch.cat([input, error], dim=-1)
-            # (batch_size, num_subtasks, 3 * z_dim + h_dim + 1)
 
         h = self.mlp(input)
         # (batch_size, num_subtasks, h_dim)

@@ -107,7 +107,6 @@ def main() -> None:
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         use_score=config.use_score,
-        use_error=False,
     )
 
     bca_control = BCAControl(
@@ -117,7 +116,6 @@ def main() -> None:
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         use_score=config.use_score,
-        use_error=False,
     )
 
     mha_control = MHCAControl(
@@ -224,7 +222,6 @@ def main() -> None:
         noise_schedule=comps[1],
         annealing_schedule=comps[2],
         use_score=config.use_score,
-        use_error=False,
         device=device,
     )
 

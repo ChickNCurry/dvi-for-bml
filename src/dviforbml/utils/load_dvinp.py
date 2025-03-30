@@ -84,6 +84,7 @@ def load_dvinp(
     dir: str | None = None,
     load_decoder_only: bool = False,
     train_decoder: bool = True,
+    debugging: bool = False,
 ) -> Tuple[DVINP, DVINPTrainer, DataLoader, DataLoader]:
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -105,10 +106,16 @@ def load_dvinp(
         )
     else:
         benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
+
     dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size, g)
 
-    train_set, val_set = random_split(
-        dataset, [len(dataset) - cfg.training.num_val_tasks, cfg.training.num_val_tasks]
+    train_set, val_set = (
+        random_split(
+            dataset,
+            [len(dataset) - cfg.training.num_val_tasks, cfg.training.num_val_tasks],
+        )
+        if not debugging
+        else (dataset, dataset)
     )
 
     train_loader = DataLoader(
@@ -142,29 +149,32 @@ def load_dvinp(
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
-                num_layers=cfg.model.num_layers,
+                z_dim=cfg.model.z_dim,
+                num_layers=cfg.model.num_layers_enc,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
-                aggregation=Aggr(ContextVariant(context_variant).value),
+                num_blocks=cfg.model.num_blocks,
                 max_context_size=cfg.model.max_context_size,
+                aggregation=Aggr(ContextVariant(context_variant).value),
             )
 
             control = AggrControl(
                 h_dim=cfg.model.h_dim,
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers,
+                num_layers=cfg.model.num_layers_ctrl,
                 non_linearity=cfg.model.non_linearity,
                 max_context_size=cfg.model.max_context_size,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
-                use_error=cfg.model.use_error,
             )
 
             annealing_schedule = (
                 AggrAnnealingSchedule(
+                    z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
                     non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
                 if model_variant is not ModelVariant.DIS
@@ -177,6 +187,7 @@ def load_dvinp(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
                         non_linearity=cfg.model.non_linearity,
+                        max_context_size=cfg.model.max_context_size,
                         num_steps=cfg.model.num_steps,
                         device=device,
                     )
@@ -186,6 +197,7 @@ def load_dvinp(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
                         non_linearity=cfg.model.non_linearity,
+                        max_context_size=cfg.model.max_context_size,
                         num_steps=cfg.model.num_steps,
                     )
 
@@ -193,29 +205,32 @@ def load_dvinp(
             encoder = BCAEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.h_dim,
-                num_layers=cfg.model.num_layers,
+                z_dim=cfg.model.z_dim,
+                num_layers=cfg.model.num_layers_enc,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
+                num_blocks=cfg.model.num_blocks,
                 max_context_size=cfg.model.max_context_size,
+                bca_dim=cfg.model.h_dim,
             )
 
             control = BCAControl(
                 h_dim=cfg.model.h_dim,
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers,
+                num_layers=cfg.model.num_layers_ctrl,
                 non_linearity=cfg.model.non_linearity,
                 max_context_size=cfg.model.max_context_size,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
-                use_error=cfg.model.use_error,
             )
 
             annealing_schedule = (
                 BCAAnnealingSchedule(
+                    z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
                     non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
                 if model_variant is not ModelVariant.DIS
@@ -229,6 +244,7 @@ def load_dvinp(
                         h_dim=cfg.model.h_dim,
                         non_linearity=cfg.model.non_linearity,
                         num_steps=cfg.model.num_steps,
+                        max_context_size=cfg.model.max_context_size,
                         device=device,
                     )
 
@@ -237,6 +253,7 @@ def load_dvinp(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
                         non_linearity=cfg.model.non_linearity,
+                        max_context_size=cfg.model.max_context_size,
                         num_steps=cfg.model.num_steps,
                     )
 
@@ -244,9 +261,11 @@ def load_dvinp(
             encoder = MHCAEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
-                num_layers=cfg.model.num_layers,
+                z_dim=cfg.model.z_dim,
+                num_layers=cfg.model.num_layers_enc,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
+                num_blocks=cfg.model.num_blocks,
                 max_context_size=cfg.model.max_context_size,
             )
 
@@ -254,7 +273,7 @@ def load_dvinp(
                 h_dim=cfg.model.h_dim,
                 z_dim=cfg.model.z_dim,
                 num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers,
+                num_layers=cfg.model.num_layers_ctrl,
                 non_linearity=cfg.model.non_linearity,
                 max_context_size=cfg.model.max_context_size,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
@@ -263,9 +282,11 @@ def load_dvinp(
 
             annealing_schedule = (
                 BCAAnnealingSchedule(
+                    z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
                     non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
                 if model_variant is not ModelVariant.DIS
@@ -335,7 +356,6 @@ def load_dvinp(
                 noise_schedule=noise_schedule,
                 annealing_schedule=annealing_schedule,
                 use_score=model_variant == ModelVariant.DIS_SCORE,
-                use_error=cfg.model.use_error,
                 device=device,
             )
 
@@ -365,7 +385,7 @@ def load_dvinp(
         z_dim=cfg.model.z_dim,
         h_dim=cfg.model.h_dim,  # 32
         y_dim=cfg.model.y_dim,
-        num_layers=cfg.model.num_layers,  # 3
+        num_layers=cfg.model.num_layers_dec,  # 3
         non_linearity=cfg.model.non_linearity,
     )
 

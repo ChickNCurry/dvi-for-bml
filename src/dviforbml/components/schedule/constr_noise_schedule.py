@@ -30,7 +30,7 @@ class ConstrNoiseSchedule(AbstractSchedule):
         ]  # (num_entries)
 
     def get(self, n: int) -> Tensor:
-        var_n = (softplus(self.amplitude) * self.cos_sqr_schedule[n]).pow(2)
+        var_n = ((softplus(self.amplitude) + 1e-6) * self.cos_sqr_schedule[n]).pow(2)
         return var_n
 
 
@@ -51,15 +51,15 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
 
         input_size = h_dim + (z_dim if max_context_size is not None else 0)
 
-        self.amplitude_mlp = nn.Sequential(
+        self.amp_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
 
-        nn.init.constant_(self.amplitude_mlp[2].weight, 0)
-        nn.init.constant_(self.amplitude_mlp[2].bias, max - min)
+        nn.init.constant_(self.amp_mlp[2].weight, 0)
+        nn.init.constant_(self.amp_mlp[2].bias, max - min)
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
@@ -68,10 +68,10 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
 
     def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
-        # (batch_size, num_subtasks)
+        # (batch_size, num_subtasks, z_dim)
 
         input = torch.cat([r, s], dim=-1) if s is not None else r
-        self.amplitude: Tensor = self.amplitude_mlp(input)
+        self.amplitude: Tensor = self.amp_mlp(input) + 1e-6
 
     def get(self, n: int) -> Tensor:
         var_n = (self.amplitude * self.cos_sqr_schedule[n]).pow(2)
@@ -95,15 +95,15 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
 
         input_size = 2 * h_dim + (z_dim if max_context_size is not None else 0)
 
-        self.amplitude_mlp = nn.Sequential(
+        self.amp_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
 
-        nn.init.constant_(self.amplitude_mlp[2].weight, 0)
-        nn.init.constant_(self.amplitude_mlp[2].bias, max - min)
+        nn.init.constant_(self.amp_mlp[2].weight, 0)
+        nn.init.constant_(self.amp_mlp[2].bias, max - min)
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
@@ -112,13 +112,14 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
 
     def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, z_dim)
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
         input = torch.cat([input, s], dim=-1) if s is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
-        self.amplitude: Tensor = self.amplitude_mlp(input)
+        self.amplitude: Tensor = self.amp_mlp(input) + 1e-6
 
     def get(self, n: int) -> Tensor:
         var_n: Tensor = (self.amplitude * self.cos_sqr_schedule[n]).pow(2)
@@ -201,7 +202,7 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
         input = torch.cat([input, s], dim=-1) if s is not None else input
         # (batch_size, num_subtasks, h_dim + z_dim)
 
-        self.amp: Tensor = self.amp_mlp(input)
+        self.amp: Tensor = self.amp_mlp(input) + 1e-6
         # (batch_size, num_subtasks, z_dim)
 
     def get(self, n: int) -> Tensor:

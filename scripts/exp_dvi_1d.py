@@ -58,7 +58,6 @@ def main() -> None:
         num_layers=config.num_layers,
         non_linearity=config.non_linearity,
         use_score=config.use_score,
-        use_error=False,
     )
 
     noise_schedule = FreeNoiseSchedule(
@@ -79,7 +78,6 @@ def main() -> None:
         noise_schedule=noise_schedule,
         annealing_schedule=annealing_schedule,
         use_score=config.use_score,
-        use_error=False,
         device=device,
     )
 

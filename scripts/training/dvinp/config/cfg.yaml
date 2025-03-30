@@ -35,7 +35,6 @@ model:
     noise_variant: free
     model_variant: dis
     contextual_schedules: true
-    use_error: false
 training:
     trainer_variant: cntxt
     batch_size: 128

@@ -21,8 +21,8 @@ def visualize_dvi_1d(
     )
     target_dist = model.contextual_target(context, None)
 
-    r = model.encoder(context.to(device), None)
-    _, z_samples = model.cdvi.run_forward_process(target_dist, r, None, None)
+    r, s = model.encoder(context.to(device), None)
+    _, z_samples = model.cdvi.run_forward_process(target_dist, r, None, s, None)
 
     assert z_samples is not None
 

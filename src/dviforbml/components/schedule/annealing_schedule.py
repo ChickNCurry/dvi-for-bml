@@ -18,8 +18,8 @@ class AnnealingSchedule(AbstractSchedule):
         self.increments = nn.Parameter(torch.ones((self.num_entries), device=device))
         # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None) -> None:
-        params = softplus(self.increments)
+    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+        params = softplus(self.increments) + 1e-6
         self.betas = torch.cumsum(params, dim=0) / torch.sum(params, dim=0)
         # (num_entries)
 
@@ -58,11 +58,11 @@ class AggrAnnealingSchedule(AbstractSchedule):
 
     def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
-        # (batch_size, num_subtasks)
+        # (batch_size, num_subtasks, z_dim)
 
         input = torch.cat([r, s], dim=-1) if s is not None else r
-        incr_pred: Tensor = softplus(
-            self.incr_init[None, None, :] + self.incr_mlp(input)
+        incr_pred: Tensor = (
+            softplus(self.incr_init[None, None, :] + self.incr_mlp(input)) + 1e-6
         )  # (batch_size, num_subtasks, num_entries)
 
         incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)
@@ -109,15 +109,15 @@ class BCAAnnealingSchedule(AbstractSchedule):
 
     def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
-        # (batch_size, num_subtasks)
+        # (batch_size, num_subtasks, z_dim)
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
         input = torch.cat([input, s], dim=-1) if s is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
-        incr_pred: Tensor = softplus(
-            self.incr_init[None, None, :] + self.incr_mlp(input)
+        incr_pred: Tensor = (
+            softplus(self.incr_init[None, None, :] + self.incr_mlp(input)) + 1e-6
         )  # (batch_size, num_subtasks, num_entries)
 
         incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)
