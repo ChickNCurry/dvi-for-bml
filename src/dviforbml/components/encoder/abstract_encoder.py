@@ -92,12 +92,17 @@ class EncoderBlock(nn.Module):
             self.self_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
         self.mlp = nn.Sequential(
+            nn.Linear(h_dim, h_dim),
             *[
                 layer
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
             ],
         )
+
+        self.norm1 = nn.LayerNorm(h_dim)
+        self.norm2 = nn.LayerNorm(h_dim)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, h: Tensor, mask: Tensor | None) -> Tensor:
         # (batch_size, num_subtasks, data_size, h_dim)
@@ -108,7 +113,7 @@ class EncoderBlock(nn.Module):
         data_size = h.shape[2]
 
         if self.num_heads is not None:
-            h = h.view(batch_size * num_subtasks, data_size, -1)
+            e = h.view(batch_size * num_subtasks, data_size, -1)
             # (batch_size * num_subtasks, data_size, h_dim)
 
             key_padding_mask = (
@@ -117,18 +122,20 @@ class EncoderBlock(nn.Module):
                 else None
             )  # (batch_size * num_subtasks, data_size)
 
-            h, _ = self.self_attn(
-                query=h,
-                key=h,
-                value=h,
+            e, _ = self.self_attn(
+                query=e,
+                key=e,
+                value=e,
                 key_padding_mask=key_padding_mask,
                 need_weights=False,
             )  # (batch_size * num_subtasks, data_size, h_dim)
 
-            h = h.view(batch_size, num_subtasks, data_size, -1)
+            e = e.view(batch_size, num_subtasks, data_size, -1)
             # (batch_size, num_subtasks, data_size, h_dim)
 
-        h = self.mlp(h)
+            h = self.norm1(h + self.dropout(e))
+
+        h = self.norm2(h + self.dropout(self.mlp(h)))
         # (batch_size, num_subtasks, data_size, h_dim)
 
         return h

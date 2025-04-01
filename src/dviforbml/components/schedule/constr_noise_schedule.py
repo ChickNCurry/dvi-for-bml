@@ -39,8 +39,9 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         min: float = 0.01,
         max: float = 1,
@@ -53,13 +54,18 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
 
         self.amp_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
 
-        nn.init.constant_(self.amp_mlp[2].weight, 0)
-        nn.init.constant_(self.amp_mlp[2].bias, max - min)
+        nn.init.constant_(self.amp_mlp[-2].weight, 0)
+        nn.init.constant_(self.amp_mlp[-2].bias, max - min)
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
@@ -83,8 +89,9 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         min: float = 0.01,
         max: float = 1,
@@ -97,13 +104,18 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
 
         self.amp_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
 
-        nn.init.constant_(self.amp_mlp[2].weight, 0)
-        nn.init.constant_(self.amp_mlp[2].bias, max - min)
+        nn.init.constant_(self.amp_mlp[-2].weight, 0)
+        nn.init.constant_(self.amp_mlp[-2].bias, max - min)
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
@@ -131,8 +143,9 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         num_heads: int,
         max_context_size: int | None,
         device: torch.device,
@@ -152,13 +165,18 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
 
         self.amp_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
 
-        nn.init.constant_(self.amp_mlp[2].weight, 0)
-        nn.init.constant_(self.amp_mlp[2].bias, max - min)
+        nn.init.constant_(self.amp_mlp[-2].weight, 0)
+        nn.init.constant_(self.amp_mlp[-2].bias, max - min)
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))

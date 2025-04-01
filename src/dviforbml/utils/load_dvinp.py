@@ -186,9 +186,10 @@ def load_dvinp(
                     noise_schedule = AggrFreeNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
+                        num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
-                        num_steps=cfg.model.num_steps,
                         device=device,
                     )
 
@@ -196,9 +197,10 @@ def load_dvinp(
                     noise_schedule = AggrConstrNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
+                        num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
-                        num_steps=cfg.model.num_steps,
                     )
 
         case ContextVariant.BCA:
@@ -242,8 +244,9 @@ def load_dvinp(
                     noise_schedule = BCAFreeNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
-                        non_linearity=cfg.model.non_linearity,
                         num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
+                        non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
                         device=device,
                     )
@@ -252,9 +255,10 @@ def load_dvinp(
                     noise_schedule = BCAConstrNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
+                        num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
-                        num_steps=cfg.model.num_steps,
                     )
 
         case ContextVariant.MHCA:
@@ -298,8 +302,9 @@ def load_dvinp(
                     noise_schedule = MHCAFreeNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
-                        non_linearity=cfg.model.non_linearity,
                         num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
+                        non_linearity=cfg.model.non_linearity,
                         num_heads=cfg.model.cross_attn_num_heads,
                         max_context_size=cfg.model.max_context_size,
                         device=device,
@@ -309,8 +314,9 @@ def load_dvinp(
                     noise_schedule = MHCAConstrNoiseSchedule(
                         z_dim=cfg.model.z_dim,
                         h_dim=cfg.model.h_dim,
-                        non_linearity=cfg.model.non_linearity,
                         num_steps=cfg.model.num_steps,
+                        num_layers=cfg.model.num_layers_sched,
+                        non_linearity=cfg.model.non_linearity,
                         num_heads=cfg.model.cross_attn_num_heads,
                         max_context_size=cfg.model.max_context_size,
                         device=device,
@@ -383,7 +389,7 @@ def load_dvinp(
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
         z_dim=cfg.model.z_dim,
-        h_dim=cfg.model.h_dim,  # 32
+        h_dim=cfg.model.h_dim_dec,  # 32
         y_dim=cfg.model.y_dim,
         num_layers=cfg.model.num_layers_dec,  # 3
         non_linearity=cfg.model.non_linearity,

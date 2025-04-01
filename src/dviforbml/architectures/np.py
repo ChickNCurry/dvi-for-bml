@@ -27,3 +27,19 @@ class NP(nn.Module, ABC):
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None
     ) -> Distribution | None:
         raise NotImplementedError
+
+    def freeze_decoder(self) -> None:
+        for param in self.decoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_decoder(self) -> None:
+        for param in self.decoder.parameters():
+            param.requires_grad = True
+
+    def freeze_encoder(self) -> None:
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_encoder(self) -> None:
+        for param in self.encoder.parameters():
+            param.requires_grad = True

@@ -35,8 +35,9 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         device: torch.device,
         min: float = 0.01,
@@ -51,6 +52,11 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
 
         self.noise_mlp = nn.Sequential(
             nn.Linear(input_dim, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
         )
@@ -93,8 +99,9 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         device: torch.device,
         min: float = 0.01,
@@ -109,6 +116,11 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
 
         self.noise_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
         )
@@ -154,8 +166,9 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         num_heads: int,
         max_context_size: int | None,
         device: torch.device,
@@ -177,6 +190,11 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
 
         self.noise_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
+            *[
+                layer
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+                for _ in range(num_layers)
+            ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
         )

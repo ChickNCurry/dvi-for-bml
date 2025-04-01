@@ -51,19 +51,3 @@ class DVINP(NP):
         )
 
         return target_dist
-
-    # def freeze(self, only_decoder: bool) -> None:
-    #     if only_decoder:
-    #         for param in self.decoder.parameters():
-    #             param.requires_grad = False
-    #         for param in self.encoder.parameters():
-    #             param.requires_grad = True
-    #         for param in self.cdvi.parameters():
-    #             param.requires_grad = True
-    #     else:
-    #         for param in self.decoder.parameters():
-    #             param.requires_grad = True
-    #         for param in self.encoder.parameters():
-    #             param.requires_grad = False
-    #         for param in self.cdvi.parameters():
-    #             param.requires_grad = False
