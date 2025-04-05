@@ -48,26 +48,29 @@ class AbstractEncoder(nn.Module, ABC):
 
         return h
 
-    def compute_s(self, context: Tensor, mask: Tensor | None) -> Tensor:
+    def compute_s_emb(self, context: Tensor, mask: Tensor | None) -> Tensor:
         # (batch_size, num_subtasks, data_size, c_dim)
         # (batch_size, num_subtasks, data_size)
+
+        if self.max_context_size is None:
+            return None
 
         batch_size = context.shape[0]
         num_subtasks = context.shape[1]
         data_size = context.shape[2]
 
         if mask is None:
-            s = torch.tensor([data_size], device=context.device, dtype=torch.int)
-            s = s.repeat(batch_size, num_subtasks)
-            # (batch_size, num_subtasks)
+            s = torch.tensor(data_size, device=context.device, dtype=torch.int).expand(
+                batch_size, num_subtasks
+            )  # (batch_size, num_subtasks)
         else:
             s = mask.sum(dim=-1).int()
             # (batch_size, num_subtasks)
 
-        s = self.proj_s(s)
+        s_emb = self.proj_s(s)
         # (batch_size, num_subtasks, z_dim)
 
-        return s
+        return s_emb
 
     @abstractmethod
     def forward(
@@ -100,9 +103,9 @@ class EncoderBlock(nn.Module):
             ],
         )
 
-        self.norm1 = nn.LayerNorm(h_dim)
-        self.norm2 = nn.LayerNorm(h_dim)
-        self.dropout = nn.Dropout(0.1)
+        # self.norm1 = nn.LayerNorm(h_dim)
+        # self.norm2 = nn.LayerNorm(h_dim)
+        # self.dropout = nn.Dropout(0.1)
 
     def forward(self, h: Tensor, mask: Tensor | None) -> Tensor:
         # (batch_size, num_subtasks, data_size, h_dim)

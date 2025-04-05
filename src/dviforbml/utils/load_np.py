@@ -103,9 +103,9 @@ def load_np(
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
         z_dim=cfg.model.z_dim,
-        h_dim=cfg.model.h_dim,
+        h_dim=cfg.model.h_dim_dec,
         y_dim=cfg.model.y_dim,
-        num_layers=cfg.model.num_layers,
+        num_layers=cfg.model.num_layers_dec,
         non_linearity=cfg.model.non_linearity,
     )
 
@@ -121,8 +121,9 @@ def load_np(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
-                aggregation=Aggr(ContextVariant(context_variant).value),
+                num_blocks=cfg.model.num_blocks,
                 max_context_size=cfg.model.max_context_size,
+                aggregation=Aggr(ContextVariant(context_variant).value),
             )
             match model_variant:
                 case ModelVariant.CNP:
@@ -137,6 +138,9 @@ def load_np(
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,
+                num_blocks=cfg.model.num_blocks,
+                max_context_size=cfg.model.max_context_size,
+                bca_dim=cfg.model.z_dim,
             )
             match model_variant:
                 case ModelVariant.CNP:

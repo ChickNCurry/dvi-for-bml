@@ -44,20 +44,29 @@ class AggrCNP(CNP):
     ):
         super(AggrCNP, self).__init__(encoder, decoder)
 
-        self.proj_r = nn.Linear(encoder.h_dim, decoder.z_dim)
+        self.proj_z = nn.Linear(
+            encoder.h_dim + encoder.z_dim
+            if encoder.max_context_size is not None
+            else encoder.h_dim,
+            decoder.z_dim,
+        )
 
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
         # (batch_size, num_subtasks, data_size, c_dim)
         # (batch_size, num_subtasks, data_size)
         # (batch_size, num_subtasks, data_size, x_dim)
 
-        r = self.encoder(context, mask)
+        r, s = self.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
-
-        r = self.proj_r(r)
         # (batch_size, num_subtasks, z_dim)
 
-        y_dist = self.decoder(r, x)
+        input = torch.cat([r, s], dim=-1) if s is not None else r
+        # (batch_size, num_subtasks, h_dim + z_dim)
+
+        z = self.proj_z(input)
+        # (batch_size, num_subtasks, z_dim)
+
+        y_dist = self.decoder(z, x)
         # (batch_size, num_subtasks, data_size, y_dim)
 
         return y_dist
@@ -71,23 +80,29 @@ class BCACNP(CNP):
     ):
         super(BCACNP, self).__init__(encoder, decoder)
 
-        self.proj_r = nn.Linear(encoder.z_dim * 2, decoder.z_dim)
+        self.proj_r = nn.Linear(
+            encoder.bca_dim * 2 + encoder.z_dim
+            if encoder.max_context_size is not None
+            else encoder.bca_dim * 2,
+            decoder.z_dim,
+        )
 
     def forward(self, context: Tensor, mask: Tensor | None, x: Tensor) -> Normal:
         # (batch_size, num_subtasks, data_size, c_dim)
         # (batch_size, num_subtasks, data_size)
         # (batch_size, num_subtasks, data_size, x_dim)
 
-        z_mu, z_var = self.encoder(context, mask)
+        (z_mu, z_var), s = self.encoder(context, mask)
+        # (batch_size, num_subtasks, bca_dim)
         # (batch_size, num_subtasks, z_dim)
 
-        input = torch.cat([z_mu, z_var], dim=-1)
-        # (batch_size, num_subtasks, 2 * z_dim)
+        input = torch.cat([e for e in [z_mu, z_var, s] if e is not None], dim=-1)
+        # (batch_size, num_subtasks, 2 * bca_dim + z_dim)
 
-        r = self.proj_r(input)
+        z = self.proj_r(input)
         # (batch_size, num_subtasks, z_dim)
 
-        y_dist = self.decoder(r, x)
+        y_dist = self.decoder(z, x)
         # (batch_size, num_subtasks, data_size, y_dim)
 
         return y_dist

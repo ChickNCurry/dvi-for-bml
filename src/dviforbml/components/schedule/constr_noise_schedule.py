@@ -22,7 +22,7 @@ class ConstrNoiseSchedule(AbstractSchedule):
 
         self.num_entries = num_steps + 1
 
-        self.amplitude = nn.Parameter(torch.ones((z_dim), device=device) * (max - min))
+        self.amp = nn.Parameter(torch.ones((z_dim), device=device) * (max - min))
 
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
@@ -30,7 +30,7 @@ class ConstrNoiseSchedule(AbstractSchedule):
         ]  # (num_entries)
 
     def get(self, n: int) -> Tensor:
-        var_n = ((softplus(self.amplitude) + 1e-6) * self.cos_sqr_schedule[n]).pow(2)
+        var_n = ((softplus(self.amp) + 1e-6) * self.cos_sqr_schedule[n]).pow(2)
         return var_n
 
 
@@ -59,7 +59,6 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
                 for _ in range(num_layers)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
-            getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
@@ -72,15 +71,15 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
             for n in range(0, self.num_entries)
         ]  # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, z_dim)
 
-        input = torch.cat([r, s], dim=-1) if s is not None else r
-        self.amplitude: Tensor = self.amp_mlp(input) + 1e-6
+        input = torch.cat([r, s_emb], dim=-1) if s_emb is not None else r
+        self.amp: Tensor = self.amp_mlp(input) + 1e-6
 
     def get(self, n: int) -> Tensor:
-        var_n = (self.amplitude * self.cos_sqr_schedule[n]).pow(2)
+        var_n = (self.amp * self.cos_sqr_schedule[n]).pow(2)
         return var_n
 
 
@@ -109,7 +108,6 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
                 for _ in range(num_layers)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
-            getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
@@ -120,21 +118,21 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
-        ]
+        ]  # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
-        input = torch.cat([input, s], dim=-1) if s is not None else input
+        input = torch.cat([input, s_emb], dim=-1) if s_emb is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
-        self.amplitude: Tensor = self.amp_mlp(input) + 1e-6
+        self.amp: Tensor = self.amp_mlp(input) + 1e-6
 
     def get(self, n: int) -> Tensor:
-        var_n: Tensor = (self.amplitude * self.cos_sqr_schedule[n]).pow(2)
+        var_n: Tensor = (self.amp * self.cos_sqr_schedule[n]).pow(2)
         return var_n
 
 
@@ -170,7 +168,6 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
                 for _ in range(num_layers)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
-            getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
             nn.Softplus(),
         )
@@ -181,7 +178,7 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
         self.cos_sqr_schedule: List[float] = [
             min + np.square(np.cos((math.pi / 2) * (n / self.num_entries)))
             for n in range(0, self.num_entries)
-        ]
+        ]  # (num_entries)
 
         self.amp_init = torch.ones((z_dim), device=device)
 

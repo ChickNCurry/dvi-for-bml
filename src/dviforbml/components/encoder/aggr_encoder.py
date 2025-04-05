@@ -59,7 +59,7 @@ class AggrEncoder(AbstractEncoder):
                     r = (h * mask.unsqueeze(-1)).max(dim=2)[0]
             # (batch_size, num_subtasks, h_dim)
 
-        s = self.compute_s(context, mask) if self.max_context_size is not None else None
+        s_emb = self.compute_s_emb(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        return r, s
+        return r, s_emb

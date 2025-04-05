@@ -21,7 +21,7 @@ class FreeNoiseSchedule(AbstractSchedule):
         self.vars = nn.Parameter(
             torch.linspace(max, min, self.num_entries, device=device)
             .unsqueeze(1)
-            .expand(self.num_entries, z_dim)
+            .repeat(self.num_entries, z_dim)
             .pow(2),
         )  # (num_entries, z_dim)
 
@@ -54,7 +54,7 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_dim, h_dim),
             *[
                 layer
-                for _ in range(num_layers)
+                for _ in range(num_layers - 1)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
@@ -64,11 +64,11 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.vars_init = torch.linspace(max, min, self.num_entries, device=device).pow(
-            2
+        self.vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device) ** 2
         )  # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, data_size)
         # (batch_size, num_subtasks, z_dim)
@@ -76,7 +76,7 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
         batch_size = r.shape[0]
         num_subtasks = r.shape[1]
 
-        input = torch.cat([r, s], dim=-1) if s is not None else r
+        input = torch.cat([r, s_emb], dim=-1) if s_emb is not None else r
         vars_pred: Tensor = self.noise_mlp(input)
         # (batch_size, num_subtasks, z_dim * num_entries)
 
@@ -118,7 +118,7 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for _ in range(num_layers)
+                for _ in range(num_layers - 1)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
@@ -128,11 +128,11 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.vars_init = torch.linspace(max, min, self.num_entries, device=device).pow(
-            2
+        self.vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device) ** 2
         )  # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, z_dim)
 
@@ -141,7 +141,7 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
-        input = torch.cat([input, s], dim=-1) if s is not None else input
+        input = torch.cat([input, s_emb], dim=-1) if s_emb is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
         vars_pred: Tensor = self.noise_mlp(input)
@@ -192,7 +192,7 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for _ in range(num_layers)
+                for _ in range(num_layers - 1)
                 for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
@@ -202,11 +202,11 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
         nn.init.constant_(self.noise_mlp[-1].weight, 0)
         nn.init.constant_(self.noise_mlp[-1].bias, 0)
 
-        self.vars_init = torch.linspace(max, min, self.num_entries, device=device).pow(
-            2
+        self.vars_init = (
+            torch.linspace(max, min, self.num_entries, device=device) ** 2
         )  # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, data_size)
         # (batch_size, num_subtasks, z_dim)
@@ -219,8 +219,6 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
         # (batch_size * num_subtasks, data_size, h_dim)
 
         input = self.vars_init.unsqueeze(1).expand(-1, self.z_dim)
-        # (num_entries, z_dim)
-
         input = self.proj_in(input)
         # (num_entries, h_dim)
 
@@ -240,7 +238,7 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
         input = input.reshape(batch_size, num_subtasks, self.h_dim * self.num_entries)
         # (batch_size, num_subtasks, h_dim * num_entries)
 
-        input = torch.cat([input, s], dim=-1) if s is not None else input
+        input = torch.cat([input, s_emb], dim=-1) if s_emb is not None else input
         # (batch_size, num_subtasks, h_dim * num_entries + z_dim)
 
         vars_pred: Tensor = self.noise_mlp(input)

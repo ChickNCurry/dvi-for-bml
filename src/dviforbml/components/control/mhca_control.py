@@ -11,10 +11,10 @@ class MHCAControl(AbstractControl):
         self,
         h_dim: int,
         z_dim: int,
-        num_steps: int,
         num_layers: int,
         non_linearity: str,
         max_context_size: int | None,
+        num_steps: int,
         use_score: bool,
         num_heads: int,
     ) -> None:
@@ -26,11 +26,12 @@ class MHCAControl(AbstractControl):
         self.use_score = use_score
 
         self.proj_n = nn.Embedding(num_steps + 1, z_dim)
+
         self.proj_z = nn.Linear(z_dim, h_dim)
 
         self.cross_attn = nn.MultiheadAttention(h_dim, num_heads, batch_first=True)
 
-        input_dim = z_dim + z_dim + (z_dim if max_context_size is not None else 0)
+        input_dim = 2 * z_dim + (z_dim if max_context_size is not None else 0)
 
         self.mlp = nn.Sequential(
             nn.Linear(input_dim, h_dim),
@@ -61,9 +62,10 @@ class MHCAControl(AbstractControl):
         z: Tensor,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
+        # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, z_dim),
         # (batch_size, num_subtasks, data_size, h_dim)
         # (batch_size, num_subtasks, data_size)
@@ -77,16 +79,16 @@ class MHCAControl(AbstractControl):
         num_subtasks = r.shape[1]
         data_size = r.shape[2]
 
-        n_emb = self.proj_n(torch.tensor([n], device=z.device)).repeat(
-            batch_size, num_subtasks, 1
-        )  # (batch_size, num_subtasks, z_dim)
+        n_emb = self.proj_n(torch.tensor(n, device=z.device))
+        n_emb = n_emb.expand(z.shape)
+        # (batch_size, num_subtasks, z_dim)
 
         input = torch.cat([z, n_emb], dim=-1)
         # (batch_size, num_subtasks, h_dim + z_dim)
 
         if self.max_context_size is not None:
-            assert s is not None
-            input = torch.cat([input, s], dim=-1)
+            assert s_emb is not None
+            input = torch.cat([input, s_emb], dim=-1)
             # (batch_size, num_subtasks, h_dim + 2 * z_dim)
 
         h = self.mlp(input)

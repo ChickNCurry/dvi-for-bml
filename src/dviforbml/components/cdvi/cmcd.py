@@ -36,13 +36,13 @@ class CMCD(CDVI):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
     ) -> None:
-        super(CMCD, self).contextualize(target, r, mask, s)
+        super(CMCD, self).contextualize(target, r, mask, s_emb)
 
-        self.step_size_schedule.update(r, mask, s)
-        self.noise_schedule.update(r, mask, s)
-        self.annealing_schedule.update(r, mask, s)
+        self.step_size_schedule.update(r, mask, s_emb)
+        self.noise_schedule.update(r, mask, s_emb)
+        self.annealing_schedule.update(r, mask, s_emb)
 
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -51,7 +51,7 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, self.s, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s_emb, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z + (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
@@ -67,7 +67,7 @@ class CMCD(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
-        control_n = self.control(n, z, self.r, self.mask, self.s, None)
+        control_n = self.control(n, z, self.r, self.mask, self.s_emb, None)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu = z - (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
@@ -81,9 +81,9 @@ class CMCD(CDVI):
 
         beta_n = self.annealing_schedule.get(n)
 
-        log_geo_avg = (1 - beta_n) * self.prior.log_prob(
-            z
-        ) + beta_n * self.target.log_prob(z)
+        prior_log_prob = self.prior.log_prob(z)
+        target_log_prob = self.target.log_prob(z)
+        log_geo_avg = (1 - beta_n) * prior_log_prob + beta_n * target_log_prob
 
         score_n = torch.autograd.grad(
             outputs=log_geo_avg,

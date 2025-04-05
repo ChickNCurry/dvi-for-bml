@@ -33,8 +33,9 @@ class AggrAnnealingSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         device: torch.device,
     ) -> None:
@@ -46,7 +47,11 @@ class AggrAnnealingSchedule(AbstractSchedule):
 
         self.incr_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
-            getattr(nn, non_linearity)(),
+            *[
+                layer
+                for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+            ],
             nn.Linear(h_dim, self.num_entries),
         )
 
@@ -56,11 +61,11 @@ class AggrAnnealingSchedule(AbstractSchedule):
         self.incr_init = torch.ones((self.num_entries), device=device)
         # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, z_dim)
 
-        input = torch.cat([r, s], dim=-1) if s is not None else r
+        input = torch.cat([r, s_emb], dim=-1) if s_emb is not None else r
         incr_pred: Tensor = (
             softplus(self.incr_init[None, None, :] + self.incr_mlp(input)) + 1e-6
         )  # (batch_size, num_subtasks, num_entries)
@@ -83,8 +88,9 @@ class BCAAnnealingSchedule(AbstractSchedule):
         self,
         z_dim: int,
         h_dim: int,
-        non_linearity: str,
         num_steps: int,
+        num_layers: int,
+        non_linearity: str,
         max_context_size: int | None,
         device: torch.device,
     ) -> None:
@@ -96,24 +102,27 @@ class BCAAnnealingSchedule(AbstractSchedule):
 
         self.incr_mlp = nn.Sequential(
             nn.Linear(input_size, h_dim),
-            getattr(nn, non_linearity)(),
+            *[
+                layer
+                for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
+            ],
             nn.Linear(h_dim, self.num_entries),
         )
 
         nn.init.constant_(self.incr_mlp[-1].weight, 0)
         nn.init.constant_(self.incr_mlp[-1].bias, 0)
 
-        self.incr_init = (
-            torch.ones((self.num_entries), device=device) / self.num_entries
-        )
+        self.incr_init = torch.ones((self.num_entries), device=device)
+        # (num_entries)
 
-    def update(self, r: Tensor, mask: Tensor | None, s: Tensor | None) -> None:
+    def update(self, r: Tensor, mask: Tensor | None, s_emb: Tensor | None) -> None:
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks, z_dim)
 
         z_mu, z_var = r
         input = torch.cat([z_mu, z_var], dim=-1)
-        input = torch.cat([input, s], dim=-1) if s is not None else input
+        input = torch.cat([input, s_emb], dim=-1) if s_emb is not None else input
         # (batch_size, num_subtasks, 2 * h_dim)
 
         incr_pred: Tensor = (

@@ -67,7 +67,7 @@ class BCAEncoder(AbstractEncoder):
                 ((r - z_mu_0[:, :, None, :]) / r_var) * mask.unsqueeze(-1), dim=2
             )  # (batch_size, num_subtasks, bca_dim)
 
-        s = self.compute_s(context, mask) if self.max_context_size is not None else None
+        s_emb = self.compute_s_emb(context, mask)
         # (batch_size, num_subtasks, z_dim)
 
-        return (z_mu, z_var), s
+        return (z_mu, z_var), s_emb

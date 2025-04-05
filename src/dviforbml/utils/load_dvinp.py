@@ -172,8 +172,9 @@ def load_dvinp(
                 AggrAnnealingSchedule(
                     z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
-                    non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    num_layers=cfg.model.num_layers_sched,
+                    non_linearity=cfg.model.non_linearity,
                     max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
@@ -230,8 +231,9 @@ def load_dvinp(
                 BCAAnnealingSchedule(
                     z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
-                    non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    num_layers=cfg.model.num_layers_sched,
+                    non_linearity=cfg.model.non_linearity,
                     max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
@@ -288,8 +290,9 @@ def load_dvinp(
                 BCAAnnealingSchedule(
                     z_dim=cfg.model.z_dim,
                     h_dim=cfg.model.h_dim,
-                    non_linearity=cfg.model.non_linearity,
                     num_steps=cfg.model.num_steps,
+                    num_layers=cfg.model.num_layers_sched,
+                    non_linearity=cfg.model.non_linearity,
                     max_context_size=cfg.model.max_context_size,
                     device=device,
                 )
@@ -389,9 +392,9 @@ def load_dvinp(
     decoder = Decoder(
         x_dim=cfg.model.x_dim,
         z_dim=cfg.model.z_dim,
-        h_dim=cfg.model.h_dim_dec,  # 32
+        h_dim=cfg.model.h_dim_dec,
         y_dim=cfg.model.y_dim,
-        num_layers=cfg.model.num_layers_dec,  # 3
+        num_layers=cfg.model.num_layers_dec,
         non_linearity=cfg.model.non_linearity,
     )
 

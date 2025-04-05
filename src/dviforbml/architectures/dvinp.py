@@ -30,6 +30,7 @@ class DVINP(NP):
         r_context, s_context = self.encoder(context, mask)
 
         target_dist = self.get_target_dist(x_context, y_context, mask)
+
         _, zs = self.cdvi.run_forward_process(
             target_dist, r_context, mask, s_context, None
         )
@@ -43,11 +44,9 @@ class DVINP(NP):
     def get_target_dist(
         self, x_context: Tensor, y_context: Tensor, mask: Tensor | None
     ) -> Distribution | None:
-        target_dist = DecoderTimesPrior(
+        return DecoderTimesPrior(
             decoder=self.decoder,
             x=x_context,
             y=y_context,
             mask=mask,
         )
-
-        return target_dist

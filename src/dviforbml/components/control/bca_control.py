@@ -11,10 +11,10 @@ class BCAControl(AbstractControl):
         self,
         h_dim: int,
         z_dim: int,
-        num_steps: int,
         num_layers: int,
         non_linearity: str,
         max_context_size: int | None,
+        num_steps: int,
         use_score: bool,
     ) -> None:
         super(BCAControl, self).__init__()
@@ -58,7 +58,7 @@ class BCAControl(AbstractControl):
         z: Tensor,
         r: Tuple[Tensor, Tensor],
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
         score: Tensor | None,
     ) -> Tensor:
         # (batch_size, num_subtasks, z_dim)
@@ -66,7 +66,6 @@ class BCAControl(AbstractControl):
         # (batch_size, num_subtasks, data_size)
         # (batch_size, num_subtasks, z_dim)
         # (batch_size, num_subtasks, z_dim)
-        # (batch_size, num_subtasks)
 
         if self.use_score:
             assert score is not None
@@ -74,16 +73,16 @@ class BCAControl(AbstractControl):
         z_mu, z_var = r
         # (batch_size, num_subtasks, h_dim)
 
-        n_emb = self.proj_n(torch.tensor([n], device=z.device)).repeat(
-            z.shape[0], z.shape[1], 1
-        )  # (batch_size, num_subtasks, z_dim)
+        n_emb = self.proj_n(torch.tensor(n, device=z.device))
+        n_emb = n_emb.expand(z.shape)
+        # (batch_size, num_subtasks, z_dim)
 
-        input = torch.cat([z, z_mu, z_var, n_emb], dim=-1)
+        input = torch.cat([n_emb, z, z_mu, z_var], dim=-1)
         # (batch_size, num_subtasks, 2 * z_dim + 2 * h_dim)
 
         if self.max_context_size is not None:
-            assert s is not None
-            input = torch.cat([input, s], dim=-1)
+            assert s_emb is not None
+            input = torch.cat([input, s_emb], dim=-1)
             # (batch_size, num_subtasks, 3 * z_dim + 2 * h_dim)
 
         h = self.mlp(input)

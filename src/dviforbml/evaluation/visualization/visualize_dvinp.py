@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 
 from dviforbml.architectures.dvinp import DVINP
 from dviforbml.components.cdvi.dds import DDS
-from dviforbml.components.decoder.decoder_times_prior import DecoderTimesPrior
 from dviforbml.evaluation.taskposterior.grid import (
     create_grid,
     eval_dist_on_grid,
@@ -263,18 +262,11 @@ def visualize_ddsnp(
         # (batch_size, num_subtasks, h_dim)
         # (batch_size, num_subtasks)
 
-        target = DecoderTimesPrior(
-            decoder=dvinp.decoder,
-            x=x_context,
-            y=y_context,
-            mask=None,
-        )
+        target_dist = dvinp.get_target_dist(x_context, y_context, None)
 
-        _, z = dvinp.cdvi.compute_loss(target, r_context, None, s_context)
+        _, z = dvinp.cdvi.compute_loss(target_dist, r_context, None, s_context)
 
         y_dist = dvinp.decoder(z[:, :, -1, :], x_data)
-
-        target_dist = dvinp.get_target_dist(x_context, y_context, None)
 
         tp_samples = z.cpu().detach().numpy()
 

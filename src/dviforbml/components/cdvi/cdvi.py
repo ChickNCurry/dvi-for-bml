@@ -27,24 +27,22 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
     ) -> None:
         self.target = target
         self.r = r
         self.mask = mask
-        self.s = s
+        self.s_emb = s_emb
 
-        device = r[0].device if isinstance(r, tuple) else r.device
-        batch_size = r[0].shape[0] if isinstance(r, tuple) else r.shape[0]
-        num_subtasks = r[0].shape[1] if isinstance(r, tuple) else r.shape[1]
-
-        self.device = device
-        self.size = (batch_size, num_subtasks)
+        self.device = r[0].device if isinstance(r, tuple) else r.device
+        self.batch_size = r[0].shape[0] if isinstance(r, tuple) else r.shape[0]
+        self.num_subtasks = r[0].shape[1] if isinstance(r, tuple) else r.shape[1]
+        self.size = (self.batch_size, self.num_subtasks, self.z_dim)
 
         self.prior: Distribution = Normal(
-            torch.zeros((batch_size, num_subtasks, self.z_dim), device=device),
-            torch.ones((batch_size, num_subtasks, self.z_dim), device=device),
-        )  # (batch_size, num_subtasks, z_dim)
+            torch.zeros(self.size, device=self.device),
+            torch.ones(self.size, device=self.device),
+        )
 
     @abstractmethod
     def forward_kernel(
@@ -67,16 +65,16 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor,
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
         other_zs: List[Tensor] | None,
     ) -> Tuple[Tensor, List[Tensor] | None]:
-        self.contextualize(target, r, mask, s)
+        self.contextualize(target, r, mask, s_emb)
 
         zs = [self.prior.sample()] if other_zs is None else other_zs
         # (batch_size, num_subtasks, z_dim)
 
         log_prob = self.prior.log_prob(zs[0]).sum(-1)
-        # (batch_size, num_subtasks, z_dim)
+        # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
             fwd_kernel = self.forward_kernel(n, zs[n])
@@ -88,7 +86,6 @@ class CDVI(nn.Module, ABC):
             # (batch_size, num_subtasks)
 
         log_prob = log_prob.mean()
-        # (1)
 
         return log_prob, zs
 
@@ -97,21 +94,21 @@ class CDVI(nn.Module, ABC):
         target: Distribution,
         r: Tensor,
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
         zs: List[Tensor],
     ) -> Tensor:
-        self.contextualize(target, r, mask, s)
+        self.contextualize(target, r, mask, s_emb)
 
         log_prob = self.target.log_prob(zs[-1]).sum(-1)
         # (batch_size, num_subtasks)
 
         for n in range(0, self.num_steps):
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])
+
             log_prob += bwd_kernel.log_prob(zs[n]).sum(-1)
             # (batch_size, num_subtasks)
 
         log_prob = log_prob.mean()
-        # (1)
 
         return log_prob
 
@@ -126,33 +123,33 @@ class CDVI(nn.Module, ABC):
     ) -> Tuple[Tensor, List[Tensor]]:
         self.contextualize(target, r_data, None, s_data)
 
-        z_dists_data = []
-        z_dists_context = []
+        fwd_kernels_data = []
+        fw_kernels_context = []
         zs = [self.prior.sample()]
         # (batch_size, num_subtasks, z_dim)
 
         for n in range(0, self.num_steps):
             fwd_kernel_data = self.forward_kernel(n, zs[n])
-            z_dists_data.append(fwd_kernel_data)
+            fwd_kernels_data.append(fwd_kernel_data)
             zs.append(fwd_kernel_data.rsample())
 
         self.contextualize(target, r_context, mask_context, s_context)
 
         for n in range(0, self.num_steps):
             fwd_kernel_context = self.forward_kernel(n, zs[n])
-            z_dists_context.append(fwd_kernel_context)
+            fw_kernels_context.append(fwd_kernel_context)
 
         log_prob = (
             torch.stack(
                 [
-                    kl_divergence(zd, zc).sum(-1)
-                    for zd, zc in zip(z_dists_data, z_dists_context)
+                    kl_divergence(d, c).sum(-1)
+                    for d, c in zip(fwd_kernels_data, fw_kernels_context)
                 ],
                 dim=0,
             )
             .sum(0)
             .mean()
-        )  # (1)
+        )
 
         return log_prob, zs
 
@@ -169,22 +166,21 @@ class CDVI(nn.Module, ABC):
         # (batch_size, num_subtasks, z_dim)
 
         elbo = torch.zeros(self.size, device=self.device)
-        # (batch_size, num_subtasks)
+        # (batch_size, num_subtasks, z_dim)
 
         for n in range(0, self.num_steps):
             fwd_kernel = self.forward_kernel(n, zs[n])
             zs.append(fwd_kernel.rsample())
             bwd_kernel = self.backward_kernel(n + 1, zs[n + 1])
 
-            elbo += bwd_kernel.log_prob(zs[n]).sum(-1)
-            elbo -= fwd_kernel.log_prob(zs[n + 1]).sum(-1)
-            # (batch_size, num_subtasks)
+            elbo += bwd_kernel.log_prob(zs[n])
+            elbo -= fwd_kernel.log_prob(zs[n + 1])
+            # (batch_size, num_subtasks, z_dim)
 
-        elbo += self.target.log_prob(zs[-1]).sum(-1)
-        elbo -= self.prior.log_prob(zs[0]).sum(-1)
-        # (batch_size, num_subtasks)
+        elbo += self.target.log_prob(zs[-1])
+        elbo -= self.prior.log_prob(zs[0])
+        # (batch_size, num_subtasks, z_dim)
 
-        elbo = elbo.mean()
-        # (1)
+        elbo = elbo.sum(-1).mean()
 
         return elbo, zs

@@ -5,9 +5,7 @@ from torch import Tensor
 from torch.distributions import Distribution, Normal
 
 from dviforbml.components.cdvi.cdvi import CDVI
-from dviforbml.components.schedule.annealing_schedule import AnnealingSchedule
-from dviforbml.components.schedule.free_noise_schedule import FreeNoiseSchedule
-from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
+from dviforbml.components.schedule.abstract_schedule import AbstractSchedule
 
 
 class ULA(CDVI):
@@ -15,9 +13,9 @@ class ULA(CDVI):
         self,
         z_dim: int,
         num_steps: int,
-        step_size_schedule: StepSizeSchedule,
-        noise_schedule: FreeNoiseSchedule,
-        annealing_schedule: AnnealingSchedule,
+        step_size_schedule: AbstractSchedule,
+        noise_schedule: AbstractSchedule,
+        annealing_schedule: AbstractSchedule,
         device: torch.device,
     ) -> None:
         super(ULA, self).__init__(
@@ -35,13 +33,13 @@ class ULA(CDVI):
         target: Distribution,
         r: Tensor | Tuple[Tensor, Tensor],
         mask: Tensor | None,
-        s: Tensor | None,
+        s_emb: Tensor | None,
     ) -> None:
-        super(ULA, self).contextualize(target, r, mask, s)
+        super(ULA, self).contextualize(target, r, mask, s_emb)
 
-        self.step_size_schedule.update(r, mask, s)
-        self.noise_schedule.update(r, mask, s)
-        self.annealing_schedule.update(r, mask, s)
+        self.step_size_schedule.update(r, mask, s_emb)
+        self.noise_schedule.update(r, mask, s_emb)
+        self.annealing_schedule.update(r, mask, s_emb)
 
     def forward_kernel(self, n: int, z: Tensor) -> Distribution:
         # (batch_size, num_subtasks, z_dim)
@@ -78,11 +76,11 @@ class ULA(CDVI):
 
         beta_n = self.annealing_schedule.get(n)
 
-        log_geo_avg = (1 - beta_n) * self.prior.log_prob(
-            z
-        ) + beta_n * self.target.log_prob(z)
+        prior_log_prob = self.prior.log_prob(z)
+        target_log_prob = self.target.log_prob(z)
+        log_geo_avg = (1 - beta_n) * prior_log_prob + beta_n * target_log_prob
 
-        score = torch.autograd.grad(
+        score_n = torch.autograd.grad(
             outputs=log_geo_avg,
             inputs=z,
             grad_outputs=torch.ones_like(log_geo_avg),
@@ -90,4 +88,4 @@ class ULA(CDVI):
             retain_graph=True,
         )[0]
 
-        return score
+        return score_n

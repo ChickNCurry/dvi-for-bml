@@ -57,18 +57,33 @@ class AggrLNP(LNP):
     ):
         super(AggrLNP, self).__init__(encoder, decoder)
 
-        self.proj_z_mu = nn.Linear(encoder.h_dim, decoder.z_dim)
-        self.proj_z_sigma = nn.Linear(encoder.h_dim, decoder.z_dim)
+        input_dim = encoder.h_dim + (
+            encoder.z_dim if encoder.max_context_size is not None else 0
+        )
+
+        self.proj_z_mu = nn.Linear(
+            input_dim,
+            decoder.z_dim,
+        )
+
+        self.proj_z_sigma = nn.Linear(
+            input_dim,
+            decoder.z_dim,
+        )
 
     def encode(self, context: Tensor, mask: Tensor | None) -> Tuple[Normal, Tensor]:
         # (batch_size, num_subtasks, data_size, c_dim)
         # (batch_size, num_subtasks, data_size)
 
-        r = self.encoder(context, mask)
+        r, s = self.encoder(context, mask)
         # (batch_size, num_subtasks, h_dim)
+        # (batch_size, num_subtasks, z_dim)
 
-        z_mu = self.proj_z_mu(r)
-        z_sigma = softplus(torch.clamp(self.proj_z_sigma(r), min=1e-6, max=1e2))
+        input = torch.cat([r, s], dim=-1) if s is not None else r
+        # (batch_size, num_subtasks, h_dim + z_dim)
+
+        z_mu = self.proj_z_mu(input)
+        z_sigma = softplus(torch.clamp(self.proj_z_sigma(input), min=1e-6, max=1e2))
         z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()
@@ -104,7 +119,7 @@ class BCALNP(LNP):
         # (batch_size, num_subtasks, data_size, c_dim)
         # (batch_size, num_subtasks, data_size)
 
-        z_mu, z_var = self.encoder(context, mask)
+        (z_mu, z_var), _ = self.encoder(context, mask)
         z_dist = Normal(z_mu, torch.sqrt(z_var))
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)

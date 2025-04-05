@@ -73,7 +73,7 @@ def create_cos_square_scheduler(
     )
 
 
-class DDS(CDVI, nn.Module):
+class DDS(CDVI):
     def __init__(
         self,
         z_dim: int,
@@ -116,11 +116,8 @@ class DDS(CDVI, nn.Module):
 
         self.prior_score = lambda x: -x / self.eta**2
 
-        self.beta_max = nn.Parameter(torch.tensor(beta_max, device=self.device))
-        self.beta_min = nn.Parameter(torch.tensor(beta_min, device=self.device))
-
-    def update_schedules(self):
-        # print(self.beta_max.data, self.beta_min.data)
+        self.beta_max = beta_max
+        self.beta_min = beta_min
 
         (
             scheduler,
@@ -128,8 +125,8 @@ class DDS(CDVI, nn.Module):
             delta_integrated_scheduler,
             self.backward_integrated_scheduler,
         ) = create_cos_square_scheduler(
-            C_start=torch.nn.functional.softplus(self.beta_max),
-            C_end=torch.nn.functional.softplus(self.beta_min),
+            C_start=self.beta_max,
+            C_end=self.beta_min,
             T=self.T,
             device=self.device,
         )
@@ -171,8 +168,6 @@ class DDS(CDVI, nn.Module):
         self.meta_batch_size = r.shape[0] if not isinstance(r, tuple) else r[0].shape[0]
         self.num_subtasks = r.shape[1] if not isinstance(r, tuple) else r[0].shape[1]
         self.batch_size = self.meta_batch_size * self.num_subtasks
-
-        self.update_schedules()
 
         x_t = torch.zeros(
             (self.batch_size, self.num_steps + 1, self.dim),
@@ -269,7 +264,7 @@ class DDS(CDVI, nn.Module):
 
         scaled_adj_states = self.noise_bwd_int.unsqueeze(1) * nabla_g.unsqueeze(
             1
-        ).repeat(1, self.noise_bwd_int.shape[0], 1)
+        ).expand(-1, self.noise_bwd_int.shape[0], -1)
 
         scores = []
 
