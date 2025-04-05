@@ -54,8 +54,8 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_dim, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
@@ -118,8 +118,8 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),
@@ -192,8 +192,8 @@ class MHCAFreeNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim * self.num_entries),

@@ -22,8 +22,8 @@ class Decoder(nn.Module):
             nn.Linear(x_dim + z_dim, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
         )

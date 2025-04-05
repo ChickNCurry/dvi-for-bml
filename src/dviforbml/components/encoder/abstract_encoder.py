@@ -95,8 +95,8 @@ class EncoderBlock(nn.Module):
             nn.Linear(h_dim, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
         )
 
@@ -133,9 +133,11 @@ class EncoderBlock(nn.Module):
             e = e.view(batch_size, num_subtasks, data_size, -1)
             # (batch_size, num_subtasks, data_size, h_dim)
 
-            h = self.norm1(h + self.dropout(e))
+            # h = self.norm1(h + self.dropout(e))
+            h = e
 
-        h = self.norm2(h + self.dropout(self.mlp(h)))
+        # h = self.norm2(h + self.dropout(self.mlp(h)))
+        h = self.mlp(h)
         # (batch_size, num_subtasks, data_size, h_dim)
 
         return h

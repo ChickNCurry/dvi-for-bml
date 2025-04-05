@@ -56,8 +56,8 @@ class AggrConstrNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
@@ -106,8 +106,8 @@ class BCAConstrNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),
@@ -167,8 +167,8 @@ class MHCAConstrNoiseSchedule(AbstractSchedule):
             nn.Linear(input_size, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
             nn.Linear(h_dim, z_dim),

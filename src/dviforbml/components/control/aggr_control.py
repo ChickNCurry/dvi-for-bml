@@ -31,8 +31,8 @@ class AggrControl(AbstractControl):
             nn.Linear(input_dim, h_dim),
             *[
                 layer
-                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
                 for _ in range(num_layers)
+                for layer in (getattr(nn, non_linearity)(), nn.Linear(h_dim, h_dim))
             ],
             getattr(nn, non_linearity)(),
         )
