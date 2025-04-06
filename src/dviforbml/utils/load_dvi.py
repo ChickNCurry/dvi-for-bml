@@ -4,22 +4,19 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from hydra.utils import instantiate
-from metalearning_benchmarks import MetaLearningBenchmark
 from omegaconf import DictConfig
 from torch.optim.adamw import AdamW
 
 
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
-from dviforbml.architectures.dvinp import DVINP
+from dviforbml.architectures.dvi import DVI
 from dviforbml.components.cdvi.dis import DIS
 from dviforbml.components.cdvi.ula import ULA
 from dviforbml.components.cdvi.cmcd import CMCD
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.control.bca_control import BCAControl
 from dviforbml.components.control.mhca_control import MHCAControl
-from dviforbml.components.decoder.decoder import Decoder
 from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from dviforbml.components.encoder.bca_encoder import BCAEncoder
 from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
@@ -41,15 +38,9 @@ from dviforbml.components.schedule.free_noise_schedule import (
     MHCAFreeNoiseSchedule,
 )
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
-from dviforbml.training.dvinp_trainer import (
-    DVINPTrainer,
-    DVINPTrainerContext,
-    DVINPTrainerData,
-    DVINPTrainerForward,
-    DVINPTrainerForwardAndContext,
-)
-from dviforbml.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
-from dviforbml.utils.helper import load_state_dicts_np
+from dviforbml.training.dvi_trainer import DVITrainer, DVITrainerContext
+from dviforbml.utils.datasets import ContextSetDataset
+from dviforbml.utils.distros import TaskPosteriorGMM
 
 
 class ContextVariant(Enum):
@@ -71,78 +62,31 @@ class ModelVariant(Enum):
     ULA = "ula"
 
 
-class TrainerVariant(Enum):
-    DATA = "data"
-    CONTEXT = "cntxt"
-    FORWARD = "fwd"
-    FORWARDANDCONTEXT = "fwdcntxt"
-
-
-def load_dvinp(
-    cfg: DictConfig,
-    device: torch.device,
-    dir: str | None = None,
-    load_decoder_only: bool = False,
-    train_decoder: bool = True,
-    debugging: bool = False,
-) -> Tuple[DVINP, DVINPTrainer, DataLoader, DataLoader]:
+def load_dvi(
+    cfg: DictConfig, device: torch.device
+) -> Tuple[DVI, DVITrainer, DataLoader]:
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
     np.random.seed(cfg.training.seed)
 
     g = torch.Generator().manual_seed(cfg.training.seed)
 
-    if (
-        cfg.benchmark._target_
-        == "metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1DFreq"
-    ):
-        benchmark = Sinusoid1DFreq(
-            n_task=cfg.benchmark.n_task,
-            n_datapoints_per_task=cfg.benchmark.n_datapoints_per_task,
-            output_noise=cfg.benchmark.output_noise,
-            seed_task=cfg.benchmark.seed_task,
-            seed_x=cfg.benchmark.seed_x,
-            seed_noise=cfg.benchmark.seed_noise,
-        )
-    else:
-        benchmark: MetaLearningBenchmark = instantiate(cfg.benchmark)
-
-    dataset = MetaLearningDataset(benchmark, cfg.training.max_context_size, g)
-
-    train_set, val_set = (
-        random_split(
-            dataset,
-            [len(dataset) - cfg.training.num_val_tasks, cfg.training.num_val_tasks],
-        )
-        if not debugging
-        else (dataset, dataset)
+    dataset = ContextSetDataset(
+        size=cfg.size,
+        c_dim=cfg.c_dim,
+        max_context_size=cfg.training.max_context_size,
+        sampling_factor=4,
     )
 
-    train_loader = DataLoader(
-        dataset=train_set,
-        batch_size=cfg.training.batch_size,
-        shuffle=True,
-        generator=g,
-    )
-
-    val_loader = DataLoader(
-        dataset=val_set,
-        batch_size=cfg.training.num_val_tasks,
-        shuffle=True,
-        generator=g,
-    )
-
-    test_loader = DataLoader(
-        dataset=val_set,
-        batch_size=1,
-        shuffle=True,
-        generator=g,
+    dataloader = DataLoader(
+        dataset=dataset, batch_size=cfg.batch_size, shuffle=True, generator=g
     )
 
     context_variant = ContextVariant(cfg.model.context_variant)
     noise_variant = NoiseVariant(cfg.model.noise_variant)
     model_variant = ModelVariant(cfg.model.model_variant)
-    trainer_variant = TrainerVariant(cfg.training.trainer_variant)
+
+    contextual_target = TaskPosteriorGMM
 
     match context_variant:
         case ContextVariant.MEAN | ContextVariant.MAX:
@@ -389,55 +333,27 @@ def load_dvinp(
                 device=device,
             )
 
-    decoder = Decoder(
-        x_dim=cfg.model.x_dim,
-        z_dim=cfg.model.z_dim,
-        h_dim=cfg.model.h_dim_dec,
-        y_dim=cfg.model.y_dim,
-        num_layers=cfg.model.num_layers_dec,
-        non_linearity=cfg.model.non_linearity,
-    )
-
-    model = DVINP(
+    model = DVI(
         encoder=encoder,
         cdvi=cdvi,
-        decoder=decoder,
+        contextual_target=contextual_target,
     ).to(device)
 
-    params = (
-        model.parameters()
-        if train_decoder
-        else list(model.encoder.parameters()) + list(model.cdvi.parameters())
+    optimizer = AdamW(params=model.parameters(), lr=cfg.training.learning_rate)
+
+    trainer = DVITrainerContext(
+        model=model,
+        device=device,
+        dataset=dataset,
+        train_loader=dataloader,
+        val_loader=dataloader,
+        optimizer=optimizer,
+        scheduler=None,
+        generator=g,
+        wandb_logging=cfg.wandb.logging,
+        num_subtasks=cfg.training.num_subtasks,
+        num_samples=cfg.training.num_samples,
+        val_grad_off=not model_variant == ModelVariant.DIS_SCORE,
     )
 
-    optimizer = AdamW(params=params, lr=cfg.training.learning_rate)
-
-    trainer_params = {
-        "model": model,
-        "device": device,
-        "dataset": dataset,
-        "train_loader": train_loader,
-        "val_loader": val_loader,
-        "optimizer": optimizer,
-        "scheduler": None,  # scheduler,
-        "generator": g,
-        "wandb_logging": cfg.wandb.logging,
-        "num_subtasks": cfg.training.num_subtasks,
-        "num_samples": cfg.training.num_samples,
-        "val_grad_off": not model_variant == ModelVariant.DIS_SCORE,
-    }
-
-    match trainer_variant:
-        case TrainerVariant.CONTEXT:
-            trainer = DVINPTrainerContext(**trainer_params)
-        case TrainerVariant.DATA:
-            trainer = DVINPTrainerData(**trainer_params)
-        case TrainerVariant.FORWARD:
-            trainer = DVINPTrainerForward(**trainer_params)
-        case TrainerVariant.FORWARDANDCONTEXT:
-            trainer = DVINPTrainerForwardAndContext(**trainer_params)
-
-    if dir is not None:
-        model, trainer = load_state_dicts_np(dir, model, trainer, load_decoder_only)
-
-    return model, trainer, test_loader, val_loader
+    return model, trainer, dataloader

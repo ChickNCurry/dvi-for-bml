@@ -7,7 +7,7 @@ from dviforbml.architectures.np import NP
 from dviforbml.evaluation.common import ModelInfo, ModelType
 from dviforbml.evaluation.predictive.vis_pred_eval import vis_pred_eval
 from dviforbml.evaluation.taskposterior.vis_tp_eval import vis_tp_eval
-from dviforbml.utils.helper import download_run
+from dviforbml.utils.helper import download_run_np
 from dviforbml.utils.load_dvinp import load_dvinp
 from dviforbml.utils.load_np import load_np
 
@@ -26,7 +26,7 @@ def run(
         device = torch.device("cpu")
 
     for info in model_infos:
-        dir = download_run(info.project, info.name)
+        dir = download_run_np(info.project, info.name)
 
         model: NP
 

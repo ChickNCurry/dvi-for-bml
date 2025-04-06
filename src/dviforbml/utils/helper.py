@@ -5,7 +5,11 @@ import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
+from dviforbml.architectures.dvi import DVI
 from dviforbml.architectures.np import NP
+from dviforbml.evaluation.visualization.visualize_dvi_contour import (
+    visualize_dvi_2d_contour_all,
+)
 from dviforbml.training.abstract_trainer import AbstractTrainer
 
 
@@ -36,7 +40,22 @@ def get_name_dvinp(cfg: DictConfig) -> str:
     return "-".join(model_values + training_values)
 
 
-def upload_run(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
+def get_name_dvi(cfg: DictConfig) -> str:
+    model_keys = [
+        "num_steps",
+        "model_variant",
+        "context_variant",
+        "noise_variant",
+        "self_attn_num_heads",
+        "contextual_schedules",
+    ]
+
+    model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
+
+    return "-".join(model_values)
+
+
+def upload_run_np(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
     assert wandb.run is not None
 
     if not os.path.exists("models"):
@@ -63,7 +82,49 @@ def upload_run(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
     wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
 
 
-def download_run(project: str, name: str) -> str:
+def upload_run_dvi(
+    cfg: DictConfig,
+    model: DVI,
+    trainer: AbstractTrainer,
+    device: torch.device,
+    dataloader: torch.utils.data.DataLoader,
+) -> None:
+    assert wandb.run is not None
+
+    if not os.path.exists("models"):
+        os.mkdir("models")
+
+    dir = os.path.join("models", wandb.run.name)
+    os.mkdir(dir)
+
+    model_path = os.path.join(dir, "model.pth")
+    optim_path = os.path.join(dir, "optim.pth")
+    cfg_path = os.path.join(dir, "cfg.yaml")
+    vis_path = os.path.join(dir, "vis.pdf")
+    metrics_path = os.path.join(dir, "metrics.csv")
+
+    torch.save(model.state_dict(), model_path)
+    torch.save(trainer.optimizer.state_dict(), optim_path)
+
+    with open(cfg_path, "w") as f:
+        OmegaConf.save(cfg, f)
+
+    visualize_dvi_2d_contour_all(
+        device=device,
+        model=model,
+        dataset=dataloader.dataset,
+        save_fig_path=vis_path,
+        save_csv_path=metrics_path,
+    )
+
+    wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
+    wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
+    wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+    wandb.run.log_model(path=vis_path, name=f"{wandb.run.name}_vis.pdf")
+    wandb.run.log_model(path=metrics_path, name=f"{wandb.run.name}_metrics.csv")
+
+
+def download_run_np(project: str, name: str) -> str:
     dir = f"../models/{project}/{name}"
 
     if not os.path.exists(dir):
@@ -76,7 +137,7 @@ def download_run(project: str, name: str) -> str:
     return dir
 
 
-def load_state_dicts(
+def load_state_dicts_np(
     dir: str, model: NP, trainer: AbstractTrainer, load_decoder_only: bool
 ) -> Tuple[NP, AbstractTrainer]:
     model_path = f"{dir}/model.pth"

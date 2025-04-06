@@ -1,0 +1,6 @@
+mode: MULTIRUN
+launcher:
+  partition: dev_gpu_4
+  timeout_min: 30
+  mem_per_gpu: 8000
+  gres: gpu:1

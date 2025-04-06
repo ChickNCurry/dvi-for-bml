@@ -25,7 +25,7 @@ from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
 from dviforbml.training.ddsnp_trainer import DDSNPTrainerContext
 
 from dviforbml.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
-from dviforbml.utils.helper import load_state_dicts
+from dviforbml.utils.helper import load_state_dicts_np
 
 
 class ContextVariant(Enum):
@@ -218,6 +218,6 @@ def load_ddsnp(
     trainer = DDSNPTrainerContext(**trainer_params)
 
     if dir is not None:
-        model, trainer = load_state_dicts(dir, model, trainer, load_decoder_only)
+        model, trainer = load_state_dicts_np(dir, model, trainer, load_decoder_only)
 
     return model, trainer, test_loader, val_loader

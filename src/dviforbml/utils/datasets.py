@@ -38,6 +38,7 @@ class ContextSetDataset(Dataset[Tensor]):
         c_dim: int,
         sampling_factor: float,
         max_context_size: int,
+        generator: torch.Generator,
     ) -> None:
         super(ContextSetDataset, self).__init__()
 
@@ -45,12 +46,15 @@ class ContextSetDataset(Dataset[Tensor]):
         self.c_dim = c_dim
         self.max_context_size = max_context_size
         self.sampling_factor = sampling_factor
+        self.generator = generator
 
     def __len__(self) -> int:
         return self.size
 
     def __getitem__(self, idx: int) -> Tensor:
-        context = self.sampling_factor * torch.rand((self.max_context_size, self.c_dim))
+        context = self.sampling_factor * torch.rand(
+            (self.max_context_size, self.c_dim), generator=self.generator
+        )
 
         choices = [random.choice([1, -1]) for _ in range(self.c_dim)]
         for i in range(self.c_dim):

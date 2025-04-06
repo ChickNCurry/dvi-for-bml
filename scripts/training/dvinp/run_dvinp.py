@@ -3,7 +3,7 @@ import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-from dviforbml.utils.helper import get_name_dvinp, upload_run
+from dviforbml.utils.helper import get_name_dvinp, upload_run_np
 from dviforbml.utils.load_dvinp import load_dvinp
 
 
@@ -28,7 +28,7 @@ def run(cfg: DictConfig) -> None:
     )
 
     if cfg.wandb.logging and wandb.run is not None:
-        upload_run(cfg, model, trainer)
+        upload_run_np(cfg, model, trainer)
 
 
 if __name__ == "__main__":

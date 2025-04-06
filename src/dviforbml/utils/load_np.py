@@ -28,7 +28,7 @@ from dviforbml.training.lnp_trainer import (
     LNPTrainerTarget,
 )
 from dviforbml.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
-from dviforbml.utils.helper import load_state_dicts
+from dviforbml.utils.helper import load_state_dicts_np
 
 
 class ContextVariant(Enum):
@@ -184,6 +184,6 @@ def load_np(
                     trainer = LNPTrainerContext(**trainer_params)
 
     if dir is not None:
-        model, trainer = load_state_dicts(dir, model, trainer, False)
+        model, trainer = load_state_dicts_np(dir, model, trainer, False)
 
     return model, trainer, test_loader, val_loader

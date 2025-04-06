@@ -1,11 +1,9 @@
 from typing import List, Tuple
 
-from matplotlib.colors import LogNorm
 import numpy as np
-import seaborn as sns
+import pandas as pd
 import torch
 from matplotlib import pyplot as plt
-from numpy.typing import NDArray
 
 from dviforbml.architectures.dvi import DVI
 from dviforbml.components.cdvi.dds import DDS
@@ -15,29 +13,33 @@ from dviforbml.evaluation.taskposterior.grid import (
     eval_hist_on_grid,
 )
 from dviforbml.evaluation.taskposterior.tp_metrics import compute_bd, compute_jsd
-from dviforbml.utils.datasets import ContextSetDataset, ContextTestDataset
-from scipy.ndimage import gaussian_filter
+from dviforbml.utils.datasets import ContextSetDataset
 
 
 def visualize_dvi_2d_contour_all(
     device: torch.device,
     model: DVI,
     dataset: ContextSetDataset,
-    num_samples: int = 1600,  #  # 8192
+    num_samples: int = 10000,  #  # 8192
+    samples_to_plot: int = 200,
+    max_context_size: int = 8,
     plot_range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
-    samples_to_plot: int = 100,
+    save_fig_path: str | None = None,
+    save_csv_path: str | None = None,
 ) -> None:
-    ncols = dataset.max_context_size - 1
+    assert max_context_size <= dataset.max_context_size
 
     context = dataset.sampling_factor * torch.rand(
-        (1, num_samples, ncols, 2), device=device
+        (1, num_samples, max_context_size, 2), device=device
     )
 
     det_context = (
         dataset.sampling_factor
-        * torch.ones((1, num_samples, ncols, 2), device=device)
+        * torch.ones((1, num_samples, max_context_size, 2), device=device)
         * 0.5
     )
+
+    ncols = max_context_size
 
     fig = plt.figure(figsize=(3 * ncols, 16))
     subfigs = fig.subfigures(nrows=1, ncols=ncols)
@@ -45,28 +47,29 @@ def visualize_dvi_2d_contour_all(
     jsds = []
     bds = []
 
+    multipliers = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
+
     for col, subfig in enumerate(subfigs):
         context_size = col + 1
 
-        ax = subfig.subplots(nrows=4, ncols=1)
+        sub_context = context[:, :, :context_size, :]
+        det_sub_context = det_context[:, :, :context_size, :]
+        # (1, num_samples, context_size, 2)
+
+        ax = subfig.subplots(nrows=len(multipliers), ncols=1)
 
         context_size_jsds = []
         context_size_bds = []
 
-        for i, multipliers in enumerate([(-1, 1), (1, 1), (-1, -1), (1, -1)]):
-            context[:, :, :, 0] = context[:, :, :, 0] * multipliers[0]
-            context[:, :, :, 1] = context[:, :, :, 1] * multipliers[1]
+        for i, m in enumerate(multipliers):
+            mul_sub_context = sub_context * torch.tensor(m, device=device)
+            mul_det_sub_context = det_sub_context * torch.tensor(m, device=device)
+            # (1, num_samples, context_size, 2)
 
-            det_context[:, :, :, 0] = det_context[:, :, :, 0] * multipliers[0]
-            det_context[:, :, :, 1] = det_context[:, :, :, 1] * multipliers[1]
+            target_dist = model.contextual_target(mul_sub_context, None)
+            det_target_dist = model.contextual_target(mul_det_sub_context, None)
 
-            sub_context = context[:, :, :context_size, :]
-            det_sub_context = det_context[:, :, :context_size, :]
-
-            target_dist = model.contextual_target(sub_context, None)
-            det_target_dist = model.contextual_target(det_sub_context, None)
-
-            r, s = model.encoder(sub_context.to(device), None)
+            r, s = model.encoder(mul_sub_context.to(device), None)
             _, zs = model.cdvi.run_forward_process(target_dist, r, None, s, None)
 
             assert zs is not None
@@ -121,14 +124,18 @@ def visualize_dvi_2d_contour_all(
             fontsize=24,
         )
 
-    # import pandas as pd
-
-    # df = pd.DataFrame({id: jsds}, index=[row + 1 for row in range(nrows)])
-    # print(df.head())
+    if save_csv_path is not None:
+        df = pd.DataFrame(
+            {"jsds": jsds, "bds": bds}, index=[col + 1 for col in range(ncols)]
+        )
+        df.to_csv(save_csv_path)
 
     plt.tight_layout()
 
-    plt.show()
+    if save_fig_path is not None:
+        plt.savefig(save_fig_path)
+    else:
+        plt.show()
 
 
 def visualize_dvi_2d_contour(
@@ -136,6 +143,7 @@ def visualize_dvi_2d_contour(
     model: DVI,
     dataset: ContextSetDataset,
     num_samples: int = 1600,  #  # 8192
+    samples_to_plot: int = 100,
     plot_range: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
     multipliers: Tuple[float, float] = (1, 1),
 ) -> None:
@@ -226,8 +234,6 @@ def visualize_dvi_2d_contour(
         #     alpha=0.7,
         #     density=True,
         # )
-
-        samples_to_plot = 100
 
         ax.scatter(
             z_T[:samples_to_plot, 0],
