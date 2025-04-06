@@ -20,10 +20,10 @@ model:
     num_layers_dec: 6
     num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: 8
+    self_attn_num_heads: null # 8
     cross_attn_num_heads: 8
     max_context_size: null # 64
-    context_variant: mean
+    context_variant: bca
     model_variant: dis
     noise_variant: free
     contextual_schedules: true
@@ -37,7 +37,7 @@ training:
     learning_rate: 0.001
     num_epochs: 500
     alternating_ratio: null
-    max_clip_norm: null
+    max_clip_norm: null # 1.0
     alpha: null
     seed: 0
 wandb:

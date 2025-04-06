@@ -50,3 +50,11 @@ class DVINP(NP):
             y=y_context,
             mask=mask,
         )
+
+    def freeze_cdvi(self) -> None:
+        for param in self.cdvi.parameters():
+            param.requires_grad = False
+
+    def unfreeze_cdvi(self) -> None:
+        for param in self.cdvi.parameters():
+            param.requires_grad = True
