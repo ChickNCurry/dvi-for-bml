@@ -90,11 +90,11 @@ def visualize_dvi_2d_contour_all(
             context_size_jsds.append(cs_jsd)
             context_size_bds.append(cs_bd)
 
-            ax[i].contourf(
+            ax[i].contour(
                 grid[:, :, 0],
                 grid[:, :, 1],
                 np.exp(det_target_vals.reshape(num_cells, num_cells)),
-                levels=10,
+                levels=50,
                 zorder=0,
             )
 
