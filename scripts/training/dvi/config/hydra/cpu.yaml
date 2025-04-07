@@ -1,5 +1,5 @@
 mode: MULTIRUN
 launcher:
   partition: single
-  timeout_min: 600
-  mem_per_cpu: 4000
+  timeout_min: 200
+  mem_per_cpu: 8000

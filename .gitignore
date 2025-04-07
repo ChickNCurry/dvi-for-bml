@@ -13,7 +13,7 @@ wheels/
 .mypy_cache
 wandb
 multirun
-# models/**
+models/**
 
 # !models/cnp
 # !models/dvinp

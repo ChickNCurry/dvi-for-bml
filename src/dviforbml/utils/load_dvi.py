@@ -72,14 +72,15 @@ def load_dvi(
     g = torch.Generator().manual_seed(cfg.training.seed)
 
     dataset = ContextSetDataset(
-        size=cfg.size,
-        c_dim=cfg.c_dim,
+        size=cfg.training.size,
+        c_dim=cfg.model.c_dim,
         max_context_size=cfg.training.max_context_size,
         sampling_factor=4,
+        generator=g,
     )
 
     dataloader = DataLoader(
-        dataset=dataset, batch_size=cfg.batch_size, shuffle=True, generator=g
+        dataset=dataset, batch_size=cfg.training.batch_size, shuffle=True, generator=g
     )
 
     context_variant = ContextVariant(cfg.model.context_variant)
