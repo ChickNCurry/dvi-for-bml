@@ -48,6 +48,7 @@ def get_name_dvi(cfg: DictConfig) -> str:
         "noise_variant",
         "self_attn_num_heads",
         "contextual_schedules",
+        "max_context_size"
     ]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
