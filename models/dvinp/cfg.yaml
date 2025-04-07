@@ -23,9 +23,11 @@ model:
     self_attn_num_heads: null # 8
     cross_attn_num_heads: 8
     max_context_size: null # 64
-    context_variant: bca
-    model_variant: dis
+    context_variant: mean
+    model_variant: ula
     noise_variant: free
+    noise_max: 4.5
+    noise_min: 0.14
     contextual_schedules: true
 training:
     trainer_variant: cntxt

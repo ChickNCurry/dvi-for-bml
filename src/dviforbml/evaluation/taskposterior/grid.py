@@ -61,7 +61,7 @@ def eval_hist_on_grid(
     log_probs = log_probs - logsumexp(log_probs)
     # (dim1, dim2, ...)
 
-    log_probs = log_probs.T  # TODO: why transpose needed?
+    log_probs = log_probs.T  # NEEDED
 
     return log_probs
 

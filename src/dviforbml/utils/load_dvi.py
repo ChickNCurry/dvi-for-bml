@@ -16,10 +16,8 @@ from dviforbml.components.cdvi.ula import ULA
 from dviforbml.components.cdvi.cmcd import CMCD
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.control.bca_control import BCAControl
-from dviforbml.components.control.mhca_control import MHCAControl
 from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from dviforbml.components.encoder.bca_encoder import BCAEncoder
-from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
 from dviforbml.components.schedule.annealing_schedule import (
     AggrAnnealingSchedule,
     AnnealingSchedule,
@@ -29,13 +27,11 @@ from dviforbml.components.schedule.constr_noise_schedule import (
     AggrConstrNoiseSchedule,
     BCAConstrNoiseSchedule,
     ConstrNoiseSchedule,
-    MHCAConstrNoiseSchedule,
 )
 from dviforbml.components.schedule.free_noise_schedule import (
     AggrFreeNoiseSchedule,
     BCAFreeNoiseSchedule,
     FreeNoiseSchedule,
-    MHCAFreeNoiseSchedule,
 )
 from dviforbml.components.schedule.step_size_schedule import StepSizeSchedule
 from dviforbml.training.dvi_trainer import DVITrainer, DVITrainerContext
@@ -137,6 +133,8 @@ def load_dvi(
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
                         device=device,
+                        min=cfg.model.noise_min,
+                        max=cfg.model.noise_max,
                     )
 
                 case NoiseVariant.CONSTR:
@@ -147,6 +145,8 @@ def load_dvi(
                         num_layers=cfg.model.num_layers_sched,
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
+                        min=cfg.model.noise_min,
+                        max=cfg.model.noise_max,
                     )
 
         case ContextVariant.BCA:
@@ -196,6 +196,8 @@ def load_dvi(
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
                         device=device,
+                        min=cfg.model.noise_min,
+                        max=cfg.model.noise_max,
                     )
 
                 case NoiseVariant.CONSTR:
@@ -206,68 +208,8 @@ def load_dvi(
                         num_layers=cfg.model.num_layers_sched,
                         non_linearity=cfg.model.non_linearity,
                         max_context_size=cfg.model.max_context_size,
-                    )
-
-        case ContextVariant.MHCA:
-            encoder = MHCAEncoder(
-                c_dim=cfg.model.c_dim,
-                h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.z_dim,
-                num_layers=cfg.model.num_layers_enc,
-                non_linearity=cfg.model.non_linearity,
-                num_heads=cfg.model.self_attn_num_heads,
-                num_blocks=cfg.model.num_blocks,
-                max_context_size=cfg.model.max_context_size,
-            )
-
-            control = MHCAControl(
-                h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.z_dim,
-                num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers_ctrl,
-                non_linearity=cfg.model.non_linearity,
-                max_context_size=cfg.model.max_context_size,
-                use_score=model_variant == ModelVariant.DIS_SCORE,
-                num_heads=cfg.model.cross_attn_num_heads,
-            )
-
-            annealing_schedule = (
-                BCAAnnealingSchedule(
-                    z_dim=cfg.model.z_dim,
-                    h_dim=cfg.model.h_dim,
-                    num_steps=cfg.model.num_steps,
-                    num_layers=cfg.model.num_layers_sched,
-                    non_linearity=cfg.model.non_linearity,
-                    max_context_size=cfg.model.max_context_size,
-                    device=device,
-                )
-                if model_variant is not ModelVariant.DIS
-                else None
-            )
-
-            match noise_variant:
-                case NoiseVariant.FREE:
-                    noise_schedule = MHCAFreeNoiseSchedule(
-                        z_dim=cfg.model.z_dim,
-                        h_dim=cfg.model.h_dim,
-                        num_steps=cfg.model.num_steps,
-                        num_layers=cfg.model.num_layers_sched,
-                        non_linearity=cfg.model.non_linearity,
-                        num_heads=cfg.model.cross_attn_num_heads,
-                        max_context_size=cfg.model.max_context_size,
-                        device=device,
-                    )
-
-                case NoiseVariant.CONSTR:
-                    noise_schedule = MHCAConstrNoiseSchedule(
-                        z_dim=cfg.model.z_dim,
-                        h_dim=cfg.model.h_dim,
-                        num_steps=cfg.model.num_steps,
-                        num_layers=cfg.model.num_layers_sched,
-                        non_linearity=cfg.model.non_linearity,
-                        num_heads=cfg.model.cross_attn_num_heads,
-                        max_context_size=cfg.model.max_context_size,
-                        device=device,
+                        min=cfg.model.noise_min,
+                        max=cfg.model.noise_max,
                     )
 
     if not cfg.model.contextual_schedules:
@@ -286,6 +228,8 @@ def load_dvi(
                     z_dim=cfg.model.z_dim,
                     num_steps=cfg.model.num_steps,
                     device=device,
+                    min=cfg.model.noise_min,
+                    max=cfg.model.noise_max,
                 )
 
             case NoiseVariant.CONSTR:
@@ -293,6 +237,8 @@ def load_dvi(
                     z_dim=cfg.model.z_dim,
                     num_steps=cfg.model.num_steps,
                     device=device,
+                    min=cfg.model.noise_min,
+                    max=cfg.model.noise_max,
                 )
 
     step_size_schedule = StepSizeSchedule(

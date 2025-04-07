@@ -3,14 +3,6 @@ defaults:
   - hydra: gpu_dev
   - override hydra/launcher: submitit_slurm
 
-hydra:
-  mode: MULTIRUN
-  launcher:
-    partition: dev_gpu_4
-    timeout_min: 30
-    mem_per_gpu: 8000
-    gres: gpu:1
-
 benchmark:
     _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
     n_datapoints_per_task: 64
@@ -33,6 +25,8 @@ model:
     max_context_size: null
     context_variant: mean
     noise_variant: free
+    noise_max: 4.5
+    noise_min: 0.14
     model_variant: dis
     contextual_schedules: true
 training:
