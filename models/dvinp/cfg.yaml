@@ -24,10 +24,10 @@ model:
     cross_attn_num_heads: 8
     max_context_size: null # 64
     context_variant: mean
-    model_variant: ula
+    model_variant: dis
     noise_variant: free
-    noise_max: 4.5
-    noise_min: 0.14
+    noise_max: 1
+    noise_min: 0.01
     contextual_schedules: true
 training:
     trainer_variant: cntxt

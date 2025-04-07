@@ -25,8 +25,8 @@ model:
     max_context_size: null
     context_variant: mean
     noise_variant: free
-    noise_max: 4.5
-    noise_min: 0.14
+    noise_max: 1
+    noise_min: 0.01
     model_variant: dis
     contextual_schedules: true
 training:
