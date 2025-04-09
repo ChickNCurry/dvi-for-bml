@@ -48,7 +48,7 @@ def get_name_dvi(cfg: DictConfig) -> str:
         "noise_variant",
         "self_attn_num_heads",
         "contextual_schedules",
-        "max_context_size"
+        "max_context_size",
     ]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
@@ -132,6 +132,27 @@ def download_run_np(project: str, name: str) -> str:
         api = wandb.Api()
 
         for type in ["model.pth:v0", "optim.pth:v0", "cfg.yaml:v0", "decoder.pth:v0"]:
+            artifact = api.artifact(f"{project}/{name}_{type}")
+            artifact.download(root=dir)
+
+    return dir
+
+
+def download_run_dvi(project: str, name: str) -> str:
+    dir = f"../models/{project}/{name}"
+
+    print(dir)
+
+    if not os.path.exists(dir):
+        api = wandb.Api()
+
+        for type in [
+            "model.pth:v0",
+            "optim.pth:v0",
+            "cfg.yaml:v0",
+            "vis.pdf:v0",
+            "metrics.csv:v0",
+        ]:
             artifact = api.artifact(f"{project}/{name}_{type}")
             artifact.download(root=dir)
 
