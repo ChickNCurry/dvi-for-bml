@@ -6,10 +6,10 @@ defaults:
 benchmark:
     _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
     n_datapoints_per_task: 64
-    n_task: 4096
+    n_task: 1024
     output_noise: 0.1
     seed_noise: 1237
-    seed_task: 1237
+    seed_task: 5
     seed_x: 123
 model:
     num_steps: 16
@@ -19,14 +19,14 @@ model:
     z_dim: 2
     h_dim: 128
     h_dim_dec: 64
-    num_layers_enc: 3
+    num_layers_enc: 6
     num_layers_ctrl: 6
     num_layers_sched: 6
     num_layers_dec: 6
-    num_blocks: 2
+    num_blocks: 1
     non_linearity: GELU
     self_attn_num_heads: 8
-    max_context_size: null # 64
+    max_context_size: 64
     context_variant: mean
     model_variant: dis
     noise_variant: free
@@ -41,11 +41,11 @@ training:
     num_samples: 100
     max_context_size: 16
     learning_rate: 0.001
-    num_epochs: 500
+    num_epochs: 300
     alternating_ratio: null
     max_clip_norm: 1.0
     alpha: null
     seed: 0
 wandb:
     logging: true
-    project: cluster-dvinp
+    project: cluster-dvinp-new
