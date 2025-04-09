@@ -1,7 +1,7 @@
 benchmark:
     _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
     n_datapoints_per_task: 64
-    n_task: 2 # 4096
+    n_task: 1024
     output_noise: 0.1
     seed_noise: 1237
     seed_task: 5 # 1237
@@ -22,7 +22,7 @@ model:
     non_linearity: GELU
     self_attn_num_heads: 8
     max_context_size: 64
-    context_variant: bca
+    context_variant: mean
     model_variant: dis
     noise_variant: free
     noise_max: 1
@@ -34,13 +34,13 @@ training:
     num_subtasks: 32
     num_val_tasks: 32
     num_samples: 100
-    max_context_size: 64
+    max_context_size: 16
     learning_rate: 0.001
-    num_epochs: 500
+    num_epochs: 300
     alternating_ratio: null
-    max_clip_norm: null # 1.0
+    max_clip_norm: 1.0
     alpha: null
     seed: 0
 wandb:
     logging: true
-    project: local
+    project: cluster-dvi
