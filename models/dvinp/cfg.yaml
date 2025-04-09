@@ -12,7 +12,7 @@ model:
     y_dim: 1
     c_dim: 2
     z_dim: 2
-    h_dim: 64
+    h_dim: 128
     h_dim_dec: 64
     num_layers_enc: 6
     num_layers_ctrl: 6
@@ -20,10 +20,9 @@ model:
     num_layers_dec: 6
     num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: null # 8
-    cross_attn_num_heads: 8
-    max_context_size: null # 64
-    context_variant: mean
+    self_attn_num_heads: 8
+    max_context_size: 64
+    context_variant: bca
     model_variant: dis
     noise_variant: free
     noise_max: 1
