@@ -1,8 +1,5 @@
-module load devel/miniconda
-conda activate dvi-for-bml
+source /home/ka/ka_anthropomatik/ka_km6619/dvi-for-bml/.venv/bin/activate
 which python
-# source venv/bin/activate
-# which python
 
 python ../run_dvi.py --multirun \
 hydra=gpu_dev \

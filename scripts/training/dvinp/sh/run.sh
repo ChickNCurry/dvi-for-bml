@@ -1,14 +1,11 @@
-module load devel/miniconda
-conda activate dvi-for-bml
+source /home/ka/ka_anthropomatik/ka_km6619/dvi-for-bml/.venv/bin/activate
 which python
 
 python ../run_dvinp.py --multirun \
 hydra=gpu \
-wandb.project=cluster-dvinp-linesine \
-model.context_variant=mean,bca \
-model.noise_variant=free,cos \
-model.contextual_schedules=true,false \
 model.model_variant=dis,dis_score \
-model.num_steps=16,32 \
-training.trainer_variant=cntxt,fwdcntxt \
-# model.self_attn_num_heads=null,1 \
+model.context_variant=mean,bca \
+model.contextual_schedules=true,false \
+model.noise_variant=free,constr \
+model.max_context_size=null,10 \
+model.self_attn_num_heads=null,8 \
