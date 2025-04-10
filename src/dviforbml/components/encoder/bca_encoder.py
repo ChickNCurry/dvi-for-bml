@@ -49,7 +49,9 @@ class BCAEncoder(AbstractEncoder):
         # (batch_size, num_subtasks, context_size, h_dim)
 
         r = self.proj_r(h)
-        r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e2))
+        test = self.proj_r_var(h)
+        r_var = torch.clamp(softplus(test), min=1e-6, max=5)
+        # r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e3))
         # (batch_size, num_subtasks, context_size, bca_dim)
 
         z_var_0 = torch.ones((batch_size, num_subtasks, self.bca_dim), device=h.device)
@@ -57,17 +59,41 @@ class BCAEncoder(AbstractEncoder):
         # (batch_size, num_subtasks, bca_dim)
 
         if mask is None:
-            z_var = -(-z_var_0 + torch.sum(-r_var, dim=2))
+            z_var = 1.0 / (1.0 / z_var_0 + torch.sum(1.0 / r_var, dim=2))
             z_mu = z_mu_0 + z_var * torch.sum(
                 (r - z_mu_0[:, :, None, :]) / r_var, dim=2
             )  # (batch_size, num_subtasks, bca_dim)
         else:
-            z_var = -(-z_var_0 + torch.sum(-r_var * mask.unsqueeze(-1), dim=2))
+            z_var = 1.0 / (
+                1.0 / z_var_0 + torch.sum((1.0 / r_var) * mask.unsqueeze(-1), dim=2)
+            )
             z_mu = z_mu_0 + z_var * torch.sum(
                 ((r - z_mu_0[:, :, None, :]) / r_var) * mask.unsqueeze(-1), dim=2
             )  # (batch_size, num_subtasks, bca_dim)
 
         s_emb = self.compute_s_emb(context, mask)
         # (batch_size, num_subtasks, z_dim)
+
+        # throw exception in nan are contained
+
+        # print(f"r_var: {r_var.min().item()}, {r_var.max().item()}")
+        # print(f"z_var: {z_var.min().item()}, {z_var.max().item()}")
+        # print(f"z_mu: {z_mu.min().item()}, {z_mu.max().item()}")
+
+        # if torch.isnan(h).any():
+        #     raise ValueError("nan in h")
+
+        # if torch.isnan(test).any():
+        #     raise ValueError("nan in test")
+
+        # if torch.isnan(r_var).any():
+        #     print(test)
+        #     raise ValueError("nan in r_var")
+
+        # if torch.isnan(z_var).any():
+        #     raise ValueError("nan in z_var")
+
+        # if torch.isnan(z_mu).any():
+        #     raise ValueError("nan in z_mu")
 
         return (z_mu, z_var), s_emb

@@ -118,6 +118,7 @@ def load_np(
             encoder = AggrEncoder(
                 c_dim=cfg.model.c_dim,
                 h_dim=cfg.model.h_dim,
+                z_dim=cfg.model.z_dim,
                 num_layers=cfg.model.num_layers,
                 non_linearity=cfg.model.non_linearity,
                 num_heads=cfg.model.self_attn_num_heads,

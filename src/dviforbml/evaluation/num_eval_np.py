@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
+from dviforbml.architectures.dvinp import DVINP
 from dviforbml.architectures.np import NP
 from dviforbml.evaluation.predictive.num_pred_eval import (
     num_pred_eval_for_fixed_context_size,
@@ -43,12 +44,16 @@ def num_eval_np(
             model, context_size, x_data, y_data, True
         )
 
-        jsd, bd = num_tp_eval_for_fixed_context_size(
-            model, context_size, x_data, y_data, num_samples, ranges, device, True
-        )
-
         lmpls.append(lmpl)
         mses.append(mse)
+
+        if isinstance(model, DVINP):
+            jsd, bd = num_tp_eval_for_fixed_context_size(
+                model, context_size, x_data, y_data, num_samples, ranges, device, True
+            )
+        else:
+            jsd, bd = 0, 0
+
         jsds.append(jsd)
         bds.append(bd)
 

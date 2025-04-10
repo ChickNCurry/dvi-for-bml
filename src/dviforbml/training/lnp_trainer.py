@@ -90,7 +90,7 @@ class LNPTrainerData(LNPTrainer):
         wandb_logging: bool,
         num_subtasks: int,
         num_samples: int,
-        val_grad_off: bool = False,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -235,7 +235,7 @@ class LNPTrainerTarget(LNPTrainer):
         wandb_logging: bool,
         num_subtasks: int,
         num_samples: int,
-        val_grad_off: bool = False,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,
@@ -376,7 +376,7 @@ class LNPTrainerContext(LNPTrainer):
         wandb_logging: bool,
         num_subtasks: int,
         num_samples: int,
-        val_grad_off: bool,
+        val_grad_off: bool = True,
     ) -> None:
         super().__init__(
             model,

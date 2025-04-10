@@ -19,7 +19,7 @@ def visualize_np(
     show_sigma: bool = False,
 ) -> None:
     x_data, y_data = next(iter(dataloader))
-    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
+    # task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
 
     x_data = x_data.to(device)
     y_data = y_data.to(device)
@@ -39,22 +39,22 @@ def visualize_np(
     # (num_samples, context_size, x_dim)
     # (num_samples, context_size, y_dim)
 
-    fig = plt.figure(figsize=(6, 3 * max_context_size), constrained_layout=True)
+    fig = plt.figure(figsize=(4, 2 * max_context_size))
     subfigs = fig.subfigures(nrows=max_context_size, ncols=1)
 
-    fig.text(
-        0,
-        1,
-        task_hash,
-        fontsize=12,
-        color="blue",
-        ha="left",
-        va="top",
-    )
+    # fig.text(
+    #     0,
+    #     1,
+    #     task_hash,
+    #     fontsize=12,
+    #     color="blue",
+    #     ha="left",
+    #     va="top",
+    # )
 
     for row, subfig in enumerate(subfigs):
         subfig.suptitle(f"context size: {row + 1}")
-        ax = subfig.subplots(nrows=1, ncols=1, width_ratios=[1])
+        ax = subfig.subplots(nrows=1, ncols=1)
 
         context_size = row + 1
 

@@ -10,7 +10,7 @@ def compute_mse(y_dist_data: Normal, y_data: Tensor) -> Tensor:
     y_pred: Tensor = y_dist_data.mean
     # (batch_size, num_subtasks, data_size, y_dim)
 
-    mse: Tensor = torch.median(((y_pred - y_data) ** 2).sum((3, 2)).mean(1))
+    mse: Tensor = torch.median(((y_pred - y_data).sum(3) ** 2).mean((2, 1)))
     # (1)
 
     return mse
@@ -22,7 +22,7 @@ def compute_mse_over_samples(y_dist_data: Normal, y_data: Tensor) -> Tensor:
     y_pred = y_dist_data.mean
     # (num_val_tasks, num_samples, data_size, y_dim)
 
-    mse = torch.median(((y_pred.mean(1) - y_data.mean(1)) ** 2).sum(-1).mean(1))
+    mse = torch.median(((y_pred.mean(1) - y_data.mean(1)).sum(-1) ** 2).mean(1))
     # (1)
 
     return mse
