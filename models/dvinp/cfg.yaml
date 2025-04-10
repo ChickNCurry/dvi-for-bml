@@ -1,6 +1,6 @@
 benchmark:
     _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
-    n_datapoints_per_task: 64
+    n_datapoints_per_task: 16 # 64
     n_task: 1024
     output_noise: 0.1
     seed_noise: 1237
@@ -12,16 +12,16 @@ model:
     y_dim: 1
     c_dim: 2
     z_dim: 2
-    h_dim: 128
-    h_dim_dec: 64
-    num_layers_enc: 6
-    num_layers_ctrl: 6
-    num_layers_sched: 6
-    num_layers_dec: 6
+    h_dim: 32
+    h_dim_dec: 32
+    num_layers_enc: 3
+    num_layers_ctrl: 3
+    num_layers_sched: 3
+    num_layers_dec: 3
     num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: 8
-    max_context_size: 64
+    self_attn_num_heads: null
+    max_context_size: 16
     context_variant: mean
     model_variant: dis
     noise_variant: free
