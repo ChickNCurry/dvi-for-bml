@@ -11,7 +11,7 @@ from dviforbml.utils.load_dvinp import load_dvinp
 def run(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model, trainer, _, _ = load_dvinp(cfg=cfg, device=device)
+    model, trainer, _, val_loader = load_dvinp(cfg=cfg, device=device)
 
     if cfg.wandb.logging:
         wandb.init(
@@ -28,7 +28,7 @@ def run(cfg: DictConfig) -> None:
     )
 
     if cfg.wandb.logging and wandb.run is not None:
-        upload_run_np(cfg, model, trainer)
+        upload_run_np(cfg, model, trainer, val_loader, device)
 
 
 if __name__ == "__main__":

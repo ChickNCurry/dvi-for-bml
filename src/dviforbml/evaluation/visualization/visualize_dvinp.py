@@ -92,6 +92,18 @@ def visualize_dvinp(
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
 
+        mse = ((y_mu_sorted - y_data_sorted).sum(-1) ** 2).mean()
+
+        fig.text(
+            0,
+            1,
+            mse,
+            fontsize=12,
+            color="red",
+            ha="left",
+            va="top",
+        )
+
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
 

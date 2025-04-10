@@ -7,6 +7,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from dviforbml.architectures.dvi import DVI
 from dviforbml.architectures.np import NP
+from dviforbml.evaluation.num_eval_np import num_eval_np
 from dviforbml.evaluation.visualization.visualize_dvi_contour import (
     visualize_dvi_2d_contour_all,
 )
@@ -32,7 +33,7 @@ def get_name_dvinp(cfg: DictConfig) -> str:
         "self_attn_num_heads",
         "contextual_schedules",
     ]
-    training_keys = ["trainer_variant","seed"]
+    training_keys = ["trainer_variant", "seed"]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
     training_values = [f"{v}" for k, v in cfg.training.items() if k in training_keys]
@@ -56,7 +57,13 @@ def get_name_dvi(cfg: DictConfig) -> str:
     return "-".join(model_values)
 
 
-def upload_run_np(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
+def upload_run_np(
+    cfg: DictConfig,
+    model: NP,
+    trainer: AbstractTrainer,
+    val_loader: torch.utils.data.DataLoader,
+    device: torch.device,
+) -> None:
     assert wandb.run is not None
 
     if not os.path.exists("models"):
@@ -69,6 +76,7 @@ def upload_run_np(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
     decoder_path = os.path.join(dir, "decoder.pth")
     optim_path = os.path.join(dir, "optim.pth")
     cfg_path = os.path.join(dir, "cfg.yaml")
+    metrics_path = os.path.join(dir, "metrics.csv")
 
     torch.save(model.state_dict(), model_path)
     torch.save(model.decoder.state_dict(), decoder_path)
@@ -77,10 +85,13 @@ def upload_run_np(cfg: DictConfig, model: NP, trainer: AbstractTrainer) -> None:
     with open(cfg_path, "w") as f:
         OmegaConf.save(cfg, f)
 
+    num_eval_np(model, val_loader, device, 1024, metrics_path)
+
     wandb.run.log_model(path=model_path, name=f"{wandb.run.name}_model.pth")
     wandb.run.log_model(path=decoder_path, name=f"{wandb.run.name}_decoder.pth")
     wandb.run.log_model(path=optim_path, name=f"{wandb.run.name}_optim.pth")
     wandb.run.log_model(path=cfg_path, name=f"{wandb.run.name}_cfg.yaml")
+    wandb.run.log_model(path=metrics_path, name=f"{wandb.run.name}_metrics.csv")
 
 
 def upload_run_dvi(
