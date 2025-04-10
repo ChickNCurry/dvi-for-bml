@@ -7,3 +7,4 @@ model.model_variant=dis,dis_score \
 model.context_variant=mean,bca \
 model.noise_variant=free,constr \
 training.trainer_variant=cntxt,fwdcntxt \
+training.seed=0,1 \

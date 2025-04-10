@@ -1,6 +1,6 @@
 mode: MULTIRUN
 launcher:
   partition: "gpu_h100,gpu_mi300"
-  timeout_min: 180
+  timeout_min: 200
   mem_per_gpu: 8000
   gres: gpu:1

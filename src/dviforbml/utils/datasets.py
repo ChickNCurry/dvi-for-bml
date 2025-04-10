@@ -91,6 +91,9 @@ class MetaLearningDataset(Dataset[Tuple[Tensor, Tensor]]):
         x_data = x_data[perm]
         y_data = y_data[perm]
 
+        x_data = x_data[0 : self.max_context_size, :]
+        y_data = y_data[0 : self.max_context_size, :]
+
         # print(hash_tensor(x_context), hash_tensor(y_context))
 
         return x_data, y_data

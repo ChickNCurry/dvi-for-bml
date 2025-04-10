@@ -97,7 +97,7 @@ class DVINPTrainer(AbstractTrainer, ABC):
         # (batch_size, num_samples, data_size)
 
         _, zs = self.model.cdvi.run_forward_process(
-            target_dist, r_context, mask, None, s_context
+            target_dist, r_context, mask, s_context, None
         )  # (num_steps, batch_size, num_samples, z_dim)
 
         y_dist_data = self.model.decoder(
@@ -141,7 +141,7 @@ class DVINPTrainer(AbstractTrainer, ABC):
         # (batch_size, num_samples, data_size)
 
         _, zs = self.model.cdvi.run_forward_process(
-            target_dist, r_context, mask, None, s_context
+            target_dist, r_context, mask, s_context, None
         )
         # (num_steps, batch_size, num_samples, z_dim)
 

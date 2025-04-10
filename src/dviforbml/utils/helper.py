@@ -32,7 +32,7 @@ def get_name_dvinp(cfg: DictConfig) -> str:
         "self_attn_num_heads",
         "contextual_schedules",
     ]
-    training_keys = ["trainer_variant"]
+    training_keys = ["trainer_variant","seed"]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
     training_values = [f"{v}" for k, v in cfg.training.items() if k in training_keys]
