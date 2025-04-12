@@ -22,4 +22,6 @@ def visualize_task(dataloader: DataLoader[Tuple[Tensor, Tensor]]) -> None:
 
         # plt.scatter(x_data[:, :, 0], y_data[:, :, 0])
 
+    plt.tight_layout()
+    # plt.savefig("sine.pdf")
     plt.show()

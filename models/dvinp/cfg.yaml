@@ -1,5 +1,5 @@
 benchmark:
-    _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
+    _target_: metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1D # sinusoid1d_benchmark.Sinusoid1D # 
     n_datapoints_per_task: 16 # 64
     n_task: 1024
     output_noise: 0.1
