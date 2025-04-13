@@ -1,5 +1,5 @@
 benchmark:
-    _target_: metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1D # sinusoid1d_benchmark.Sinusoid1D # 
+    _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D # sinusoid1d_benchmark.Sinusoid1D # 
     n_datapoints_per_task: 16 # 64
     n_task: 1024
     output_noise: 0.1
@@ -7,27 +7,27 @@ benchmark:
     seed_task: 5 # 1237
     seed_x: 123
 model:
-    num_steps: 16
+    num_steps: 16 # 128
     x_dim: 1
     y_dim: 1
     c_dim: 2
     z_dim: 2
     h_dim: 64
-    h_dim_dec: 64
+    h_dim_dec: 32
     num_layers_enc: 6
-    num_layers_ctrl: 6
-    num_layers_sched: 6
-    num_layers_dec: 6
+    num_layers_ctrl: 3
+    num_layers_sched: 3
+    num_layers_dec: 2
     num_blocks: 1
     non_linearity: GELU
     self_attn_num_heads: 8
     max_context_size: 16
-    context_variant: bca
-    model_variant: dis
-    noise_variant: free
+    context_variant: mean
+    model_variant: dis # ula
+    noise_variant: free # constr
     noise_max: 1
     noise_min: 0.01
-    contextual_schedules: true
+    contextual_schedules: tree # false
 training:
     trainer_variant: cntxt
     batch_size: 128

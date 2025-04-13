@@ -18,6 +18,7 @@ from dviforbml.evaluation.taskposterior.grid import (
     eval_score_on_grid,
     sample_from_log_probs,
 )
+from dviforbml.evaluation.taskposterior.tp_metrics import compute_jsd
 from dviforbml.utils.datasets import hash_tensor
 
 
@@ -58,7 +59,7 @@ def visualize_dvinp(
     fig.text(
         0,
         1,
-        task_hash,
+        task_hash[:8],
         fontsize=12,
         color="blue",
         ha="left",
@@ -69,7 +70,7 @@ def visualize_dvinp(
     samples = []
 
     for row, subfig in enumerate(subfigs):
-        subfig.suptitle(f"context size: {row + 1}")
+        subfig.suptitle(f"Context Size: {row + 1}")
         ax = subfig.subplots(nrows=1, ncols=4, width_ratios=[2, 1, 1, 2])
 
         context_size = row + 1
@@ -93,16 +94,6 @@ def visualize_dvinp(
         # (num_samples, target_size, y_dim)
 
         mse = ((y_mu_sorted - y_data_sorted).sum(-1) ** 2).mean()
-
-        fig.text(
-            0,
-            1,
-            mse,
-            fontsize=12,
-            color="red",
-            ha="left",
-            va="top",
-        )
 
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
@@ -130,7 +121,11 @@ def visualize_dvinp(
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         )
 
-        ax[0].set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
+        jsd = compute_jsd(dvi_log_probs, target_log_probs)
+
+        ax[0].set_title(
+            "$\mu_{1:K}^y$ of $p_{\\theta}(y_{1:K}|x_{1:K},z_N)$" + f" (MSE: {mse:.2f})"
+        )
         ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[0].scatter(
             x_context.cpu().detach().numpy(),
@@ -149,13 +144,13 @@ def visualize_dvinp(
                 zorder=0,
             )
 
-        ax[1].set_title("$q_\phi(z_T|z_{0:T-1}, D^c)$")
+        ax[1].set_title("$q_\phi(z_N|D^c)$" + f" (JSD: {jsd:.2f})")
         ax[1].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm
         )
         ax[1].grid(True)
 
-        ax[2].set_title("$p_\\theta(y_{1:N}|x_{1:N},z_T)p_\\theta(z_T)$")
+        ax[2].set_title("$p_\\theta(z_N|D^c)$")
         ax[2].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
         )
@@ -177,7 +172,7 @@ def visualize_dvinp(
                 scale_units="xy",
             )
 
-        ax[3].set_title("$\mu_{1:M}$ of $p_{\\theta}(y_{1:M}|x_{1:M},z_T)$")
+        ax[3].set_title("$\mu_{1:K}^y$ of $p_{\\theta}(y_{1:K}|x_{1:K},z_N)$")
         ax[3].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[3].scatter(
             x_context.cpu().detach().numpy(),
@@ -196,9 +191,12 @@ def visualize_dvinp(
                 zorder=0,
             )
 
-        # for a in ax:
-        #     a.set_xticks([])
-        #     a.set_yticks([])
+        ax[0].set_ylim(-10, 10)
+        ax[3].set_ylim(-10, 10)
+
+        for a in ax:
+            a.set_xticks([])
+            a.set_yticks([])
 
     if save_dir is not None:
         plt.savefig(f"{save_dir}/dvinp.png")

@@ -54,6 +54,9 @@ class CMCD(CDVI):
         control_n = self.control(n, z, self.r, self.mask, self.s_emb, None)
         # (batch_size, num_subtasks, z_dim)
 
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
+
         z_mu = z + (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
@@ -69,6 +72,9 @@ class CMCD(CDVI):
         score_n = self.compute_score(n, z)
         control_n = self.control(n, z, self.r, self.mask, self.s_emb, None)
         # (batch_size, num_subtasks, z_dim)
+
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
 
         z_mu = z - (var_n * score_n + torch.sqrt(var_n) * control_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)

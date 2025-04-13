@@ -54,6 +54,10 @@ class DIS(CDVI):
 
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
+
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
+
         score_n = (
             None
             if not self.use_score
@@ -76,6 +80,9 @@ class DIS(CDVI):
         delta_t_n = self.step_size_schedule.get(n)
         var_n = self.noise_schedule.get(n)
         # (batch_size, num_subtasks, z_dim)
+
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
 
         z_mu = z - (var_n * z) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)

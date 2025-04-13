@@ -50,6 +50,13 @@ class ULA(CDVI):
         score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
+        # # check for nans ins score
+        # if torch.any(torch.isnan(score_n)):
+        #     raise ValueError("Nan detected in score")
+
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
+
         z_mu = z + (var_n * score_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)
         # (batch_size, num_subtasks, z_dim)
@@ -64,6 +71,12 @@ class ULA(CDVI):
         var_n = self.noise_schedule.get(n)
         score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
+
+        # if torch.any(torch.isnan(score_n)):
+        #     raise ValueError("Nan detected in score")
+
+        # if torch.any(var_n < 0):
+        #     raise ValueError("Negative variance detected")
 
         z_mu = z - (var_n * score_n) * delta_t_n
         z_sigma = torch.sqrt(2 * var_n * delta_t_n)

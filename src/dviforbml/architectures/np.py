@@ -28,6 +28,14 @@ class NP(nn.Module, ABC):
     ) -> Distribution | None:
         raise NotImplementedError
 
+    def freeze(self) -> None:
+        self.freeze_encoder()
+        self.freeze_decoder()
+
+    def unfreeze(self) -> None:
+        self.unfreeze_encoder()
+        self.unfreeze_decoder()
+
     def freeze_decoder(self) -> None:
         for param in self.decoder.parameters():
             param.requires_grad = False

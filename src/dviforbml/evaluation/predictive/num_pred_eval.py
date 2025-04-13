@@ -1,3 +1,4 @@
+import gc
 from typing import List, Tuple
 
 import pandas as pd
@@ -115,6 +116,8 @@ def num_pred_eval_for_fixed_context_size(
     mse = compute_mse_over_samples(y_dist_data, y_data)
 
     del x_context, y_context, y_dist_data
+    gc.collect()
+    torch.cuda.empty_cache()
 
     return lmpl.item(), mse.item()
 

@@ -77,8 +77,8 @@ def load_dvinp(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
-    load_decoder_only: bool = False,
-    train_decoder: bool = True,
+    load_model: bool = False,
+    load_decoder_encoder_only: bool = False,
     debugging: bool = False,
 ) -> Tuple[DVINP, DVINPTrainer, DataLoader, DataLoader]:
     torch.manual_seed(cfg.training.seed)
@@ -349,11 +349,8 @@ def load_dvinp(
         decoder=decoder,
     ).to(device)
 
-    params = (
-        model.parameters()
-        if train_decoder
-        else list(model.encoder.parameters()) + list(model.cdvi.parameters())
-    )
+    params = model.parameters()
+    # else list(model.encoder.parameters()) + list(model.cdvi.parameters())
 
     optimizer = AdamW(params=params, lr=cfg.training.learning_rate)
 
@@ -382,7 +379,9 @@ def load_dvinp(
         case TrainerVariant.FORWARDANDCONTEXT:
             trainer = DVINPTrainerForwardAndContext(**trainer_params)
 
-    if dir is not None:
-        model, trainer = load_state_dicts_np(dir, model, trainer, load_decoder_only)
+    if dir is not None and load_model:
+        model, trainer = load_state_dicts_np(
+            dir, model, trainer, load_decoder_encoder_only
+        )
 
     return model, trainer, test_loader, val_loader

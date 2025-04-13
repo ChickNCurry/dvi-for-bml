@@ -171,13 +171,14 @@ def download_run_dvi(project: str, name: str) -> str:
 
 
 def load_state_dicts_np(
-    dir: str, model: NP, trainer: AbstractTrainer, load_decoder_only: bool
+    dir: str, model: NP, trainer: AbstractTrainer, load_decoder_encoder_only: bool
 ) -> Tuple[NP, AbstractTrainer]:
     model_path = f"{dir}/model.pth"
     decoder_path = f"{dir}/decoder.pth"
+    encoder_path = f"{dir}/encoder.pth"
     optim_path = f"{dir}/optim.pth"
 
-    if load_decoder_only:
+    if load_decoder_encoder_only:
         if os.path.exists(decoder_path):
             decoder_state_dict = torch.load(
                 decoder_path, map_location=torch.device("cpu"), weights_only=False
@@ -187,12 +188,21 @@ def load_state_dicts_np(
         else:
             print(f"decoder not found at {decoder_path}")
 
+        if os.path.exists(encoder_path):
+            encoder_state_dict = torch.load(
+                encoder_path, map_location=torch.device("cpu"), weights_only=False
+            )
+            model.encoder.load_state_dict(encoder_state_dict)
+            print(f"loaded encoder from {encoder_path}")
+        else:
+            print(f"encoder not found at {encoder_path}")
+
     else:
         if os.path.exists(model_path):
-            dvinp_state_dict = torch.load(
+            model_state_dict = torch.load(
                 model_path, map_location=torch.device("cpu"), weights_only=False
             )
-            model.load_state_dict(dvinp_state_dict)
+            model.load_state_dict(model_state_dict)
             print(f"loaded model from {model_path}")
         else:
             print(f"model not found at {model_path}")

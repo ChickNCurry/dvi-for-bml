@@ -83,8 +83,8 @@ class AggrLNP(LNP):
         # (batch_size, num_subtasks, h_dim + z_dim)
 
         z_mu = self.proj_z_mu(input)
-        # z_sigma = softplus(torch.clamp(self.proj_z_sigma(input), min=1e-6, max=1e2))
-        z_sigma = softplus(self.proj_z_sigma(input)) + 1e-6
+        z_sigma = softplus(torch.clamp(self.proj_z_sigma(input), min=1e-6, max=1e2))
+        # z_sigma = softplus(self.proj_z_sigma(input)) + 1e-6
         z_dist = Normal(z_mu, z_sigma)
 
         z = z_dist.rsample()
@@ -121,6 +121,10 @@ class BCALNP(LNP):
         # (batch_size, num_subtasks, data_size)
 
         (z_mu, z_var), _ = self.encoder(context, mask)
+
+        if torch.any(z_var < 0):
+            raise ValueError("Negative variance detected")
+
         z_dist = Normal(z_mu, torch.sqrt(z_var))
         z = z_dist.rsample()
         # (batch_size, num_subtasks, z_dim)
