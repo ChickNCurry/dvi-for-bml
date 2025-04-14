@@ -50,10 +50,6 @@ class ULA(CDVI):
         score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        # # check for nans ins score
-        # if torch.any(torch.isnan(score_n)):
-        #     raise ValueError("Nan detected in score")
-
         # if torch.any(var_n < 0):
         #     raise ValueError("Negative variance detected")
 
@@ -72,9 +68,6 @@ class ULA(CDVI):
         score_n = self.compute_score(n, z)
         # (batch_size, num_subtasks, z_dim)
 
-        # if torch.any(torch.isnan(score_n)):
-        #     raise ValueError("Nan detected in score")
-
         # if torch.any(var_n < 0):
         #     raise ValueError("Negative variance detected")
 
@@ -85,6 +78,9 @@ class ULA(CDVI):
         return Normal(z_mu, z_sigma)
 
     def compute_score(self, n: int, z: Tensor) -> Tensor:
+        # if torch.any(torch.isnan(z)):
+        #     raise ValueError("Nan detected in z")
+
         z = z.requires_grad_(True)
 
         beta_n = self.annealing_schedule.get(n)
@@ -93,6 +89,9 @@ class ULA(CDVI):
         target_log_prob = self.target.log_prob(z)
         log_geo_avg = (1 - beta_n) * prior_log_prob + beta_n * target_log_prob
 
+        # if torch.any(torch.isnan(target_log_prob)):
+        #     raise ValueError("Nan detected in target_log_prob")
+
         score_n = torch.autograd.grad(
             outputs=log_geo_avg,
             inputs=z,
@@ -100,5 +99,10 @@ class ULA(CDVI):
             create_graph=True,
             retain_graph=True,
         )[0]
+
+        # if torch.any(torch.isnan(score_n)):
+        #     # print("Nan detected in score_n")
+        #     # score_n = torch.nan_to_num(score_n, nan=0.0)
+        #     raise ValueError("Nan detected in score")
 
         return score_n
