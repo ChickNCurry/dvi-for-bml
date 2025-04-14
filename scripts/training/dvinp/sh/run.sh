@@ -3,8 +3,8 @@ which python
 
 python ../run_dvinp.py --multirun \
 hydra=gpu \
-model.model_variant=dis,dis_score \
-model.context_variant=mean,bca \
-model.noise_variant=free,constr \
 training.trainer_variant=cntxt,fwdcntxt \
+model.noise_variant=free,constr \
+model.context_variant=mean,bca,max \
+model.model_variant=dis,dis_score \
 training.seed=0,1 \

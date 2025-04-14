@@ -29,7 +29,7 @@ training:
     num_samples: 100
     max_context_size: 16
     learning_rate: 0.001
-    num_epochs: 50
+    num_epochs: 800
     max_clip_norm: 1.0
     alpha: null
     seed: 0

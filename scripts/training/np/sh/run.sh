@@ -1,13 +1,10 @@
-module load devel/miniconda
-conda activate dvi-for-bml
+source /home/ka/ka_anthropomatik/ka_km6619/dvi-for-bml/.venv/bin/activate
 which python
 
 python ../run_np.py --multirun \
 hydra=gpu \
-wandb.project=cluster-np \
-training.seed=0 \
-training.max_clip_norm=null,1.0 \
-model.self_attn_num_heads=null,1 \
 model.model_variant=cnp,lnp \
-model.context_variant=mean,bca \
+model.context_variant=mean,max,bca \
+model.self_attn_num_heads=null,8 \
 training.trainer_variant=data,target,context \
+# training.seed=0,1 \

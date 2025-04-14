@@ -5,7 +5,6 @@ python ../run_dvinp.py --multirun \
 hydra=cpu \
 model.model_variant=dis,dis_score \
 model.context_variant=mean,bca \
-model.contextual_schedules=true,false \
 model.noise_variant=free,constr \
-model.max_context_size=null,10 \
-model.self_attn_num_heads=null,8 \
+training.trainer_variant=cntxt,fwdcntxt \
+training.seed=0,1 \

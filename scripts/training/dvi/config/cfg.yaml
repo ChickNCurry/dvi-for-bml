@@ -36,4 +36,4 @@ training:
     seed: 0
 wandb:
     logging: true
-    project: cluster-dvi-new
+    project: DVI-NEW
