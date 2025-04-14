@@ -50,7 +50,8 @@ class BCAEncoder(AbstractEncoder):
 
         r = self.proj_r(h)
         test = self.proj_r_var(h)
-        r_var = torch.clamp(softplus(test), min=1e-6, max=5)
+        r_var = torch.clamp(softplus(test), min=1e-6, max=1e2)
+        # r_var = torch.clamp(softplus(test), min=1e-6, max=5)
         # r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e3))
         # (batch_size, num_subtasks, context_size, bca_dim)
 

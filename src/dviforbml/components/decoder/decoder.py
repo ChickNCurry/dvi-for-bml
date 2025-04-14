@@ -51,7 +51,8 @@ class Decoder(nn.Module):
         y_mu = self.proj_y_mu(h)
 
         # IMPORTANT FOR SCORE
-        y_sigma = softplus(torch.clamp(self.proj_y_sigma(h), min=1e-6, max=1e2))
+        y_sigma = softplus(torch.clamp(self.proj_y_sigma(h), min=1e-6))
+        # y_sigma = softplus(torch.clamp(self.proj_y_sigma(h), min=1e-6, max=1e2))
         # (batch_size, num_subtasks, data_size, y_dim)
 
         return Normal(y_mu, y_sigma)

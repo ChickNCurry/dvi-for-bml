@@ -15,19 +15,19 @@ model:
     h_dim: 64
     h_dim_dec: 32
     num_layers_enc: 6
-    num_layers_ctrl: 3
-    num_layers_sched: 3
+    num_layers_ctrl: 6
+    num_layers_sched: 6
     num_layers_dec: 2
     num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: 8
+    self_attn_num_heads: null
     max_context_size: 16
-    context_variant: mean
+    context_variant: bca
     model_variant: dis # ula
     noise_variant: free # constr
     noise_max: 1
     noise_min: 0.01
-    contextual_schedules: tree # false
+    contextual_schedules: true # false
 training:
     trainer_variant: cntxt
     batch_size: 128
