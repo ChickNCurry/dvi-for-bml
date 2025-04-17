@@ -10,8 +10,6 @@ from dviforbml.utils.load_dvinp import load_dvinp
 @hydra.main(version_base=None, config_name="cfg", config_path="config")
 def run(cfg: DictConfig) -> None:
 
-    # wandb.login(key=cfg.wandb.key)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model, trainer, _, val_loader = load_dvinp(cfg=cfg, device=device)
