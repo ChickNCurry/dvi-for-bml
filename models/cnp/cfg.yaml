@@ -1,22 +1,24 @@
 benchmark:
-    _target_: metalearning_benchmarks.sinusoid1d_benchmark.Sinusoid1DFreq # metalearning_benchmarks.line_sine1d_benchmark.LineSine1D
-    n_datapoints_per_task: 64
-    n_task: 4096
+    _target_: metalearning_benchmarks.line_sine1d_benchmark.LineSine1D # sinusoid1d_benchmark.Sinusoid1DFreq # line_sine1d_benchmark.LineSine1D # sinusoid1d_benchmark.Sinusoid1D
+    n_datapoints_per_task: 16
+    n_task: 1024
     output_noise: 0.1
     seed_noise: 1237
-    seed_task: 1237
+    seed_task: 5
     seed_x: 123
 model:
     x_dim: 1
     y_dim: 1
     c_dim: 2
     z_dim: 2
-    h_dim: 64
+    h_dim: 128
     num_layers: 6
+    h_dim_dec: 32
+    num_layers_dec: 2
     non_linearity: GELU
+    num_blocks: 1
     self_attn_num_heads: null
-    cross_attn_num_heads: null
-    max_context_size: null
+    max_context_size: null # 16
     context_variant: bca
     model_variant: cnp
 training:
@@ -25,10 +27,10 @@ training:
     num_subtasks: 32
     num_val_tasks: 32
     num_samples: 100
-    max_context_size: 64
+    max_context_size: 16
     learning_rate: 0.001
     num_epochs: 50
-    max_clip_norm: null
+    max_clip_norm: 1.0
     alpha: null
     seed: 0
 wandb:

@@ -52,6 +52,7 @@ def load_np(
     cfg: DictConfig,
     device: torch.device,
     dir: str | None = None,
+    load_model: bool = False,
 ) -> Tuple[LNP | CNP, LNPTrainer | CNPTrainer, DataLoader, DataLoader]:
     torch.manual_seed(cfg.training.seed)
     random.seed(cfg.training.seed)
@@ -184,7 +185,7 @@ def load_np(
                 case TrainerVariant.CONTEXT:
                     trainer = LNPTrainerContext(**trainer_params)
 
-    if dir is not None:
+    if dir is not None and load_model:
         model, trainer = load_state_dicts_np(dir, model, trainer, False)
 
     return model, trainer, test_loader, val_loader

@@ -48,10 +48,10 @@ class BCAEncoder(AbstractEncoder):
         h = self.compute_h(context, mask)
         # (batch_size, num_subtasks, context_size, h_dim)
 
-        r = self.proj_r(h)
+        r = torch.clamp(self.proj_r(h), min=-5e1, max=5e1)
         test = self.proj_r_var(h)
-        r_var = torch.clamp(softplus(test), min=1e-6, max=1e2)
-        # r_var = torch.clamp(softplus(test), min=1e-6, max=5)
+        r_var = torch.clamp(softplus(test), min=1e-2, max=1e1)
+        # r_var = torch.clamp(softplus(test), min=1e-6, max=2)
         # r_var = softplus(torch.clamp(self.proj_r_var(h), min=1e-6, max=1e3))
         # (batch_size, num_subtasks, context_size, bca_dim)
 
@@ -76,7 +76,7 @@ class BCAEncoder(AbstractEncoder):
         # (batch_size, num_subtasks, z_dim)
 
         # throw exception in nan are contained
-
+        # print(f"r: {r.min().item()}, {r.max().item()}")
         # print(f"r_var: {r_var.min().item()}, {r_var.max().item()}")
         # print(f"z_var: {z_var.min().item()}, {z_var.max().item()}")
         # print(f"z_mu: {z_mu.min().item()}, {z_mu.max().item()}")
