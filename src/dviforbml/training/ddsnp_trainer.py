@@ -240,10 +240,10 @@ class DDSNPTrainerContext(DDSNPTrainer):
         loss, z = self.model.cdvi.compute_loss(target, r_context, mask, s_context)
         # (batch_size, num_subtasks, z_dim)
 
-        y_dist_context = self.model.decoder(z[:, :, -1, :], x_context)
+        # y_dist_context = self.model.decoder(z[:, :, -1, :], x_context)
         y_dist_data = self.model.decoder(z[:, :, -1, :], x_data)
 
-        loss = loss - compute_lmpl(y_dist_context, y_context)
+        loss = loss  # - compute_lmpl(y_dist_context, y_context)
 
         lmpl = compute_lmpl(y_dist_data, y_data)
         mse = compute_mse(y_dist_data, y_data)

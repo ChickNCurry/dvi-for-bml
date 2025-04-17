@@ -16,12 +16,9 @@ from dviforbml.architectures.dvinp import DVINP
 from dviforbml.components.cdvi.dds import DDS
 from dviforbml.components.control.aggr_control import AggrControl
 from dviforbml.components.control.bca_control import BCAControl
-from dviforbml.components.control.mhca_control import MHCAControl
 from dviforbml.components.decoder.decoder import Decoder
 from dviforbml.components.encoder.aggr_encoder import Aggr, AggrEncoder
 from dviforbml.components.encoder.bca_encoder import BCAEncoder
-from dviforbml.components.encoder.mhca_encoder import MHCAEncoder
-
 from dviforbml.training.ddsnp_trainer import DDSNPTrainerContext
 
 from dviforbml.utils.datasets import MetaLearningDataset, Sinusoid1DFreq
@@ -32,7 +29,6 @@ class ContextVariant(Enum):
     MEAN = "mean"
     MAX = "max"
     BCA = "bca"
-    MHCA = "mhca"
 
 
 def load_ddsnp(
@@ -143,29 +139,6 @@ def load_ddsnp(
                 non_linearity=cfg.model.non_linearity,
                 max_context_size=cfg.model.max_context_size,
                 use_score=False,
-            )
-
-        case ContextVariant.MHCA:
-            encoder = MHCAEncoder(
-                c_dim=cfg.model.c_dim,
-                h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.z_dim,
-                num_layers=cfg.model.num_layers_enc,
-                non_linearity=cfg.model.non_linearity,
-                num_heads=cfg.model.self_attn_num_heads,
-                num_blocks=cfg.model.num_blocks,
-                max_context_size=cfg.model.max_context_size,
-            )
-
-            control = MHCAControl(
-                h_dim=cfg.model.h_dim,
-                z_dim=cfg.model.z_dim,
-                num_steps=cfg.model.num_steps,
-                num_layers=cfg.model.num_layers_ctrl,
-                non_linearity=cfg.model.non_linearity,
-                max_context_size=cfg.model.max_context_size,
-                use_score=False,
-                num_heads=cfg.model.cross_attn_num_heads,
             )
 
     cdvi = DDS(

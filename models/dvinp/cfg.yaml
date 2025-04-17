@@ -20,9 +20,9 @@ model:
     num_layers_dec: 2
     num_blocks: 1
     non_linearity: GELU
-    self_attn_num_heads: null
+    self_attn_num_heads: 1
     max_context_size: 16
-    context_variant: bca
+    context_variant: mean
     model_variant: dis # ula
     noise_variant: free # constr
     noise_max: 1
