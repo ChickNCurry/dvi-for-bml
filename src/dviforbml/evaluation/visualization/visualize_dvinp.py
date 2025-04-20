@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from matplotlib.patches import Patch
 import numpy as np
 import torch
 from matplotlib import cm
@@ -93,8 +94,6 @@ def visualize_dvinp(
         y_mu_sorted = y_dist.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         # (num_samples, target_size, y_dim)
 
-        mse = ((y_mu_sorted - y_data_sorted).sum(-1) ** 2).mean()
-
         num_cells = int(np.sqrt(x_data.shape[0] * x_data.shape[1]))
         grid = create_grid(ranges, num_cells)
 
@@ -121,11 +120,7 @@ def visualize_dvinp(
             y_dist_test.mean.gather(2, indices).squeeze(0).cpu().detach().numpy()
         )
 
-        jsd = compute_jsd(dvi_log_probs, target_log_probs)
-
-        ax[0].set_title(
-            "$\mu_{1:K}^y$ of $p_{\\theta}(y_{1:K}|x_{1:K},z_N)$" + f" (MSE: {mse:.2f})"
-        )
+        ax[0].set_title("$\mu_{1:K}^y$ of $p_{\\theta}(y_{1:K}|x_{1:K},z_N)$")
         ax[0].scatter(x_data_sorted, y_data_sorted, marker="o", c="black", zorder=1)
         ax[0].scatter(
             x_context.cpu().detach().numpy(),
@@ -144,11 +139,23 @@ def visualize_dvinp(
                 zorder=0,
             )
 
-        ax[1].set_title("$q_\phi(z_N|D^c)$" + f" (JSD: {jsd:.2f})")
+        lmpl = y_dist.log_prob(y_data).mean((0, 1)).sum().item()
+        mse = ((y_mu_sorted - y_data_sorted).sum(-1) ** 2).mean()
+
+        legend_patch_lmpl = Patch(facecolor="none", label=f"LMPL: {lmpl:.2f}")
+        legend_patch_mse = Patch(facecolor="none", label=f"MSE: {mse:.2f}")
+        ax[0].legend(handles=[legend_patch_lmpl, legend_patch_mse], fontsize=8)
+
+        ax[1].set_title("$q_\phi(z_N|D^c)$")
         ax[1].contourf(
             grid[:, :, 0], grid[:, :, 1], np.exp(dvi_log_probs), cmap=cm.coolwarm
         )
         ax[1].grid(True)
+
+        jsd = compute_jsd(dvi_log_probs, target_log_probs)
+
+        legend_patch = Patch(facecolor="none", label=f"JSD: {jsd:.2f}")
+        ax[1].legend(handles=[legend_patch], fontsize=8)
 
         ax[2].set_title("$p_\\theta(z_N|D^c)$")
         ax[2].contourf(

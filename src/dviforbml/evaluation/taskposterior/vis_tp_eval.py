@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from matplotlib.patches import Patch
 import numpy as np
 import torch
 from matplotlib import cm
@@ -13,6 +14,7 @@ from dviforbml.evaluation.taskposterior.grid import (
     eval_hist_on_grid,
     eval_score_on_grid,
 )
+from dviforbml.evaluation.taskposterior.tp_metrics import compute_jsd
 
 
 def vis_tp_eval(
@@ -23,7 +25,7 @@ def vis_tp_eval(
     max_context_size: int,
     save_dir: str,
     show_score: bool = False,
-    ranges: List[Tuple[float, float]] = [(-6, 6), (-6, 6)],
+    ranges: List[Tuple[float, float]] = [(-5, 5), (-5, 5)],
     index: int = 0,
 ) -> None:
     x_data, y_data = batch
@@ -40,7 +42,7 @@ def vis_tp_eval(
     fig, axs = plt.subplots(
         nrows=max_context_size,
         ncols=2 * len(model_infos),
-        figsize=(4 * len(model_infos), 2 * max_context_size),
+        figsize=(3 * len(model_infos), 1.5 * max_context_size),
     )
 
     if len(model_infos) == 1:
@@ -59,15 +61,26 @@ def vis_tp_eval(
         for col, model_info in enumerate(model_infos):
             assert model_info.model is not None
 
-            axs[0, col * 2].set_title("Approximation", fontsize=8)
+            # add 50 white spaces before name
+
+            axs[0, col * 2].set_title(
+                f"{' ' * 50}{model_info.name} \n Approximation", fontsize=8
+            )
             axs[0, col * 2 + 1].set_title("Target", fontsize=8)
 
-            bbox1 = axs[0, col * 2].get_position()
-            bbox2 = axs[0, col * 2 + 1].get_position()
-            mid_x = (bbox1.x0 + bbox2.x1) / 2
-            mid_y = bbox1.y1 + 0.04
+            # bbox1 = axs[0, col * 2].get_position()
+            # bbox2 = axs[0, col * 2 + 1].get_position()
+            # mid_x = (bbox1.x0 + bbox2.x1) / 2
+            # top_y = max(bbox1.y1, bbox2.y1)
 
-            fig.text(mid_x, mid_y, model_info.name, ha="center", fontsize=8)
+            # fig.text(
+            #     mid_x,
+            #     top_y + 0.02,
+            #     model_info.name,
+            #     ha="center",
+            #     va="bottom",
+            #     fontsize=8,
+            # )
 
             ax_model = axs[row, col * 2]
             ax_target = axs[row, col * 2 + 1]
@@ -105,11 +118,30 @@ def vis_tp_eval(
             )  # (num_samples, z_dim)
 
             ax_model.contourf(
-                grid[:, :, 0], grid[:, :, 1], np.exp(log_probs), cmap=cm.coolwarm
+                grid[:, :, 0],
+                grid[:, :, 1],
+                np.exp(log_probs),
+                cmap=cm.coolwarm,
             )
             ax_target.contourf(
-                grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
+                grid[:, :, 0],
+                grid[:, :, 1],
+                np.exp(target_log_probs),
+                cmap=cm.RdYlBu,  # cm.PuOr
             )
+
+            jsd = compute_jsd(log_probs, target_log_probs)
+
+            legend_patch = Patch(facecolor="none", label=f"JSD: {jsd:.2f}")
+            ax_model.legend(handles=[legend_patch], fontsize=8)
+
+            # for spine in ax_model.spines.values():
+            #     spine.set_edgecolor("tab:green")
+            #     spine.set_linewidth(2.0)
+
+            # for spine in ax_target.spines.values():
+            #     spine.set_edgecolor("tab:orange")
+            #     spine.set_linewidth(2.0)
 
             for ax in [ax_model, ax_target]:
                 ax.set_aspect("equal")
@@ -128,5 +160,6 @@ def vis_tp_eval(
                         scale_units="xy",
                     )
 
+    plt.tight_layout()
     plt.savefig(f"{save_dir}/tp_{index}.pdf")
     plt.close()

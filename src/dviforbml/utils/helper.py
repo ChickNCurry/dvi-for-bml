@@ -143,7 +143,8 @@ def download_run_np(project: str, name: str) -> str:
     if not os.path.exists(dir):
         api = wandb.Api()
 
-        for type in ["model.pth:v0", "optim.pth:v0", "cfg.yaml:v0", "decoder.pth:v0"]:
+        # "optim.pth:v0", "decoder.pth:v0"]:
+        for type in ["model.pth:v0", "metrics.csv:v0", "cfg.yaml:v0"]:
             artifact = api.artifact(f"{project}/{name}_{type}")
             artifact.download(root=dir)
 

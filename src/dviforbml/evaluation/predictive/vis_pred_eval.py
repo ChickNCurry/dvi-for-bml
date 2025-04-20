@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from matplotlib.patches import Patch
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
@@ -19,7 +20,7 @@ def vis_pred_eval(
     index: int = 0,
 ) -> None:
     x_data, y_data = batch
-    task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
+    # task_hash = hash_tensor(x_data)  # + hash_tensor(y_data)
 
     x_data = x_data.to(device)
     y_data = y_data.to(device)
@@ -40,18 +41,18 @@ def vis_pred_eval(
     fig, axs = plt.subplots(
         nrows=max_context_size,
         ncols=len(model_infos),
-        figsize=(4 * len(model_infos), 2 * max_context_size),
+        figsize=(3 * len(model_infos), 1.5 * max_context_size),
     )
 
-    fig.text(
-        0,
-        1,
-        task_hash,
-        fontsize=12,
-        color="blue",
-        ha="left",
-        va="top",
-    )
+    # fig.text(
+    #     0,
+    #     1,
+    #     task_hash,
+    #     fontsize=12,
+    #     color="blue",
+    #     ha="left",
+    #     va="top",
+    # )
 
     if len(model_infos) == 1:
         axs = np.expand_dims(axs, axis=1)
@@ -112,6 +113,17 @@ def vis_pred_eval(
                 x_context_np[0], y_context_np[0], marker="X", c="red", s=100, zorder=3
             )
 
+            lmpl = y_dist_data.log_prob(y_data).mean((0, 1)).sum().item()
+            mse = ((y_mu_sorted - y_data_sorted).sum(-1) ** 2).mean()
+
+            legend_patch_lmpl = Patch(facecolor="none", label=f"LMPL: {lmpl:.2f}")
+            legend_patch_mse = Patch(facecolor="none", label=f"MSE: {mse:.2f}")
+            ax.legend(handles=[legend_patch_lmpl, legend_patch_mse], fontsize=8)
+
+            ax.set_ylim(-10, 10)
+            ax.set_xticks([])
+            ax.set_yticks([])
+
             for k in range(num_samples):
                 ax.plot(
                     x_data_sorted[k], y_mu_sorted[k], alpha=0.8, c="tab:blue", zorder=1
@@ -127,5 +139,6 @@ def vis_pred_eval(
                         zorder=0,
                     )
 
-    plt.savefig(f"{save_dir}/pred_{index}.pdf")
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/pred_{index}.pdf")  # bbox_inches='tight'
     plt.close()

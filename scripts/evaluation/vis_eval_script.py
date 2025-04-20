@@ -38,12 +38,11 @@ def run(
                     cfg=cfg,
                     device=device,
                     dir=dir,
+                    load_model=True,
                 )
             elif info.type == ModelType.DVINP:
                 model, _, test_loader, _ = load_dvinp(
-                    cfg=cfg,
-                    device=device,
-                    dir=dir,
+                    cfg=cfg, device=device, dir=dir, load_model=True
                 )
 
         info.model = model
@@ -77,32 +76,22 @@ def run(
 if __name__ == "__main__":
     infos = [
         ModelInfo(
-            name="16-1-bca-free-dis-True-True-forwardandcontext-1.0-0",
-            project="cluster-dvinp-score2",
+            name="16-None-bca-dis-free-True-cntxt-0",
+            project="DVINP-NEW",
             type=ModelType.DVINP,
         ),
         ModelInfo(
-            name="16-1-bca-free-dis-True-False-forwardandcontext-1.0-0",
-            project="cluster-dvinp-noscore",
+            name="16-None-mean-dis-free-True-cntxt-0",
+            project="DVINP-NEW",
             type=ModelType.DVINP,
         ),
         ModelInfo(
-            name="16-1-bca-free-dis-True-False-context-1.0-0",
-            project="cluster-dvinp-noscore",
+            name="16-None-mean-dis-free-True-fwdcntxt-0",
+            project="DVINP-NEW",
             type=ModelType.DVINP,
-        ),
-        ModelInfo(
-            name="1-mean-lnp-data-1.0-0",
-            project="cluster-np",
-            type=ModelType.LNP,
-        ),
-        ModelInfo(
-            name="1-mean-cnp-data-None-0",
-            project="cluster-np",
-            type=ModelType.CNP,
         ),
     ]
 
     save_dir = "scripts/evaluation/plots"
 
-    run(model_infos=infos, num_tasks=6, num_samples=100, max_context_size=9)
+    run(model_infos=infos, num_tasks=1, num_samples=1600, max_context_size=5)
