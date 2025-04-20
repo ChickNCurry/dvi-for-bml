@@ -9,6 +9,7 @@ from dviforbml.utils.load_np import load_np
 
 @hydra.main(version_base=None, config_name="cfg", config_path="config")
 def run(cfg: DictConfig) -> None:
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model, trainer, _, val_loader = load_np(cfg=cfg, device=device)
@@ -24,7 +25,7 @@ def run(cfg: DictConfig) -> None:
         num_epochs=cfg.training.num_epochs,
         max_clip_norm=cfg.training.max_clip_norm,
         alpha=cfg.training.alpha,
-        validate=True,
+        validate=False,
     )
 
     if cfg.wandb.logging and wandb.run is not None:

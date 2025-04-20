@@ -15,15 +15,15 @@ model:
     x_dim: 1
     y_dim: 1
     c_dim: 2
-    z_dim: 8
-    h_dim: 64
+    z_dim: 2
+    h_dim: 128
     num_layers: 6
-    h_dim_dec: 64
-    num_layers_dec: 6
+    h_dim_dec: 32
+    num_layers_dec: 2
     non_linearity: GELU
     num_blocks: 1
-    self_attn_num_heads: 8
-    max_context_size: 16
+    self_attn_num_heads: null
+    max_context_size: null
     context_variant: mean
     model_variant: lnp
 training:
@@ -34,10 +34,10 @@ training:
     num_samples: 100
     max_context_size: 16
     learning_rate: 0.001
-    num_epochs: 2000
+    num_epochs: 1000
     max_clip_norm: 1.0
     alpha: null
     seed: 0
 wandb:
     logging: true
-    project: cluster-np-new
+    project: NP-HOPE

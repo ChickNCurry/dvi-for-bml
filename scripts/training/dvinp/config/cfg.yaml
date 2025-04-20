@@ -46,10 +46,10 @@ training:
     num_samples: 100
     max_context_size: 16
     learning_rate: 0.001
-    num_epochs: 800
+    num_epochs: 1000
     max_clip_norm: 1.0
     alpha: null
     seed: 0
 wandb:
     logging: true
-    project: DVINP-NEW
+    project: DVINP-HOPE-NEW

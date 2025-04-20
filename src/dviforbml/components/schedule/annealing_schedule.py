@@ -67,7 +67,7 @@ class AggrAnnealingSchedule(AbstractSchedule):
 
         input = torch.cat([r, s_emb], dim=-1) if s_emb is not None else r
         incr_pred: Tensor = (
-            softplus(self.incr_init[None, None, :] + self.incr_mlp(input)) + 1e-6
+            softplus(self.incr_init[None, None, :].to(device=input.device) + self.incr_mlp(input)) + 1e-6
         )  # (batch_size, num_subtasks, num_entries)
 
         incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)
@@ -126,7 +126,7 @@ class BCAAnnealingSchedule(AbstractSchedule):
         # (batch_size, num_subtasks, 2 * h_dim)
 
         incr_pred: Tensor = (
-            softplus(self.incr_init[None, None, :] + self.incr_mlp(input)) + 1e-6
+            softplus(self.incr_init[None, None, :].to(device=input.device) + self.incr_mlp(input)) + 1e-6
         )  # (batch_size, num_subtasks, num_entries)
 
         incr_pred = incr_pred / torch.sum(incr_pred, dim=-1, keepdim=True)

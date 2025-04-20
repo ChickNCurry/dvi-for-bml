@@ -15,7 +15,7 @@ from dviforbml.training.abstract_trainer import AbstractTrainer
 
 
 def get_name_np(cfg: DictConfig) -> str:
-    model_keys = ["model_variant", "context_variant", "self_attn_num_heads"]
+    model_keys = ["model_variant", "context_variant", "self_attn_num_heads", "z_dim", "max_context_size"]
     training_keys = ["trainer_variant", "seed"]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
@@ -32,6 +32,7 @@ def get_name_dvinp(cfg: DictConfig) -> str:
         "noise_variant",
         "self_attn_num_heads",
         "contextual_schedules",
+        "max_context_size"
     ]
     training_keys = ["trainer_variant", "seed"]
 

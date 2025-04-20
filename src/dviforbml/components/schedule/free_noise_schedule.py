@@ -84,7 +84,7 @@ class AggrFreeNoiseSchedule(AbstractSchedule):
             batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
-        self.vars = softplus(self.vars_init[None, None, None, :] + vars_pred) + 1e-6
+        self.vars = softplus(self.vars_init[None, None, None, :].to(device=input.device) + vars_pred) + 1e-6
         # (batch_size, num_subtasks, z_dim, num_entries)
 
     def get(self, n: int) -> Tensor:
@@ -151,7 +151,7 @@ class BCAFreeNoiseSchedule(AbstractSchedule):
             batch_size, num_subtasks, self.z_dim, self.num_entries
         )  # (batch_size, num_subtasks, z_dim, num_entries)
 
-        self.vars = softplus(self.vars_init[None, None, None, :] + vars_pred) + 1e-6
+        self.vars = softplus(self.vars_init[None, None, None, :].to(device=input.device) + vars_pred) + 1e-6
         # (batch_size, num_subtasks, z_dim, num_entries)
 
     def get(self, n: int) -> Tensor:

@@ -1,5 +1,5 @@
 mode: MULTIRUN
 launcher:
   partition: cpu
-  timeout_min: 120
+  timeout_min: 400
   mem_per_cpu: 4000
