@@ -66,7 +66,7 @@ def vis_tp_eval(
             axs[0, col * 2].set_title(
                 f"{' ' * 50}{model_info.name} \n Approximation", fontsize=8
             )
-            axs[0, col * 2 + 1].set_title("Target", fontsize=8)
+            axs[0, col * 2 + 1].set_title("Ground Truth", fontsize=8)
 
             # bbox1 = axs[0, col * 2].get_position()
             # bbox2 = axs[0, col * 2 + 1].get_position()

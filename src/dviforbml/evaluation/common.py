@@ -20,3 +20,4 @@ class ModelInfo:
     type: ModelType
     model: NP | None = None
     val_loader: DataLoader[Any] | None = None
+    dir = None

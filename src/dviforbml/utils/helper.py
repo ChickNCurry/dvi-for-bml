@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Tuple
 
 import torch
@@ -15,7 +16,13 @@ from dviforbml.training.abstract_trainer import AbstractTrainer
 
 
 def get_name_np(cfg: DictConfig) -> str:
-    model_keys = ["model_variant", "context_variant", "self_attn_num_heads", "z_dim", "max_context_size"]
+    model_keys = [
+        "model_variant",
+        "context_variant",
+        "self_attn_num_heads",
+        "z_dim",
+        "max_context_size",
+    ]
     training_keys = ["trainer_variant", "seed"]
 
     model_values = [f"{v}" for k, v in cfg.model.items() if k in model_keys]
@@ -32,7 +39,7 @@ def get_name_dvinp(cfg: DictConfig) -> str:
         "noise_variant",
         "self_attn_num_heads",
         "contextual_schedules",
-        "max_context_size"
+        "max_context_size",
     ]
     training_keys = ["trainer_variant", "seed"]
 
@@ -138,13 +145,19 @@ def upload_run_dvi(
 
 
 def download_run_np(project: str, name: str) -> str:
-    dir = f"../models/{project}/{name}"
+    dir = f"./models/{project}/{name}"
 
     if not os.path.exists(dir):
         api = wandb.Api()
 
         # "optim.pth:v0", "decoder.pth:v0"]:
-        for type in ["model.pth:v0", "metrics.csv:v0", "cfg.yaml:v0"]:
+        for type in [
+            "model.pth:v1",
+            "metrics.csv:v1",
+            "cfg.yaml:v1",
+            "optim.pth:v1",
+            "decoder.pth:v1",
+        ]:
             artifact = api.artifact(f"{project}/{name}_{type}")
             artifact.download(root=dir)
 
@@ -152,9 +165,7 @@ def download_run_np(project: str, name: str) -> str:
 
 
 def download_run_dvi(project: str, name: str) -> str:
-    dir = f"../models/{project}/{name}"
-
-    print(dir)
+    dir = f"./models/{project}/{name}"
 
     if not os.path.exists(dir):
         api = wandb.Api()

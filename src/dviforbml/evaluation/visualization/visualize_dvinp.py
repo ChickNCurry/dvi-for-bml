@@ -159,7 +159,7 @@ def visualize_dvinp(
 
         ax[2].set_title("$p_\\theta(z_N|D^c)$")
         ax[2].contourf(
-            grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.coolwarm
+            grid[:, :, 0], grid[:, :, 1], np.exp(target_log_probs), cmap=cm.RdYlBu
         )
         ax[2].grid(True)
 
@@ -206,7 +206,7 @@ def visualize_dvinp(
             a.set_yticks([])
 
     if save_dir is not None:
-        plt.savefig(f"{save_dir}/dvinp.png")
+        plt.savefig(f"{save_dir}/{task_hash[:8]}.png")
     else:
         plt.show()
 
